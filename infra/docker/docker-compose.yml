@@ -20,3 +20,16 @@ services:
     build: ../../backend/services/admin-management-service
   ai-symptom-checker-service:
     build: ../../backend/services/ai-symptom-checker-service
+  postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: authdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+volumes:
+  auth-db-data:
+

@@ -1,0 +1,22 @@
+version: '3.9'
+services:
+  api-gateway:
+    build: ../../backend/api-gateway
+  auth-service:
+    build: ../../backend/services/auth-service
+  patient-management-service:
+    build: ../../backend/services/patient-management-service
+  doctor-management-service:
+    build: ../../backend/services/doctor-management-service
+  appointment-service:
+    build: ../../backend/services/appointment-service
+  telemedicine-service:
+    build: ../../backend/services/telemedicine-service
+  payment-service:
+    build: ../../backend/services/payment-service
+  notification-service:
+    build: ../../backend/services/notification-service
+  admin-management-service:
+    build: ../../backend/services/admin-management-service
+  ai-symptom-checker-service:
+    build: ../../backend/services/ai-symptom-checker-service

@@ -4,11 +4,15 @@
 // Use a validation library (e.g., joi) or custom checks
 
 exports.validateRegister = (req, res, next) => {
-  // TODO: add real validation
+  const { email, password, role } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'email_and_password_required' });
+  const allowed = ['patient', 'doctor', 'admin'];
+  if (role && !allowed.includes(role)) return res.status(400).json({ error: 'invalid_role' });
   next();
 };
 
 exports.validateLogin = (req, res, next) => {
-  // TODO: check presence of email/username and password
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'email_and_password_required' });
   next();
 };

@@ -83,3 +83,56 @@ exports.login = async (credentials) => {
 
   return { accessToken, refreshToken, expiresAt };
 };
+
+exports.refreshToken = async (rawToken) => {
+  // find non-expired tokens
+  const res = await db.query('SELECT token_id, user_id, token_hash, expires_at, revoked_at FROM refresh_tokens WHERE expires_at > now()');
+  const rows = res.rows || [];
+  let found = null;
+  for (const row of rows) {
+    if (row.revoked_at) continue;
+    const match = await bcrypt.compare(rawToken, row.token_hash);
+    if (match) {
+      found = row;
+      break;
+    }
+  }
+  if (!found) {
+    const e = new Error('invalid_refresh_token');
+    e.status = 401;
+    throw e;
+  }
+
+  // issue new access token
+  const payload = { sub: found.user_id };
+  const accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+
+  // rotate: revoke old token and insert a new one
+  await db.query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1', [found.token_id]);
+  const newRaw = crypto.randomBytes(64).toString('hex');
+  const newHash = await bcrypt.hash(newRaw, SALT_ROUNDS);
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.query('INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)', [found.user_id, newHash, expiresAt]);
+
+  return { accessToken, refreshToken: newRaw, expiresAt };
+};
+
+exports.logout = async (rawToken) => {
+  // mark matching refresh token as revoked
+  const res = await db.query('SELECT token_id, token_hash FROM refresh_tokens WHERE revoked_at IS NULL');
+  const rows = res.rows || [];
+  for (const row of rows) {
+    const match = await bcrypt.compare(rawToken, row.token_hash);
+    if (match) {
+      await db.query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1', [row.token_id]);
+      return;
+    }
+  }
+  const e = new Error('invalid_refresh_token');
+  e.status = 401;
+  throw e;
+};
+
+exports.verifyToken = async (token) => {
+  return jwt.verify(token, env.JWT_SECRET || '');
+};

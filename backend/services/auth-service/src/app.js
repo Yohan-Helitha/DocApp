@@ -2,8 +2,12 @@ const express = require('express');
 const env = require('./config/environment');
 const logger = require('./config/logger');
 const db = require('./config/db');
+const cors = require('cors');
 
 const app = express();
+
+// Enable CORS for local frontend testing. For production restrict origins.
+app.use(cors());
 
 app.use(express.json());
 

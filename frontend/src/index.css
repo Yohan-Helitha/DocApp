@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom global styles using the theme colors */
+body { @apply bg-pagebg text-dark; }
+.site-header { @apply flex justify-between items-center p-3 bg-white border-b border-gray-200; }
+.logo { @apply font-bold text-lg text-dark; }
+.btn { @apply px-3 py-2 rounded border border-gray-300 bg-white; }
+.btn-primary { @apply bg-primary text-white border-primary; }
+.container { @apply p-6; }
+.card { @apply bg-white p-6 rounded shadow-sm; }
+.success { @apply text-primary font-semibold; }

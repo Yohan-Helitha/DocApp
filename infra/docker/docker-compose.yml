@@ -4,8 +4,8 @@ services:
     build: ../../backend/api-gateway
   auth-service:
     build: ../../backend/services/auth-service
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/authdb
+    env_file:
+      - ../../backend/services/auth-service/.env
   patient-management-service:
     build: ../../backend/services/patient-management-service
   doctor-management-service:
@@ -22,6 +22,12 @@ services:
     build: ../../backend/services/admin-management-service
   ai-symptom-checker-service:
     build: ../../backend/services/ai-symptom-checker-service
+  frontend:
+    build: ../../frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - auth-service
   postgres:
     image: postgres:15.4-alpine
     environment:

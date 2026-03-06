@@ -4,6 +4,8 @@ services:
     build: ../../backend/api-gateway
   auth-service:
     build: ../../backend/services/auth-service
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/authdb
   patient-management-service:
     build: ../../backend/services/patient-management-service
   doctor-management-service:

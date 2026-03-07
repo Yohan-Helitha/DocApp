@@ -10,6 +10,7 @@ export default function Login({ navigate }){
     const r = await Api.post('/api/v1/auth/login', { email, password })
     if(r.status===200 && r.body && r.body.accessToken){
       sessionStorage.setItem('accessToken', r.body.accessToken)
+      if(r.body.refreshToken) sessionStorage.setItem('refreshToken', r.body.refreshToken)
       try{ const payload = JSON.parse(atob(r.body.accessToken.split('.')[1])); const role = payload.role; if(role==='doctor') navigate('/success/doctor'); else navigate('/success/patient'); return; }catch(e){ navigate('/'); return; }
     }
     setMsg(r.body && r.body.error ? r.body.error : 'Login failed')

@@ -6,6 +6,8 @@ services:
     build: ../../backend/services/auth-service
     env_file:
       - ../../backend/services/auth-service/.env
+    ports:
+      - "4000:4000"
   patient-management-service:
     build: ../../backend/services/patient-management-service
   doctor-management-service:
@@ -25,7 +27,7 @@ services:
   frontend:
     build: ../../frontend
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - auth-service
   postgres:

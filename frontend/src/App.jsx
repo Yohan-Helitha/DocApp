@@ -1,20 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import Header from './layouts/Header'
+import Footer from './layouts/Footer'
+import Home from './pages/Home'
 import RegisterPatient from './features/auth/Register'
 import Login from './features/auth/Login'
 import SuccessPatient from './features/auth/SuccessPatient'
 import SuccessDoctor from './features/auth/SuccessDoctor'
-
-function Home(){
-  return (
-    <div className="container">
-      <div className="card">
-        <h2>Welcome to DocApp</h2>
-        <p>Use the header buttons to Register or Login.</p>
-      </div>
-    </div>
-  )
-}
 
 export default function App(){
   const [route,setRoute] = useState(window.location.hash.replace('#','') || '/')
@@ -34,9 +25,12 @@ export default function App(){
   else if(route.startsWith('/success/doctor')) Page = ()=> <SuccessDoctor navigate={navigate} />
 
   return (
-    <div>
+    <div className="min-h-screen flex flex-col">
       <Header navigate={navigate} />
-      <Page />
+      <main className="flex-1">
+        <Page />
+      </main>
+      <Footer />
     </div>
   )
 }

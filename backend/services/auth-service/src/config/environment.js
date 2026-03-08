@@ -4,7 +4,8 @@ const getEnv = (name, defaultValue) => process.env[name] || defaultValue;
 
 module.exports = {
   NODE_ENV: getEnv('NODE_ENV', 'development'),
-  PORT: Number(getEnv('PORT', '4000')),
+  // Auth service listens on 4001 by default; API Gateway remains on 4000.
+  PORT: Number(getEnv('PORT', '4001')),
   DATABASE_URL: getEnv('DATABASE_URL', ''),
   PGHOST: getEnv('PGHOST', 'localhost'),
   PGPORT: Number(getEnv('PGPORT', '5432')),

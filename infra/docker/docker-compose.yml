@@ -2,8 +2,16 @@ version: '3.9'
 services:
   api-gateway:
     build: ../../backend/api-gateway
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:4001
+    ports:
+      - "4000:4000"
+    depends_on:
+      - auth-service
   auth-service:
     build: ../../backend/services/auth-service
+    env_file:
+      - ../../backend/services/auth-service/.env
   patient-management-service:
     build: ../../backend/services/patient-management-service
   doctor-management-service:
@@ -20,3 +28,41 @@ services:
     build: ../../backend/services/admin-management-service
   ai-symptom-checker-service:
     build: ../../backend/services/ai-symptom-checker-service
+  frontend:
+    # Development-first frontend service: bind-mount host source into container
+    # Runs Vite dev server so edits are reflected live. Vite listens on 5173
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ../../frontend:/app:delegated
+      - /app/node_modules
+    ports:
+      # Map host 8081 to Vite dev port 5173 so you can visit http://localhost:8081
+      - "8081:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:4000
+    command: sh -c "npm install --silent && npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      - api-gateway
+      - auth-service
+      - patient-management-service
+      - doctor-management-service
+      - appointment-service
+      - telemedicine-service
+      - payment-service
+      - notification-service
+      - admin-management-service
+      - ai-symptom-checker-service
+  postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: authdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+volumes:
+  auth-db-data:
+

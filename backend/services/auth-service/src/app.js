@@ -10,6 +10,8 @@ const app = express();
 app.use(cors());
 
 app.use(express.json());
+// Accept URL-encoded bodies (forms) as well
+app.use(express.urlencoded({ extended: true }));
 
 // Attach logger and db to request for handlers
 app.use((req, res, next) => {
@@ -33,3 +35,5 @@ app.get('/health', async (req, res) => {
 app.use(require('./routes/authRoutes'));
 
 module.exports = app;
+
+// Also accept URL-encoded bodies (forms)

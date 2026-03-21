@@ -1,0 +1,97 @@
+SE3020 – Distributed Systems 
+BSc (Hons) in Information Technology Specialized in Software Engineering 
+Year 3 – Semester 1  
+2026 – Assignment 1 
+Assignment Duration – 5 Weeks 
+Title: Building an AI-Enabled Smart Healthcare Appointment & Telemedicine Platform 
+using Microservices 
+Note: This assignment carries a weightage of 25% towards the final grade. It is a group project 
+with 3 to 4 members. 
+You have been asked to develop a cloud-native healthcare platform similar to real-world 
+telemedicine systems such as Channeling.lk, oDoc, or mHealth, which allows patients to book 
+doctor appointments, attend video consultations, upload medical reports, and receive AI-based 
+preliminary health suggestions. Below are the requirements provided by the client and/or the 
+Business Analyst. 
+Requirements: 
+▪ Web/Mobile Interface: Develop a web/mobile interface where patients can browse available 
+doctors, book appointments, and attend video consultations. Ensure the interface is user
+friendly and supports various devices. 
+▪ Patient Management Service: Implement a service where patients can register, manage their 
+profiles, upload medical reports/documents, and view their medical history and past 
+prescriptions. 
+▪ Patient role – Register, manage profile, book appointments, upload reports, view 
+prescriptions, attend video consultations. 
+▪ Admin role – Manage user accounts, verify doctor registrations, and oversee platform 
+operations and financial transactions. 
+▪ Doctor Management Service: Develop a service where doctors can manage their profiles, set 
+availability schedules, conduct video consultations, and issue digital prescriptions. 
+▪ Doctor role – Manage profile and availability, accept/reject appointment requests, 
+conduct telemedicine sessions, issue digital prescriptions, and view patient-uploaded 
+reports. 
+▪ Appointment Service: Implement a service that allows patients to search for doctors by 
+specialty, book appointments, modify or cancel bookings, and track appointment status in real 
+time. 
+▪ Telemedicine Service (Video Session Integration): Implement a secure video consultation 
+module that enables patients and doctors to connect in real time. Integrate a third-party 
+video/conferencing API such as Agora, Twilio, or Jitsi Meet. 
+▪ Payment Service: Integrate secure online payment gateways for consultation fees. Use Sri 
+Lankan third-party services such as PayHere, Dialog Genie, or FriMi (or internationally 
+recognized services such as Stripe or PayPal (sandbox environment)). 
+▪ Notification Service: Upon successful appointment booking or consultation completion, 
+patients and doctors should receive confirmation via SMS and email. Utilize third-party 
+SMS and email services for sending notifications. 
+▪ AI Symptom Checker Service (Optional Enhancement): Develop an optional AI-powered 
+service where patients can input their symptoms and receive preliminary health suggestions 
+and recommended doctor specialties. Integrate a suitable AI/ML API or model for this 
+purpose. 
+You may add new functionalities other than those mentioned in the description. 
+Implementation: 
+1. Based on the provided requirements, develop a set of RESTful web services to 
+implement the healthcare platform. You may choose any technology stack to implement 
+the services. Ensure the services are designed following REST principles, maintaining 
+scalability, security, and performance. 
+2. You must use the Microservices architecture to develop/integrate the API. Ensure that 
+you use Docker and Kubernetes. If you are using any other tool for Microservices 
+orchestration/integration, you may justify that in the report and during the viva. 
+3. Develop an asynchronous web client using any JavaScript framework that supports 
+asynchronous programming (such as Angular, React, etc.) or use regular jQuery + 
+AJAX. However, for the scope of this assignment, implementing just an asynchronous 
+web client is sufficient. 
+4. Use appropriate security/authentication mechanisms to uniquely identify each user and 
+authenticate them. There should be three roles: 
+o Patient – Browse doctors, book appointments, attend video consultations, upload 
+medical reports, and receive prescriptions. 
+o Doctor – Manage availability, conduct consultations, and issue digital 
+prescriptions, view patient records. 
+o Admin – Manage user accounts, verify doctor registrations, and handle platform 
+operations. 
+Deliverables: 
+1. A text file called submission.txt, containing a GitHub repository link with all the source 
+code. The source code should contain the backend services, client, and any other 
+relevant source/resource files (e.g., database scripts), arranged in a proper directory 
+structure. 
+2. The submission.txt should contain a YouTube video link of a presentation/demo of the 
+project. Each member may use a maximum of 3 minutes to explain their contribution, so 
+the total video length should not exceed 12 minutes. 
+3. A readme.txt document, listing down the steps to deploy the above deliverables. 
+4. A members.txt file, containing the names, registration numbers, and the IDs of the group 
+members. 
+5. A report in PDF format (report.pdf). The report should include: 
+o A high-level architectural diagram showing the services and their 
+interconnectivity. 
+o A list of interfaces (NOT the user interfaces, but the service interfaces) exposed 
+by each service. 
+o A brief explanation of each workflow used in the system (you may use design 
+diagrams of your choice to do this). 
+o Details about authentication/security mechanisms adopted. 
+o Individual contributions of each group member. 
+You may use code snippets in the report to explain the above. 
+The report must have an appendix with all the code that you have written (excluding the auto
+generated code). Do not paste screenshots of the code in the appendix; instead, copy the code 
+as text. If screenshots are added in the appendix, only the minimum mark may be offered. 
+Note: All reports will be uploaded to Turnitin for plagiarism checking. If the Turnitin similarity 
+is above 20%, marks will be penalized. 
+Submission Details: 
+• All files should be uploaded in a single ZIP archive. The ZIP file name should be Group 
+ID_DS-Assignment.zip. Only one member needs to upload the submission. 
+• Submission Deadline: 11th week of the semester. 

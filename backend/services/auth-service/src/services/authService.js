@@ -1,13 +1,13 @@
 // Auth service: implements registration and login per schema
-const db = require('../config/db');
-const env = require('../config/environment');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+import db from '../config/db.js';
+import env from '../config/environment.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const SALT_ROUNDS = Number(env.BCRYPT_SALT_ROUNDS) || 10;
 
-exports.register = async (userData) => {
+export const register = async (userData) => {
   const { email, password, role } = userData || {};
   if (!email || !password || !role) {
     const err = new Error('invalid_input');
@@ -44,7 +44,7 @@ exports.register = async (userData) => {
   }
 };
 
-exports.login = async (credentials) => {
+export const login = async (credentials) => {
   const { email, password } = credentials || {};
   if (!email || !password) {
     const err = new Error('invalid_input');
@@ -84,7 +84,7 @@ exports.login = async (credentials) => {
   return { accessToken, refreshToken, expiresAt };
 };
 
-exports.refreshToken = async (rawToken) => {
+export const refreshToken = async (rawToken) => {
   // find non-expired tokens
   const res = await db.query('SELECT token_id, user_id, token_hash, expires_at, revoked_at FROM refresh_tokens WHERE expires_at > now()');
   const rows = res.rows || [];
@@ -117,7 +117,7 @@ exports.refreshToken = async (rawToken) => {
   return { accessToken, refreshToken: newRaw, expiresAt };
 };
 
-exports.logout = async (rawToken) => {
+export const logout = async (rawToken) => {
   // mark matching refresh token as revoked
   const res = await db.query('SELECT token_id, token_hash FROM refresh_tokens WHERE revoked_at IS NULL');
   const rows = res.rows || [];
@@ -133,6 +133,6 @@ exports.logout = async (rawToken) => {
   throw e;
 };
 
-exports.verifyToken = async (token) => {
+export const verifyToken = async (token) => {
   return jwt.verify(token, env.JWT_SECRET || '');
 };

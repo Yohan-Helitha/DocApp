@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "API Gateway for DocApp microservices (auth-only initial implementation)",
   "main": "server.js",
+  "type": "module",
   "engines": {
     "node": ">=18.0.0"
   },

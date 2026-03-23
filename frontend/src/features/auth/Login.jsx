@@ -16,7 +16,46 @@ export default function Login({ navigate }){
       if(r.status===200 && r.body && r.body.accessToken){
         sessionStorage.setItem('accessToken', r.body.accessToken)
         if(r.body.refreshToken) sessionStorage.setItem('refreshToken', r.body.refreshToken)
-        try{ const payload = JSON.parse(atob(r.body.accessToken.split('.')[1])); const role = payload.role; if(role==='doctor') navigate('/success/doctor'); else navigate('/success/patient'); return; }catch(e){ navigate('/'); return; }
+        try{
+          const payload = JSON.parse(atob(r.body.accessToken.split('.')[1]));
+          const role = payload.role
+          if(role === 'doctor') {
+            if(navigate) navigate('/success/doctor')
+            else window.location.hash = '/success/doctor'
+            return
+          }
+          if(role === 'admin' || role === 'administrator') {
+            if(navigate) navigate('/success/admin')
+            else window.location.hash = '/success/admin'
+            return
+          }
+          if(navigate) navigate('/success/patient')
+          else window.location.hash = '/success/patient'
+          return
+        }catch(e){
+          // Fallback: try to fetch profile from server to determine role
+          try{
+            const me = await Api.get('/api/v1/auth/me', r.body.accessToken);
+            const role = me && me.body && me.body.user && me.body.user.role;
+            if(role === 'doctor') {
+              if(navigate) navigate('/success/doctor')
+              else window.location.hash = '/success/doctor'
+              return
+            }
+            if(role === 'admin' || role === 'administrator') {
+              if(navigate) navigate('/success/admin')
+              else window.location.hash = '/success/admin'
+              return
+            }
+            if(navigate) navigate('/success/patient')
+            else window.location.hash = '/success/patient'
+            return
+          }catch(err){
+            if(navigate) navigate('/')
+            else window.location.hash = '/'
+            return
+          }
+        }
       }
       setMsg(r.body && r.body.error ? r.body.error : 'Login failed')
     }catch(err){

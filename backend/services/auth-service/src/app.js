@@ -1,8 +1,9 @@
-const express = require('express');
-const env = require('./config/environment');
-const logger = require('./config/logger');
-const db = require('./config/db');
-const cors = require('cors');
+import express from 'express';
+import env from './config/environment.js';
+import logger from './config/logger.js';
+import db from './config/db.js';
+import cors from 'cors';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 
@@ -32,8 +33,6 @@ app.get('/health', async (req, res) => {
 });
 
 // Mount auth routes
-app.use(require('./routes/authRoutes'));
+app.use(authRoutes);
 
-module.exports = app;
-
-// Also accept URL-encoded bodies (forms)
+export default app;

@@ -24,7 +24,7 @@
     results.login = { status: loginRes.status, body: loginBody };
 
     const access = loginBody && loginBody.accessToken;
-    const refresh = loginBody && loginBody.refreshToken;
+    const refresh = loginBody && loginBody.refreshToken;check
 
     // 4) Refresh token
     const refreshRes = await fetch(base + '/api/v1/auth/refresh-token', { method: 'POST', headers, body: JSON.stringify({ refreshToken: refresh }) });

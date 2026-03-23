@@ -1,6 +1,6 @@
-const authService = require('../services/authService');
+import * as authService from '../services/authService.js';
 
-exports.register = async (req, res) => {
+export const register = async (req, res) => {
   try {
     const result = await authService.register(req.body);
     return res.status(201).json(result);
@@ -11,7 +11,7 @@ exports.register = async (req, res) => {
   }
 };
 
-exports.registerRole = async (req, res, role) => {
+export const registerRole = async (req, res, role) => {
   try {
     const payload = Object.assign({}, req.body, { role });
     const result = await authService.register(payload);
@@ -23,7 +23,7 @@ exports.registerRole = async (req, res, role) => {
   }
 };
 
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
   try {
     const tokens = await authService.login(req.body);
     return res.json(tokens);
@@ -34,7 +34,7 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.refreshToken = async (req, res) => {
+export const refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body || {};
     if (!refreshToken) return res.status(400).json({ error: 'missing_refresh_token' });
@@ -47,7 +47,7 @@ exports.refreshToken = async (req, res) => {
   }
 };
 
-exports.logout = async (req, res) => {
+export const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body || {};
     if (!refreshToken) return res.status(400).json({ error: 'missing_refresh_token' });
@@ -60,7 +60,7 @@ exports.logout = async (req, res) => {
   }
 };
 
-exports.verifyToken = async (req, res) => {
+export const verifyToken = async (req, res) => {
   try {
     const token = (req.headers.authorization || '').startsWith('Bearer ') ? (req.headers.authorization || '').split(' ')[1] : req.query.token;
     if (!token) return res.status(400).json({ error: 'missing_token' });
@@ -71,7 +71,7 @@ exports.verifyToken = async (req, res) => {
   }
 };
 
-exports.me = async (req, res) => {
+export const me = async (req, res) => {
   // TODO: implement authenticated profile lookup (populate req.user in middleware)
   if (req.user) {
     return res.json({ user: req.user });

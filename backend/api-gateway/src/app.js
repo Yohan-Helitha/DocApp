@@ -1,8 +1,8 @@
-const express = require('express');
-const cors = require('cors');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const env = require('./config/environment');
-const logger = require('./config/logger');
+import express from 'express';
+import cors from 'cors';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import env from './config/environment.js';
+import logger from './config/logger.js';
 
 const app = express();
 
@@ -56,4 +56,4 @@ app.use(
   })
 );
 
-module.exports = app;
+export default app;

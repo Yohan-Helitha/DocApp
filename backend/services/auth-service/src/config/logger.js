@@ -1,4 +1,4 @@
-const pino = require('pino');
+import pino from 'pino';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -9,4 +9,4 @@ if (!isProd) {
   logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 }
 
-module.exports = logger;
+export default logger;

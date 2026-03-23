@@ -1,6 +1,6 @@
-const env = require('./src/config/environment');
-const app = require('./src/app');
-const logger = require('./src/config/logger');
+import env from './src/config/environment.js';
+import app from './src/app.js';
+import logger from './src/config/logger.js';
 
 const port = env.PORT || 4000;
 

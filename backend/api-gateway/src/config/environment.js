@@ -1,8 +1,8 @@
-require('dotenv').config();
+import 'dotenv/config';
 
 const getEnv = (name, defaultValue) => process.env[name] || defaultValue;
 
-module.exports = {
+export default {
   NODE_ENV: getEnv('NODE_ENV', 'development'),
   PORT: Number(getEnv('PORT', '4000')),
   // Gateway talks to auth-service on its internal port 4001

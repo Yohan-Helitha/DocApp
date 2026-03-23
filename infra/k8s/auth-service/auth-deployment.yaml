@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: docapp/auth-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4001
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PGHOST
+              value: "auth-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: JWT_SECRET
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001

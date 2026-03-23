@@ -1,15 +1,18 @@
-const express = require('express');
-const cors = require('cors');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const env = require('./config/environment');
-const logger = require('./config/logger');
+import express from 'express';
+import cors from 'cors';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import env from './config/environment.js';
+import logger from './config/logger.js';
 
 const app = express();
 
 // Enable CORS for local frontend testing. For production restrict origins.
 app.use(cors());
 
-app.use(express.json());
+// NOTE: We intentionally do NOT use express.json/urlencoded here.
+// The gateway just proxies raw requests; the auth-service parses JSON.
+// Accept URL-encoded bodies (forms) too — frontend may submit form-encoded data
+app.use(express.urlencoded({ extended: true }));
 
 // Attach logger to request for handlers
 app.use((req, res, next) => {
@@ -41,15 +44,8 @@ app.use(
         'Proxying request to auth-service'
       );
 
-      // If body is present (express.json consumed it), forward it to target
-      // so POST/PUT requests are proxied correctly.
-      if (req.body && Object.keys(req.body).length) {
-        const bodyData = JSON.stringify(req.body);
-        // ensure content-type and length headers are set on proxied request
-        proxyReq.setHeader('Content-Type', 'application/json');
-        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-        proxyReq.write(bodyData);
-      }
+      // We don't touch the body here; http-proxy-middleware streams
+      // the original request (including JSON) directly to auth-service.
     },
     onError(err, req, res) {
       logger.error({ err }, 'Error proxying request to auth-service');
@@ -60,4 +56,4 @@ app.use(
   })
 );
 
-module.exports = app;
+export default app;

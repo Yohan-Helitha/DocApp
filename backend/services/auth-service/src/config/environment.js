@@ -1,8 +1,8 @@
-require('dotenv').config();
+import 'dotenv/config';
 
 const getEnv = (name, defaultValue) => process.env[name] || defaultValue;
 
-module.exports = {
+export default {
   NODE_ENV: getEnv('NODE_ENV', 'development'),
   // Auth service listens on 4001 by default; API Gateway remains on 4000.
   PORT: Number(getEnv('PORT', '4001')),

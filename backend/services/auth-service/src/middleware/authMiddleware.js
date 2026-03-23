@@ -3,11 +3,11 @@
 // - Attaches user record to `req.user` when valid
 // - Returns 401 on missing/invalid token
 
-const jwt = require('jsonwebtoken');
-const env = require('../config/environment');
-const db = require('../config/db');
+import jwt from 'jsonwebtoken';
+import env from '../config/environment.js';
+import db from '../config/db.js';
 
-module.exports = async (req, res, next) => {
+export default async (req, res, next) => {
   const auth = req.headers.authorization || '';
   if (!auth || !auth.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'missing_token' });

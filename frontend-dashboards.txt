@@ -1,0 +1,40 @@
+SE3020 – Smart Healthcare Platform
+Frontend Specification – Dashboards
+
+This document lists the high‑level dashboard views you should implement if you strictly follow the assignment specification. Each dashboard can be implemented as a dedicated route in the React frontend.
+
+1. Patient Dashboard
+- Purpose: Give a signed‑in patient a single place to see the status of their healthcare interactions and quickly perform key actions.
+- Main sections/components:
+  - Upcoming Appointments: List next confirmed appointments with doctor name, date/time, channel type (physical/telemedicine), and a "Join Session" button for video consultations.
+  - Pending/Requested Appointments: Show appointment requests that are awaiting doctor confirmation or rescheduling.
+  - Quick Doctor Search: Compact search widget (specialty, location, date) that links to the full doctor search page.
+  - Recent Prescriptions: Short list of the most recent digital prescriptions with links to view full details.
+  - Uploaded Medical Reports: Recent report uploads with file type, date, and link to view/download.
+  - Notifications Summary: Latest few notifications (booking confirmations, payment receipts, consultation summaries), each linking to a detailed notifications page.
+  - AI Symptom Checker Shortcut (Optional): Prominent button/card to open the AI Symptom Checker page.
+
+2. Doctor Dashboard
+- Purpose: Provide a doctor with a quick overview of their day, pending tasks, and direct access to consultations.
+- Main sections/components:
+  - Today’s Appointments: Timeline or list of all appointments for the current day with patient name, time, consultation type (in‑person/telemedicine), and join links for video sessions.
+  - Pending Appointment Requests: List of new or reschedule requests from patients with actions to accept/reject or propose new time.
+  - Availability Summary: Snapshot of the doctor’s weekly availability schedule with quick links to manage availability.
+  - Quick Access to Telemedicine Sessions: Section showing "Now" or upcoming telemedicine sessions with one‑click join.
+  - Patient Report Highlights: Shortcut list of patients with newly uploaded medical reports relevant to upcoming appointments.
+  - Notifications Summary: Latest notifications such as new bookings, cancellations, or admin messages.
+
+3. Admin Dashboard
+- Purpose: Allow admins to monitor platform operations, verify doctors, and oversee financial and user management tasks.
+- Main sections/components:
+  - Platform Overview Metrics: Cards showing total patients, total doctors, active appointments today, completed consultations, and failed/cancelled appointments.
+  - Doctor Verification Queue: List of newly registered doctors pending verification with links to review details and approve/reject.
+  - User Management Summary: Counts of active/suspended patient and doctor accounts with direct links to user management pages.
+  - Financial Snapshot: High‑level view of today’s/this week’s total payments, refunds, and outstanding payouts (derived from Payment Service).
+  - Recent Transactions: Table of most recent payment transactions with patient, doctor, amount, method (PayHere, Genie, FriMi, Stripe, etc.), and status.
+  - System Notifications/Logs: Panel for important system‑level messages (e.g., failed payment callbacks, notification delivery issues) to support basic operational monitoring.
+
+Notes
+- Each dashboard is tied to a specific user role (Patient, Doctor, Admin) as required in the assignment.
+- The above sections can be rearranged or combined into tabs/cards, but the core functionality (appointments, profiles, verification, payments, notifications, telemedicine) should remain accessible from these dashboards.
+- The dashboards rely on the underlying microservices (patient management, doctor management, appointment, telemedicine, payment, notification, auth, and optional AI symptom checker) but are described here purely from a frontend/UI perspective.

@@ -1,0 +1,207 @@
+SE3020 – Smart Healthcare Platform
+Frontend Specification – Pages
+
+This document lists the individual frontend pages implied by the assignment specification, grouped by purpose and user role. Some of these can be implemented as different states/sections of the same route, but functionally they cover all required behaviours.
+
+A. Common / Public Pages
+
+1. Landing / Home Page
+- Purpose: Public entry point describing the platform, its features (appointments, telemedicine, AI symptom checker, etc.) and providing clear calls‑to‑action.
+- Key elements:
+  - Overview of services (book doctors, video consultations, upload reports, AI health suggestions).
+  - "Login" and "Register" buttons with role‑specific options (Patient, Doctor, Admin).
+  - High‑level explanation of security/authentication and telemedicine benefits.
+
+2. Login Page (Multi‑Role)
+- Purpose: Authenticate existing users and route them to the correct dashboard.
+- Key elements:
+  - Email/username and password inputs (or other credential fields defined by Auth Service).
+  - Role selection or automatic role detection (patient/doctor/admin) based on credentials.
+  - Error messages for invalid credentials or inactive accounts.
+
+3. Patient Registration Page
+- Purpose: Allow new patients to create an account in the Patient Management Service.
+- Key elements:
+  - Personal details (name, contact information, date of birth, etc.).
+  - Basic medical profile fields as required by the backend.
+  - Consent/terms acknowledgement.
+
+4. Doctor Registration Page
+- Purpose: Allow doctors to submit profiles and documents for later admin verification.
+- Key elements:
+  - Professional details (name, specialties, qualifications, registration number, clinic/hospital details).
+  - Document upload section for licenses and certificates.
+  - Availability of high‑level schedule preferences.
+  - Status message indicating that the account requires admin verification.
+
+5. (Optional) Password Reset / Account Recovery Page
+- Purpose: Support secure recovery of access, consistent with the authentication requirements.
+
+B. Patient‑Facing Pages
+
+6. Patient Profile & Account Settings Page
+- Purpose: Enable patients to view and manage their profile.
+- Key elements:
+  - View and edit personal details.
+  - Manage contact information and security settings (e.g., password change).
+
+7. Browse / Search Doctors Page
+- Purpose: Allow patients to find doctors by specialty and other criteria.
+- Key elements:
+  - Filters for specialty, location, language, consultation type (in‑person/online), and available dates.
+  - Paginated list/grid of matching doctors with key profile information and "View Profile" / "Book" actions.
+
+8. Doctor Details & Availability Page
+- Purpose: Show a selected doctor’s full profile and available appointment slots.
+- Key elements:
+  - Doctor bio, qualifications, specialties, ratings (if implemented).
+  - Calendar or slot list showing free time slots for booking.
+  - Action button to start the booking flow.
+
+9. Appointment Booking Page
+- Purpose: Guide the patient through creating a new appointment.
+- Key elements:
+  - Selected doctor and consultation type.
+  - Date/time slot selection.
+  - Reason for visit / symptom summary text area.
+  - Final confirmation before payment (if required) and booking.
+
+10. My Appointments Page (Patient)
+- Purpose: Show all of a patient’s appointments with filters for status.
+- Key elements:
+  - List of upcoming, completed, and cancelled appointments.
+  - Actions to view details, modify or cancel (subject to rules).
+  - Link or button to join telemedicine sessions at the scheduled time.
+
+11. Telemedicine Session Page – Patient View
+- Purpose: Provide the UI for real‑time video consultations using the chosen video API (Agora, Twilio, Jitsi, etc.).
+- Key elements:
+  - Video area (doctor and patient streams).
+  - Basic controls (mute/unmute, camera on/off, end call).
+  - Optional chat or notes panel.
+  - Access to relevant medical reports and prescriptions within the session.
+
+12. Medical Reports Management Page (Patient)
+- Purpose: Allow patients to upload, manage, and view medical documents.
+- Key elements:
+  - File upload form with metadata (type of report, date, notes).
+  - List of uploaded reports with view/download options.
+
+13. Prescriptions & Medical History Page (Patient)
+- Purpose: Show past prescriptions and consultations.
+- Key elements:
+  - Table/list of prescriptions with doctor, date, and diagnosis/medications summary.
+  - Links to view full prescription details and related reports.
+
+14. Payment Checkout Page
+- Purpose: Process consultation payments via the selected payment gateway (PayHere, Genie, FriMi, Stripe, PayPal sandbox, etc.).
+- Key elements:
+  - Summary of selected appointment (doctor, date/time, fee).
+  - Integration UI for the specific payment provider (redirect or embedded form).
+  - Success/failure indication and redirect back to confirmation.
+
+15. Payment History / Invoices Page
+- Purpose: Let patients review past payments and receipts.
+- Key elements:
+  - List of completed and refunded payments.
+  - Links to download or view invoice/receipt details.
+
+16. Notifications Center Page (Patient)
+- Purpose: Central place for viewing all notifications sent by the Notification Service.
+- Key elements:
+  - List of notifications such as booking confirmations, payment confirmations, appointment reminders, and consultation summaries.
+  - Per‑notification read/unread state.
+
+17. AI Symptom Checker Page (Optional Enhancement)
+- Purpose: Let patients input symptoms and receive preliminary health suggestions and recommended specialties.
+- Key elements:
+  - Symptom input form (text area, structured symptom fields, or questionnaire).
+  - Display of suggested conditions/specialties.
+  - Shortcut links to search for recommended doctor specialties.
+
+C. Doctor‑Facing Pages
+
+18. Doctor Profile & Settings Page
+- Purpose: Enable doctors to manage their profiles.
+- Key elements:
+  - Edit personal and professional info.
+  - Upload/manage professional documents (if allowed post‑verification).
+
+19. Availability & Schedule Management Page
+- Purpose: Let doctors define and maintain their appointment availability.
+- Key elements:
+  - Weekly calendar/schedule editor.
+  - Time slot creation, modification, and deletion.
+
+20. Appointment Requests Management Page
+- Purpose: List pending appointment requests from patients for acceptance or rejection.
+- Key elements:
+  - Table of pending requests with patient summary, proposed time, and reason for visit.
+  - Actions to accept, reject, or suggest alternative times.
+
+21. Doctor Appointments List Page
+- Purpose: Show all appointments for a doctor with filtering by date and status.
+- Key elements:
+  - Upcoming, in‑progress, completed, and cancelled appointments.
+  - Links to open the telemedicine session and patient record.
+
+22. Telemedicine Session Page – Doctor View
+- Purpose: Provide the doctor UI for video consultations (can share layout with the patient version but with doctor‑specific tools).
+- Key elements:
+  - Video area and controls.
+  - View of patient’s uploaded reports.
+  - Quick access to prescription creation.
+
+23. Patient Record View Page (Doctor)
+- Purpose: Let doctors see relevant patient information and history during/around a consultation.
+- Key elements:
+  - Patient profile summary.
+  - List of past consultations and prescriptions.
+  - Access to uploaded reports.
+
+24. Digital Prescription Editor Page
+- Purpose: Allow doctors to create and issue digital prescriptions.
+- Key elements:
+  - Form for diagnosis, medications, dosage, and notes.
+  - Preview and confirmation before issuing.
+
+25. Notifications Center Page (Doctor)
+- Purpose: Let doctors view platform notifications relevant to them.
+- Key elements:
+  - New booking alerts, cancellations, schedule changes, admin messages.
+
+D. Admin‑Facing Pages
+
+26. User Management Page (Patients & Doctors)
+- Purpose: Allow admins to view and manage user accounts.
+- Key elements:
+  - Search and filter users by role, status, and other attributes.
+  - View detailed user profiles.
+  - Actions to activate/deactivate or reset accounts as aligned with backend capabilities.
+
+27. Doctor Verification & Approval Page
+- Purpose: Support the admin workflow for verifying and approving doctor registrations.
+- Key elements:
+  - Queue/list of doctors pending verification.
+  - Detail view for each doctor including submitted documents and profile data.
+  - Approve/reject actions with optional comments.
+
+28. Appointment & Consultation Oversight Page
+- Purpose: Provide admins with a view of overall appointment activity for monitoring.
+- Key elements:
+  - Filterable list/table of appointments across the system.
+  - Status indicators and basic analytics (e.g., completion vs cancellation).
+
+29. Transactions & Financial Oversight Page
+- Purpose: Allow admins to oversee platform financials related to consultations.
+- Key elements:
+  - List of payment transactions (status, amount, method, patient, doctor).
+  - Basic aggregates (total fees collected, refunds, etc.).
+
+30. (Optional) System Settings / Integration Monitoring Page
+- Purpose: Provide a basic UI for inspecting or toggling integration settings (e.g., active video provider, payment sandbox/live modes) and for viewing high‑level health information.
+
+Notes
+- All pages above are derived directly from the behaviours described in the assignment (patient management, doctor management, appointment booking, telemedicine, payments, notifications, AI symptom checker, and role‑based security).
+- In implementation, several of these can be combined into multi‑tab pages or sections within a layout while still covering the same functional requirements.
+- Optional pages are clearly marked as such; the core pages should be implemented to satisfy the assignment specification strictly.

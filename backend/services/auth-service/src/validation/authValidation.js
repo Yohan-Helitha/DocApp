@@ -3,7 +3,7 @@
 // - validate login payload
 // Use a validation library (e.g., joi) or custom checks
 
-exports.validateRegister = (req, res, next) => {
+export const validateRegister = (req, res, next) => {
   const { email, password, role } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email_and_password_required' });
   const allowed = ['patient', 'doctor', 'admin'];
@@ -11,7 +11,7 @@ exports.validateRegister = (req, res, next) => {
   next();
 };
 
-exports.validateLogin = (req, res, next) => {
+export const validateLogin = (req, res, next) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email_and_password_required' });
   next();

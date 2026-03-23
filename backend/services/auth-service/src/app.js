@@ -1,8 +1,9 @@
-const express = require('express');
-const env = require('./config/environment');
-const logger = require('./config/logger');
-const db = require('./config/db');
-const cors = require('cors');
+import express from 'express';
+import env from './config/environment.js';
+import logger from './config/logger.js';
+import db from './config/db.js';
+import cors from 'cors';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 
@@ -10,6 +11,8 @@ const app = express();
 app.use(cors());
 
 app.use(express.json());
+// Accept URL-encoded bodies (forms) as well
+app.use(express.urlencoded({ extended: true }));
 
 // Attach logger and db to request for handlers
 app.use((req, res, next) => {
@@ -30,6 +33,6 @@ app.get('/health', async (req, res) => {
 });
 
 // Mount auth routes
-app.use(require('./routes/authRoutes'));
+app.use(authRoutes);
 
-module.exports = app;
+export default app;

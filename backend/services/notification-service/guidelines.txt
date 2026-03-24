@@ -1,0 +1,60 @@
+Welcome to the DocApp project! Since you've just cloned the repository, here is a comprehensive guide on how to run the project locally and how to start developing the notification-service.
+
+1. How to run this in your laptop?
+Since the project uses PERN (PostgreSQL, Express, React, Node.js) and is containerized with Docker, the easiest way to get everything running is using docker-compose.
+
+Pre-requisites:
+Install Docker Desktop.
+Ensure Docker Engine and Docker Compose are running.
+Steps to Run:
+Open a terminal in the project root: D:\SLIIT\Year 03\Semester 1\DS\Assignment\DocApp.
+Navigate to the infra directory:
+Spin up the infrastructure:
+This will build all microservices, start the PostgreSQL database, the Node.js backend services, and the React frontend.
+Access the Applications:
+Frontend: http://localhost:8081
+API Gateway: http://localhost:4000 (All service requests go through here)
+2. Current State of the Project
+auth-service: Fully implemented with package.json, server.js, and database integration. It handles patient/doctor registration and login.
+notification-service: Currently just a skeleton. It has the folder structure (src/controllers/, src/services/, etc.) based on the standard pattern, but it is missing core files like package.json, server.js, and a Dockerfile.
+3. How should you start the notification-service?
+You should follow the patterns established in the auth-service to ensure consistency. Here is your immediate roadmap:
+
+Step 1: Initialize the Service
+Navigate to notification-service.
+Create a package.json file. You can copy the one from auth-service and modify the name/dependencies.
+Create a Dockerfile (copy from auth-service).
+Create a .env file for configuration (DB credentials, SMTP/SMS provider keys).
+Step 2: Database Setup
+Create db/init.sql to define the notification schema. Based on notification-schema.md, you'll need tables for:
+notifications (to store the message, recipient, and status).
+notification_templates (for reusable email/SMS body templates).
+Step 3: Core Implementation (The "Auth Pattern")
+Following the auth-service structure, implement:
+
+src/config/db.js: Setup the pg Pool connection.
+src/services/notificationService.js: Logic for sending emails (using nodemailer) or SMS (using a provider like Twilio).
+src/controllers/notificationController.js: Handlers for the API endpoints.
+src/routes/notificationRoutes.js: Route definitions (e.g., POST /send).
+Step 4: Integration
+Update the API Gateway (server.js) to proxy requests to your new service.
+Update docker-compose.yml to include the database environment variables for the notification service.
+Summary of Files to Reference
+Requirements: SERVICE_SPEC.md
+Pattern to Copy: app.js
+Database Schema: notification-schema.md
+Would you like me to help you generate the initial package.json or server.js for the notification service to get you started?
+
+
+
+The notification_attempts table is a retry and audit log for your notification service.
+
+In microservices, sending a notification (like an Email or SMS) often fails due to external factors (e.g., the SMS provider is down or an email bounces). Instead of overwriting the status in the main notifications table, this table allows you to:
+
+Track Retries: If a notification fails twice but succeeds on the third try, you have a record of all three attempts.
+Debug Failures: It stores the provider_response (the error message from Twilio, SendGrid, etc.), so you know exactly why a message didn't go through.
+Audit Logs: You can see which provider was used and exactly when the attempt occurred without cluttering the main table.
+How it relates:
+notifications: Stores what is being sent and the final status.
+notification_attempts: Stores how and when each individual delivery attempt happened.
+In init.sql:18-24, the notification_id column links it back to the specific message being sent.

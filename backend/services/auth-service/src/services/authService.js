@@ -4,6 +4,8 @@ import env from '../config/environment.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const SALT_ROUNDS = Number(env.BCRYPT_SALT_ROUNDS) || 10;
 
@@ -69,7 +71,19 @@ export const login = async (credentials) => {
   }
 
   const payload = { sub: user.user_id, email: user.email, role: user.role };
-  const accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+  // Sign with RS256 if private key is available, otherwise fallback to HS256
+  let accessToken;
+  try {
+    const pkPath = path.resolve(process.cwd(), env.AUTH_PRIVATE_KEY_PATH || './keys/private.pem');
+    if (fs.existsSync(pkPath)) {
+      const privateKey = fs.readFileSync(pkPath, 'utf8');
+      accessToken = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '15m', keyid: 'auth-key-1' });
+    } else {
+      accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+    }
+  } catch (e) {
+    accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+  }
 
   // create refresh token (raw returned to client) and store hashed form
   const refreshToken = crypto.randomBytes(64).toString('hex');
@@ -105,7 +119,18 @@ export const refreshToken = async (rawToken) => {
 
   // issue new access token
   const payload = { sub: found.user_id };
-  const accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+  let accessToken;
+  try {
+    const pkPath = path.resolve(process.cwd(), env.AUTH_PRIVATE_KEY_PATH || './keys/private.pem');
+    if (fs.existsSync(pkPath)) {
+      const privateKey = fs.readFileSync(pkPath, 'utf8');
+      accessToken = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '15m', keyid: 'auth-key-1' });
+    } else {
+      accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+    }
+  } catch (e) {
+    accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+  }
 
   // rotate: revoke old token and insert a new one
   await db.query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1', [found.token_id]);
@@ -134,5 +159,15 @@ export const logout = async (rawToken) => {
 };
 
 export const verifyToken = async (token) => {
+  // Verify using public key if available; fallback to shared secret
+  try {
+    const pubPath = path.resolve(process.cwd(), env.AUTH_PUBLIC_KEY_PATH || './keys/public.pem');
+    if (fs.existsSync(pubPath)) {
+      const publicKey = fs.readFileSync(pubPath, 'utf8');
+      return jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+    }
+  } catch (e) {
+    // fallthrough to HS256
+  }
   return jwt.verify(token, env.JWT_SECRET || '');
 };

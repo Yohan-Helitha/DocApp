@@ -12,7 +12,11 @@ export default {
   PGUSER: getEnv('PGUSER', 'postgres'),
   PGPASSWORD: getEnv('PGPASSWORD', 'postgres'),
   PGDATABASE: getEnv('PGDATABASE', 'authdb'),
-  JWT_SECRET: getEnv('JWT_SECRET', 'change-me'),
+  JWT_SECRET: getEnv('JWT_SECRET', ''),
+  // RSA key paths (dev defaults)
+  AUTH_PRIVATE_KEY_PATH: getEnv('AUTH_PRIVATE_KEY_PATH', './keys/private.pem'),
+  AUTH_PUBLIC_KEY_PATH: getEnv('AUTH_PUBLIC_KEY_PATH', './keys/public.pem'),
+  JWKS_PATH: getEnv('JWKS_PATH', '/.well-known/jwks.json'),
   BCRYPT_SALT_ROUNDS: Number(getEnv('BCRYPT_SALT_ROUNDS', '10')),
   LOG_LEVEL: getEnv('LOG_LEVEL', 'info')
 };

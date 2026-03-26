@@ -1,17 +1,37 @@
 import request from 'supertest';
 import { strict as assert } from 'assert';
-import app from '../src/app.js';
 import db from '../src/config/db.js';
 import jwt from 'jsonwebtoken';
 import env from '../src/config/environment.js';
 import fs from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, generateKeyPairSync } from 'crypto';
+
+let app; // will import after keys are generated
 
 describe('Telemedicine API', function () {
   this.timeout(5000);
 
   before(async function () {
+    // Ensure RSA test keys exist so middleware can verify RS256 tokens.
+    const keysDir = path.resolve(process.cwd(), '../auth-service/keys');
+    try {
+      fs.mkdirSync(keysDir, { recursive: true });
+    } catch (e) {}
+    const pubPath = path.join(keysDir, 'public.pem');
+    const pkPath = path.join(keysDir, 'private.pem');
+    // Always (re)generate dev RSA keys to ensure valid matching pair for tests.
+    const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' }
+    });
+    fs.writeFileSync(pubPath, publicKey, 'utf8');
+    fs.writeFileSync(pkPath, privateKey, 'utf8');
+
+    // import app after keys are present so auth middleware can read public.pem
+    app = (await import('../src/app.js')).default;
+
     // create tables if missing
     await db.query(`CREATE TABLE IF NOT EXISTS telemedicine_sessions (
       session_id uuid PRIMARY KEY,

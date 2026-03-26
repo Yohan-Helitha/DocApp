@@ -19,12 +19,11 @@
     "pino": "8.14.0",
     "pino-pretty": "9.2.0",
     "pg": "8.10.0",
-    "jsonwebtoken": "8.5.1",
-    "jwk-to-pem": "2.0.5"
+    "jsonwebtoken": "8.5.1"
   },
   "devDependencies": {
     "nodemon": "2.0.22",
     "mocha": "10.2.0",
-    "supertest": "6.4.3"
+    "supertest": "6.3.3"
   }
 }

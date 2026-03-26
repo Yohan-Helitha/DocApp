@@ -4,7 +4,6 @@ import logger from './config/logger.js';
 import db from './config/db.js';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
-import jwksRoutes from './routes/jwksRoutes.js';
 
 const app = express();
 
@@ -34,8 +33,6 @@ app.get('/health', async (req, res) => {
 });
 
 // Mount auth routes
-// expose JWKS for other services to verify tokens
-app.use(jwksRoutes);
 app.use(authRoutes);
 
 export default app;

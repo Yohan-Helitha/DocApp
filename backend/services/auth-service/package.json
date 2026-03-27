@@ -4,6 +4,8 @@
   "description": "Authentication microservice for DocApp",
   "main": "server.js",
   "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=18.0.0"
   },

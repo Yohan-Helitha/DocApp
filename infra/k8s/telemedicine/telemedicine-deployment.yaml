@@ -24,7 +24,7 @@ spec:
         - name: PORT
           value: "4010"
         - name: PGHOST
-          value: "host.docker.internal"
+          value: "auth-postgres"
         - name: PGPORT
           value: "5432"
         - name: PGUSER

@@ -28,8 +28,8 @@ export const createJoinToken = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { role } = req.body || {};
-    const token = await service.createJoinToken(sessionId, req.user, role);
-    return res.json({ joinToken: token });
+    const details = await service.createJoinToken(sessionId, req.user, role);
+    return res.json(details);
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'createJoinToken error');
     if (err.status) return res.status(err.status).json({ error: err.message });

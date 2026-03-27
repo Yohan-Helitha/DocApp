@@ -1,10 +1,17 @@
 import db from '../config/db.js';
 import crypto from 'crypto';
+import env from '../config/environment.js';
 
 export const createSession = async (payload, user) => {
-  const { appointment_id, provider = 'agora', external_room_id = null } = payload || {};
+  const { appointment_id, provider = 'jitsi', external_room_id = null } = payload || {};
   if (!appointment_id) {
     const err = new Error('missing_appointment_id');
+    err.status = 400;
+    throw err;
+  }
+
+  if ((provider || '').toLowerCase() !== 'jitsi') {
+    const err = new Error('unsupported_provider');
     err.status = 400;
     throw err;
   }
@@ -18,7 +25,8 @@ export const createSession = async (payload, user) => {
       RETURNING session_id, appointment_id, provider, external_room_id, session_status, started_at, ended_at, created_at
     `;
     const sessionId = crypto.randomUUID();
-    const values = [sessionId, appointment_id, provider, external_room_id, 'created'];
+    const roomName = external_room_id || `docapp-${sessionId}`;
+    const values = [sessionId, appointment_id, 'jitsi', roomName, 'created'];
     const result = await client.query(insertText, values);
     await client.query('COMMIT');
     return { session: result.rows[0] };
@@ -48,15 +56,15 @@ export const createJoinToken = async (sessionId, user, role = 'patient') => {
     throw err;
   }
   // verify session exists
-  const s = await db.query('SELECT session_id, session_status FROM telemedicine_sessions WHERE session_id = $1', [sessionId]);
+  const s = await db.query('SELECT session_id, session_status, provider, external_room_id FROM telemedicine_sessions WHERE session_id = $1', [sessionId]);
   if (!s.rows || !s.rows[0]) {
     const e = new Error('session_not_found');
     e.status = 404;
     throw e;
   }
-
-  // create ephemeral token (in real world use provider SDK)
-  const joinToken = crypto.randomBytes(32).toString('hex');
+  const session = s.rows[0];
+  const roomName = session.external_room_id || `docapp-${sessionId}`;
+  const joinUrl = `${(env.JITSI_BASE_URL || 'https://meet.jit.si').replace(/\/$/, '')}/${roomName}`;
 
   // record participant (best-effort, non-unique)
   const participantId = crypto.randomUUID();
@@ -65,7 +73,12 @@ export const createJoinToken = async (sessionId, user, role = 'patient') => {
     [participantId, sessionId, user ? user.user_id : null, role]
   );
 
-  return joinToken;
+  return {
+    provider: 'jitsi',
+    roomName,
+    joinUrl,
+    role
+  };
 };
 
 export const startSession = async (sessionId, user) => {

@@ -56,4 +56,29 @@ app.use(
   })
 );
 
+// Proxy telemedicine routes to telemedicine-service.
+app.use(
+  '/api/v1/telemedicine',
+  createProxyMiddleware({
+    target: env.TELEMEDICINE_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        {
+          method: req.method,
+          path: req.originalUrl
+        },
+        'Proxying request to telemedicine-service'
+      );
+    },
+    onError(err, req, res) {
+      logger.error({ err }, 'Error proxying request to telemedicine-service');
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'telemedicine_service_unavailable' });
+      }
+    }
+  })
+);
+
 export default app;

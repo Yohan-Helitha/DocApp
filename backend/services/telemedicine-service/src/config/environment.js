@@ -10,6 +10,7 @@ export default {
   PGUSER: getEnv('PGUSER', 'postgres'),
   PGPASSWORD: getEnv('PGPASSWORD', 'postgres'),
   PGDATABASE: getEnv('PGDATABASE', 'telemeddb'),
+  JITSI_BASE_URL: getEnv('JITSI_BASE_URL', 'https://meet.jit.si'),
   // Optional shared secret for HS256 verification (must match auth-service JWT_SECRET)
   JWT_SECRET: getEnv('JWT_SECRET', ''),
   // Path to auth-service public key for RS256 verification

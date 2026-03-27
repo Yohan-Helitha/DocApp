@@ -59,7 +59,7 @@ import crypto from 'crypto';
       headers: authHeaders,
       body: JSON.stringify({
         appointment_id: appointmentId,
-        provider: 'agora'
+        provider: 'jitsi'
       })
     });
     const createBody = await safeJson(createRes);
@@ -79,13 +79,13 @@ import crypto from 'crypto';
     });
     results.get_session = { status: getRes.status, body: await safeJson(getRes) };
 
-    // 5) Create join token
+    // 5) Create Jitsi join details
     const joinRes = await fetch(teleBase + '/api/v1/telemedicine/sessions/' + sessionId + '/join-token', {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({ role: 'patient' })
     });
-    results.join_token = { status: joinRes.status, body: await safeJson(joinRes) };
+    results.join_details = { status: joinRes.status, body: await safeJson(joinRes) };
 
     // 6) Start session
     const startRes = await fetch(teleBase + '/api/v1/telemedicine/sessions/' + sessionId + '/start', {

@@ -25,6 +25,8 @@ spec:
               value: "production"
             - name: AUTH_SERVICE_URL
               value: "http://auth-service:4001"
+            - name: TELEMEDICINE_SERVICE_URL
+              value: "http://telemedicine:4010"
 
 ---
 

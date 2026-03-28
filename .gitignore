@@ -1,0 +1,30 @@
+# ─── Environment variables ───────────────────────────────────────────────────
+# NEVER commit .env files — they contain secrets (DB passwords, JWT secrets).
+# Each developer creates their own .env from the matching .env.example file.
+.env
+.env.local
+.env.*.local
+
+# ─── Node dependencies ───────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── OS files ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ─── Editor ──────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/

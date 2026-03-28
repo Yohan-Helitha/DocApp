@@ -91,7 +91,12 @@ export const setVerificationStatus = async (req, res) => {
 
 const assertSlotOwner = async (db, doctorId, user) => {
   const doctor = await doctorService.getDoctorById(db, doctorId);
-  if (user.role !== "admin" && doctor.user_id !== user.id) {
+  // 'service' role is used by appointment-service for service-to-service slot updates
+  if (
+    user.role !== "admin" &&
+    user.role !== "service" &&
+    doctor.user_id !== user.id
+  ) {
     const e = new Error("forbidden");
     e.status = 403;
     throw e;

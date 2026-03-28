@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+  labels:
+    app: appointment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appointment-service
+  template:
+    metadata:
+      labels:
+        app: appointment-service
+    spec:
+      containers:
+        - name: appointment-service
+          image: docapp/appointment-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4003
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4003"
+            - name: PGHOST
+              value: "appointments-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: appointment-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: appointment-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: appointment-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: appointment-db-secret
+                  key: JWT_SECRET
+            - name: DOCTOR_SERVICE_URL
+              value: "http://doctor-management-service:4002"
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service:6000"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appointment-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: appointment-service
+  ports:
+    - protocol: TCP
+      port: 4003
+      targetPort: 4003

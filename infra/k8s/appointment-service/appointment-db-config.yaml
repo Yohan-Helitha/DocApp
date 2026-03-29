@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appointment-db-config
+data:
+  PGUSER: "postgres"
+  PGDATABASE: "appointmentsdb"

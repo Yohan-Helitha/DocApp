@@ -1,8 +1,8 @@
-import express from 'express';
-import cors from 'cors';
-import { createProxyMiddleware } from 'http-proxy-middleware';
-import env from './config/environment.js';
-import logger from './config/logger.js';
+import express from "express";
+import cors from "cors";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import env from "./config/environment.js";
+import logger from "./config/logger.js";
 
 const app = express();
 
@@ -20,15 +20,15 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'api-gateway', env: env.NODE_ENV });
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", service: "api-gateway", env: env.NODE_ENV });
 });
 
 // Proxy all auth routes to the auth-service.
 // This keeps the frontend talking only to the gateway while the
 // auth microservice owns the actual auth logic.
 app.use(
-  '/api/v1/auth',
+  "/api/v1/auth",
   createProxyMiddleware({
     target: env.AUTH_SERVICE_URL,
     changeOrigin: false,
@@ -39,21 +39,68 @@ app.use(
       logger.info(
         {
           method: req.method,
-          path: req.originalUrl
+          path: req.originalUrl,
         },
-        'Proxying request to auth-service'
+        "Proxying request to auth-service",
       );
 
       // We don't touch the body here; http-proxy-middleware streams
       // the original request (including JSON) directly to auth-service.
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to auth-service');
+      logger.error({ err }, "Error proxying request to auth-service");
       if (!res.headersSent) {
-        res.status(502).json({ error: 'auth_service_unavailable' });
+        res.status(502).json({ error: "auth_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
+);
+
+// Proxy all doctor routes to doctor-management-service.
+app.use(
+  "/api/v1/doctors",
+  createProxyMiddleware({
+    target: env.DOCTOR_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        { method: req.method, path: req.originalUrl },
+        "Proxying request to doctor-management-service",
+      );
+    },
+    onError(err, req, res) {
+      logger.error(
+        { err },
+        "Error proxying request to doctor-management-service",
+      );
+      if (!res.headersSent) {
+        res.status(502).json({ error: "doctor_service_unavailable" });
+      }
+    },
+  }),
+);
+
+// Proxy all appointment routes to appointment-service.
+app.use(
+  "/api/v1/appointments",
+  createProxyMiddleware({
+    target: env.APPOINTMENT_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        { method: req.method, path: req.originalUrl },
+        "Proxying request to appointment-service",
+      );
+    },
+    onError(err, req, res) {
+      logger.error({ err }, "Error proxying request to appointment-service");
+      if (!res.headersSent) {
+        res.status(502).json({ error: "appointment_service_unavailable" });
+      }
+    },
+  }),
 );
 
 export default app;

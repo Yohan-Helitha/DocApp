@@ -26,6 +26,10 @@ services:
     build: ../../backend/services/notification-service
   admin-management-service:
     build: ../../backend/services/admin-management-service
+    env_file:
+      - ../../backend/services/admin-management-service/.env
+    ports:
+      - "4008:4008"
   ai-symptom-checker-service:
     build: ../../backend/services/ai-symptom-checker-service
   frontend:

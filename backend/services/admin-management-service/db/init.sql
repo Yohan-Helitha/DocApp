@@ -1,8 +1,21 @@
 -- Init SQL for Admin Management Service
--- Creates admin_actions, doctor_verification_reviews, financial_monitoring_records per spec
+-- Creates users (for role-based accounts) and admin-specific tables
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Shared users table schema (copied from auth service)
+CREATE TABLE IF NOT EXISTS users (
+  user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  account_status TEXT DEFAULT 'pending_verification',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  last_login_at TIMESTAMPTZ
+);
+
+-- Admin-specific tables
 CREATE TABLE IF NOT EXISTS admin_actions (
   action_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   admin_user_id UUID NOT NULL,

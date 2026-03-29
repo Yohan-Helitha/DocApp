@@ -25,24 +25,26 @@ spec:
               value: "production"
             - name: PORT
               value: "4008"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@admin-postgres:5432/admindb"
             - name: PGHOST
-              value: "auth-postgres"
+              value: "admin-postgres"
             - name: PGPORT
               value: "5432"
             - name: PGDATABASE
               valueFrom:
                 configMapKeyRef:
-                  name: auth-db-config
+                  name: admin-db-config
                   key: PGDATABASE
             - name: PGUSER
               valueFrom:
                 configMapKeyRef:
-                  name: auth-db-config
+                  name: admin-db-config
                   key: PGUSER
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: auth-db-secret
+                  name: admin-db-secret
                   key: PGPASSWORD
 ---
 apiVersion: v1

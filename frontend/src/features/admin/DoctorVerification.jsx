@@ -6,6 +6,7 @@ export default function DoctorVerification() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | pending | approved | rejected
+  const [doctorStats, setDoctorStats] = useState({ approved: 0, rejected: 0 });
 
   const load = async () => {
     setLoading(true);
@@ -20,6 +21,19 @@ export default function DoctorVerification() {
 
   useEffect(() => {
     load();
+
+    const loadStats = async () => {
+      const { status, body } = await adminApi.get('/api/v1/admin/dashboard/metrics');
+      if (status === 200 && body && body.doctorReviews) {
+        const { doctors_approved, doctors_rejected } = body.doctorReviews;
+        setDoctorStats({
+          approved: Number(doctors_approved || 0),
+          rejected: Number(doctors_rejected || 0)
+        });
+      }
+    };
+
+    loadStats();
   }, []);
 
   const handleDecision = async (doctorId, approved) => {
@@ -58,14 +72,36 @@ export default function DoctorVerification() {
 
   return (
     <section className="bg-white rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
-      <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center">
-        <div>
-          <h4 className="text-lg font-bold text-slate-900">Doctor Verification</h4>
-          <p className="text-xs text-slate-500">Review and approve pending doctor registrations.</p>
+      <div className="px-6 py-5 border-b border-slate-100 flex flex-col gap-4">
+        <div className="flex justify-between items-center gap-4">
+          <div>
+            <h4 className="text-lg font-bold text-slate-900">Doctor Verification</h4>
+            <p className="text-xs text-slate-500">Review and approve pending doctor registrations.</p>
+          </div>
+          <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
+            {pendingCount} Pending
+          </span>
         </div>
-        <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
-          {pendingCount} Pending
-        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide">Verified Doctors</p>
+              <p className="text-xl font-bold text-emerald-900">{doctorStats.approved}</p>
+            </div>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-emerald-500 text-lg font-bold">
+              ✓
+            </span>
+          </div>
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-rose-700 uppercase tracking-wide">Rejected Doctors</p>
+              <p className="text-xl font-bold text-rose-900">{doctorStats.rejected}</p>
+            </div>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-500 text-lg font-bold">
+              !
+            </span>
+          </div>
+        </div>
       </div>
       <div className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100">
         <div className="relative w-full sm:max-w-xs">

@@ -46,6 +46,14 @@ const categoryColors = {
   other: 'bg-slate-100 text-slate-600 border-slate-200'
 };
 
+const getTargetLabel = (log) => {
+  const cat = getCategory(log);
+  if (cat === 'users') return 'User account';
+  if (cat === 'doctors') return 'Doctor registration';
+  if (cat === 'transactions') return 'Transaction';
+  return log.target_entity || 'Unknown target';
+};
+
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -148,9 +156,9 @@ export default function AuditLogsPage() {
                       </div>
                       <div className="text-[11px] text-slate-500">
                         <span className="font-semibold text-slate-600">Target:</span>{' '}
-                        {log.target_entity || 'Unknown'}{' '}
+                        <span>{getTargetLabel(log)}</span>{' '}
                         {log.target_entity_id && (
-                          <span className="font-mono text-[10px] text-slate-400">{log.target_entity_id}</span>
+                          <span className="font-mono text-[10px] text-slate-400">ID: {log.target_entity_id}</span>
                         )}
                       </div>
                       {log.action_note && (

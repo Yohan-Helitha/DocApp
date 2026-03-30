@@ -1,6 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import adminApi from './adminApi';
 
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+
+  const datePart = d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric'
+  });
+  const timePart = d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  return `${datePart} ${timePart}`;
+};
+
 export default function TransactionsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -31,6 +50,7 @@ export default function TransactionsPage() {
             <tr>
               <th className="px-6 py-4">Transaction</th>
               <th className="px-6 py-4">Appointment</th>
+              <th className="px-6 py-4">Date</th>
               <th className="px-6 py-4">Amount</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Flag</th>
@@ -39,14 +59,14 @@ export default function TransactionsPage() {
           <tbody className="divide-y divide-slate-100">
             {loading && (
               <tr>
-                <td className="px-6 py-4 text-sm text-slate-500" colSpan={5}>
+                <td className="px-6 py-4 text-sm text-slate-500" colSpan={6}>
                   Loading transactions...
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td className="px-6 py-4 text-sm text-slate-500" colSpan={5}>
+                <td className="px-6 py-4 text-sm text-slate-500" colSpan={6}>
                   No transactions found.
                 </td>
               </tr>
@@ -55,6 +75,7 @@ export default function TransactionsPage() {
               <tr key={tx.record_id} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-6 py-4 text-sm font-mono text-slate-700">{tx.transaction_id}</td>
                 <td className="px-6 py-4 text-xs font-mono text-slate-500">{tx.appointment_id || '-'}</td>
+                <td className="px-6 py-4 text-xs text-slate-500">{formatDateTime(tx.created_at)}</td>
                 <td className="px-6 py-4 text-sm font-bold text-slate-900">
                   {tx.amount} {tx.currency}
                 </td>

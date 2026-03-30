@@ -45,7 +45,7 @@ export const updateUserStatus = async ({ userId, status, adminUserId }) => {
 export const listPendingDoctors = async () => {
   // Relies on users table with role=doctor and account_status=pending_verification
   const result = await db.query(
-    'SELECT user_id as doctor_id, email, account_status, created_at FROM users WHERE role = $1 AND account_status = $2 ORDER BY created_at ASC',
+    'SELECT user_id as doctor_id, full_name, email, specialization, account_status, created_at FROM users WHERE role = $1 AND account_status = $2 ORDER BY created_at ASC',
     ['doctor', 'pending_verification']
   );
   return result.rows || [];

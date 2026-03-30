@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL,
+  full_name TEXT,
+  specialization TEXT,
   account_status TEXT DEFAULT 'pending_verification',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),

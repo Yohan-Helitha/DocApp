@@ -4,6 +4,8 @@ import adminApi from './adminApi';
 export default function DoctorVerification() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // all | pending | approved | rejected
 
   const load = async () => {
     setLoading(true);
@@ -25,6 +27,35 @@ export default function DoctorVerification() {
     load();
   };
 
+  const getStatus = (doc) => {
+    if (doc.review_status) {
+      const s = String(doc.review_status).toLowerCase();
+      if (s === 'approved') return 'approved';
+      if (s === 'rejected') return 'rejected';
+    }
+    if (doc.account_status) {
+      const s = String(doc.account_status).toLowerCase();
+      if (s === 'pending_verification') return 'pending';
+      if (s === 'active') return 'approved';
+      if (s === 'disabled') return 'rejected';
+    }
+    return 'pending';
+  };
+
+  const query = search.trim().toLowerCase();
+
+  const filteredDoctors = doctors.filter((doc) => {
+    const status = getStatus(doc);
+    if (statusFilter !== 'all' && status !== statusFilter) return false;
+    if (!query) return true;
+    const name = (doc.full_name || doc.name || '').toLowerCase();
+    const email = (doc.email || '').toLowerCase();
+    const spec = (doc.specialization || '').toLowerCase();
+    return name.includes(query) || email.includes(query) || spec.includes(query);
+  });
+
+  const pendingCount = doctors.filter((d) => getStatus(d) === 'pending').length;
+
   return (
     <section className="bg-white rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
       <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center">
@@ -33,8 +64,35 @@ export default function DoctorVerification() {
           <p className="text-xs text-slate-500">Review and approve pending doctor registrations.</p>
         </div>
         <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
-          {doctors.length} Pending
+          {pendingCount} Pending
         </span>
+      </div>
+      <div className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100">
+        <div className="relative w-full sm:max-w-xs">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+            search
+          </span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or specialization..."
+            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 placeholder:text-slate-400"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Status</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60"
+          >
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
@@ -44,6 +102,7 @@ export default function DoctorVerification() {
               <th className="px-6 py-4">Specialization</th>
               <th className="px-6 py-4">Submitted</th>
               <th className="px-6 py-4">Documents</th>
+              <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -55,19 +114,19 @@ export default function DoctorVerification() {
                 </td>
               </tr>
             )}
-            {!loading && doctors.length === 0 && (
+            {!loading && filteredDoctors.length === 0 && (
               <tr>
                 <td className="px-6 py-4 text-sm text-slate-500" colSpan={5}>
-                  No pending doctor verifications.
+                  No doctor matches the current filters.
                 </td>
               </tr>
             )}
-            {!loading && doctors.map((doc) => (
+            {!loading && filteredDoctors.map((doc) => (
               <tr key={doc.doctor_id || doc.user_id} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className="text-sm font-bold text-slate-900">
-                      {doc.name || doc.email || `Doctor #${doc.doctor_id || doc.user_id}`}
+                      {doc.full_name || doc.name || doc.email || 'Unknown doctor'}
                     </span>
                     <span className="text-xs text-slate-500">{doc.email || 'email not provided'}</span>
                     <span className="text-[10px] text-slate-400 font-mono mt-1">ID: {doc.doctor_id || doc.user_id}</span>
@@ -85,6 +144,30 @@ export default function DoctorVerification() {
                     <span className="material-symbols-outlined text-sm">description</span>
                     <span>View registration</span>
                   </button>
+                </td>
+                <td className="px-6 py-4 text-xs">
+                  {(() => {
+                    const s = getStatus(doc);
+                    if (s === 'approved') {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[10px]">
+                          Approved
+                        </span>
+                      );
+                    }
+                    if (s === 'rejected') {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-black uppercase tracking-widest text-[10px]">
+                          Rejected
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[10px]">
+                        Pending
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
                   <button

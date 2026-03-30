@@ -23,6 +23,7 @@ const formatDateTime = (value) => {
 export default function TransactionsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     const load = async () => {
@@ -38,11 +39,49 @@ export default function TransactionsPage() {
     load();
   }, []);
 
+  const filteredRows = rows.filter((tx) => {
+    if (statusFilter === 'all') return true;
+    const status = (tx.status || '').toLowerCase();
+    switch (statusFilter) {
+      case 'pending':
+        return status === 'pending';
+      case 'completed':
+        return status === 'completed' || status === 'complete';
+      case 'half':
+        return (
+          status === 'partial' ||
+          status === 'half' ||
+          status === 'half_paid' ||
+          status === 'partially_paid'
+        );
+      case 'failed':
+        return status === 'failed';
+      default:
+        return true;
+    }
+  });
+
   return (
     <section className="bg-white rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
-      <div className="px-6 py-5 border-b border-slate-100">
-        <h4 className="text-lg font-bold text-slate-900">Transactions</h4>
-        <p className="text-xs text-slate-500">Read-only view of monitored financial transactions.</p>
+      <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4">
+        <div>
+          <h4 className="text-lg font-bold text-slate-900">Transactions</h4>
+          <p className="text-xs text-slate-500">Read-only view of monitored financial transactions.</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-500 font-medium uppercase tracking-wide">Filter</span>
+          <select
+            className="border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-primary/40"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="half">Half (Partial)</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
@@ -64,14 +103,14 @@ export default function TransactionsPage() {
                 </td>
               </tr>
             )}
-            {!loading && rows.length === 0 && (
+            {!loading && filteredRows.length === 0 && (
               <tr>
                 <td className="px-6 py-4 text-sm text-slate-500" colSpan={6}>
-                  No transactions found.
+                  No transactions match this filter.
                 </td>
               </tr>
             )}
-            {!loading && rows.map((tx) => (
+            {!loading && filteredRows.map((tx) => (
               <tr key={tx.record_id} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-6 py-4 text-sm font-mono text-slate-700">{tx.transaction_id}</td>
                 <td className="px-6 py-4 text-xs font-mono text-slate-500">{tx.appointment_id || '-'}</td>
@@ -79,7 +118,49 @@ export default function TransactionsPage() {
                 <td className="px-6 py-4 text-sm font-bold text-slate-900">
                   {tx.amount} {tx.currency}
                 </td>
-                <td className="px-6 py-4 text-xs font-bold uppercase text-slate-700">{tx.status}</td>
+                <td className="px-6 py-4 text-xs">
+                  {(() => {
+                    const status = (tx.status || '').toLowerCase();
+                    if (status === 'completed' || status === 'complete') {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[10px]">
+                          Completed
+                        </span>
+                      );
+                    }
+                    if (
+                      status === 'partial' ||
+                      status === 'half' ||
+                      status === 'half_paid' ||
+                      status === 'partially_paid'
+                    ) {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[10px]">
+                          Half / Partial
+                        </span>
+                      );
+                    }
+                    if (status === 'failed') {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-black uppercase tracking-widest text-[10px]">
+                          Failed
+                        </span>
+                      );
+                    }
+                    if (status === 'pending') {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[10px]">
+                          Pending
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px]">
+                        {tx.status || 'Unknown'}
+                      </span>
+                    );
+                  })()}
+                </td>
                 <td className="px-6 py-4 text-xs">
                   {tx.flagged ? (
                     <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider">

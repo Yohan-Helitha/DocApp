@@ -26,6 +26,18 @@ export default function App(){
   else if(route.startsWith('/success/doctor')) Page = ()=> <SuccessDoctor navigate={navigate} />
   else if(route.startsWith('/success/admin')) Page = ()=> <SuccessAdmin navigate={navigate} />
 
+  const isAdminRoute = route.startsWith('/success/admin')
+
+  if(isAdminRoute){
+    // Admin area uses its own top bar and sidebar layout (AdminLayout)
+    // so we intentionally do NOT render the public Header/Footer here.
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Page />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header navigate={navigate} />

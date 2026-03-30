@@ -11,7 +11,7 @@ export default function AdminLayout({ onLogout }) {
   else if (active === 'logs') Content = AuditLogsPage;
 
   return (
-    <div className="min-h-screen bg-background text-on-background antialiased">
+    <div className="min-h-screen bg-slate-50 text-on-background antialiased">
       <aside className="h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 z-40">
         <div className="flex flex-col h-full p-4">
           <div className="mb-10 px-4">
@@ -78,15 +78,33 @@ export default function AdminLayout({ onLogout }) {
         </div>
       </aside>
 
-      <main className="ml-64 p-8 min-h-screen">
-        <header className="flex justify-between items-center mb-10">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Admin Dashboard</h2>
-            <p className="text-slate-500 font-medium">Manage doctor verification, transactions, and audit logs.</p>
+      <main className="ml-64 min-h-screen flex flex-col">
+        {/* Admin top bar */}
+        <div className="h-16 border-b border-slate-200 bg-white/90 backdrop-blur flex items-center justify-between px-8 sticky top-0 z-30">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-[0.18em]">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1" />
+            <span>Admin Console</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-slate-600">SmartHealth AI</span>
           </div>
-        </header>
+          <div className="flex items-center gap-4 text-xs text-slate-500">
+            <span className="hidden sm:inline-flex items-center gap-1">
+              <span className="material-symbols-outlined text-base text-emerald-500">shield_lock</span>
+              <span className="font-semibold">Admin</span>
+            </span>
+          </div>
+        </div>
 
-        <Content />
+        <div className="p-8 flex-1">
+          <header className="flex justify-between items-center mb-10">
+            <div>
+              <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Admin Dashboard</h2>
+              <p className="text-slate-500 font-medium">Manage doctor verification, transactions, and audit logs.</p>
+            </div>
+          </header>
+
+          <Content />
+        </div>
       </main>
     </div>
   );

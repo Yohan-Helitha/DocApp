@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  labels:
+    app: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: docapp/payment-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4006
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4006"
+            - name: PAYMENT_DATABASE_URL
+              value: "postgresql://postgres:postgres@payment-postgres:5432/paymentdb"
+            - name: PAYMENT_PGHOST
+              value: "payment-postgres"
+            - name: PAYMENT_PGPORT
+              value: "5432"
+            - name: PAYMENT_PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-db-config
+                  key: PGDATABASE
+            - name: PAYMENT_PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-db-config
+                  key: PGUSER
+            - name: PAYMENT_PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-db-secret
+                  key: PGPASSWORD
+            - name: LOG_LEVEL
+              value: "info"
+            - name: PAYHERE_MERCHANT_ID
+              value: "1234876"
+            - name: PAYHERE_MERCHANT_SECRET
+              value: "MTcxMzA3MjA4NjM1Nzc4NTcwNDgzMDkyMDQwODkwMzEwNTYwNDg3Nw=="
+            - name: PAYHERE_SANDBOX
+              value: "true"
+            - name: PAYHERE_RETURN_URL
+              value: "http://localhost:5173/payments/return"
+            - name: PAYHERE_CANCEL_URL
+              value: "http://localhost:5173/payments/cancel"
+            - name: PAYHERE_NOTIFY_URL
+              value: "http://payment-service:4006/api/v1/payments/webhooks/provider-callback"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-service
+  ports:
+    - protocol: TCP
+      port: 4006
+      targetPort: 4006

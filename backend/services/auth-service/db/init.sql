@@ -28,3 +28,20 @@ CREATE TABLE IF NOT EXISTS password_resets (
   expires_at TIMESTAMPTZ NOT NULL,
   used_at TIMESTAMPTZ
 );
+
+-- Doctor registration verification workflow
+-- Stores the uploaded license document and admin review status.
+CREATE TABLE IF NOT EXISTS doctor_verification_requests (
+  request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending / approved / rejected
+  profile_data JSONB, -- e.g., { full_name, specialization, notes }
+  license_original_name TEXT,
+  license_mime_type TEXT,
+  license_size_bytes INTEGER,
+  license_data BYTEA,
+  submitted_at TIMESTAMPTZ DEFAULT now(),
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by_admin_id UUID,
+  review_reason TEXT
+);

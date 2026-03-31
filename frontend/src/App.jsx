@@ -3,6 +3,7 @@ import Header from "./layouts/Header";
 import Footer from "./layouts/Footer";
 import Home from "./pages/Home";
 import RegisterPatient from "./features/auth/Register";
+import RegisterDoctor from "./features/auth/RegisterDoctor";
 import Login from "./features/auth/Login";
 import SuccessPatient from "./features/auth/SuccessPatient";
 import SuccessDoctor from "./features/auth/SuccessDoctor";
@@ -37,6 +38,8 @@ export default function App() {
   let Page = Home;
   if (path.startsWith("/register/patient"))
     Page = () => <RegisterPatient navigate={navigate} />;
+  else if (path.startsWith("/register/doctor"))
+    Page = () => <RegisterDoctor navigate={navigate} />;
   else if (path.startsWith("/login"))
     Page = () => <Login navigate={navigate} />;
   else if (path.startsWith("/success/patient"))

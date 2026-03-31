@@ -11,6 +11,24 @@ export default function Telemedicine({ navigate }) {
 
   const accessToken = useMemo(() => sessionStorage.getItem('accessToken') || '', []);
 
+  const logout = async () => {
+    const refreshToken = sessionStorage.getItem('refreshToken');
+    if (refreshToken) {
+      try {
+        await Api.post('/api/v1/auth/logout', { refreshToken });
+      } catch {}
+    }
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    if (navigate) navigate('/login');
+    else window.location.hash = '/login';
+  };
+
+  const goTo = (path) => {
+    if (navigate) navigate(path);
+    else window.location.hash = path;
+  };
+
   const authedFetch = async (path, method, body) => {
     const headers = { 'Content-Type': 'application/json' };
     if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
@@ -87,7 +105,65 @@ export default function Telemedicine({ navigate }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 px-4 py-8">
+    <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
+      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
+        <div className="mb-10 px-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary">clinical_notes</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-extrabold text-[#0b9385]">SmartHealth AI</h1>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Doctor Portal</p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo('/success/doctor')}
+          >
+            <span className="material-symbols-outlined">dashboard</span>
+            <span className="font-semibold text-sm">Overview</span>
+          </a>
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo('/doctor/appointments')}
+          >
+            <span className="material-symbols-outlined">event</span>
+            <span className="font-semibold text-sm">Appointments</span>
+          </a>
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo('/doctor/availability')}
+          >
+            <span className="material-symbols-outlined">calendar_month</span>
+            <span className="font-semibold text-sm">Availability</span>
+          </a>
+          <button
+            type="button"
+            onClick={() => goTo('/telemedicine')}
+            className="w-full text-left bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer"
+          >
+            <span className="material-symbols-outlined" data-icon="video_chat">video_chat</span>
+            <span className="font-semibold text-sm">Telemedicine</span>
+          </button>
+        </nav>
+
+        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50">
+          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer">
+            <span className="material-symbols-outlined">help</span>
+            <span className="font-semibold text-sm">Help Center</span>
+          </a>
+          <button onClick={logout} className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all w-full text-left">
+            <span className="material-symbols-outlined">logout</span>
+            <span className="font-semibold text-sm">Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="md:ml-64 p-8 min-h-screen">
       <div className="max-w-5xl mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div>
@@ -191,6 +267,7 @@ export default function Telemedicine({ navigate }) {
           <pre className="text-xs overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(result, null, 2)}</pre>
         </div>
       </div>
+      </main>
     </div>
   );
 }

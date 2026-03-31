@@ -23,12 +23,79 @@ export const registerRole = async (req, res, role) => {
   }
 };
 
+export const registerDoctor = async (req, res) => {
+  try {
+    const payload = Object.assign({}, req.body, { role: 'doctor' });
+    const result = await authService.registerDoctor(payload, req.file);
+    return res.status(201).json(result);
+  } catch (err) {
+    req.log && req.log.error && req.log.error(err, 'registerDoctor error');
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+};
+
 export const login = async (req, res) => {
   try {
     const tokens = await authService.login(req.body);
     return res.json(tokens);
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'login error');
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+};
+
+export const listPendingDoctorVerifications = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    const result = await authService.listPendingDoctorVerifications();
+    return res.json(result);
+  } catch (err) {
+    req.log && req.log.error && req.log.error(err, 'listPendingDoctorVerifications error');
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+};
+
+export const downloadDoctorLicense = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    const { filename, mimeType, data } = await authService.getDoctorLicense(
+      req.params.userId,
+    );
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${String(filename).replace(/\"/g, '')}"`,
+    );
+    return res.send(data);
+  } catch (err) {
+    req.log && req.log.error && req.log.error(err, 'downloadDoctorLicense error');
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+};
+
+export const verifyDoctor = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    const { status, reason } = req.body || {};
+    const result = await authService.verifyDoctor({
+      userId: req.params.userId,
+      status,
+      reason,
+      adminUserId: req.user.id,
+    });
+    return res.json(result);
+  } catch (err) {
+    req.log && req.log.error && req.log.error(err, 'verifyDoctor error');
     if (err.status) return res.status(err.status).json({ error: err.message });
     return res.status(500).json({ error: 'internal_error' });
   }

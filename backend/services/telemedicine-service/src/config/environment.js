@@ -1,21 +1,18 @@
 import 'dotenv/config';
-
 const getEnv = (name, defaultValue) => process.env[name] || defaultValue;
 
 export default {
   NODE_ENV: getEnv('NODE_ENV', 'development'),
-  // Auth service listens on 4001 by default; API Gateway remains on 4000.
-  PORT: Number(getEnv('PORT', '4001')),
+  PORT: Number(getEnv('PORT', '4010')),
   DATABASE_URL: getEnv('DATABASE_URL', ''),
   PGHOST: getEnv('PGHOST', 'localhost'),
   PGPORT: Number(getEnv('PGPORT', '5432')),
   PGUSER: getEnv('PGUSER', 'postgres'),
   PGPASSWORD: getEnv('PGPASSWORD', 'postgres'),
-  PGDATABASE: getEnv('PGDATABASE', 'authdb'),
+  PGDATABASE: getEnv('PGDATABASE', 'telemeddb'),
+  JITSI_BASE_URL: getEnv('JITSI_BASE_URL', 'https://meet.jit.si'),
+  // Optional shared secret for HS256 verification (must match auth-service JWT_SECRET)
   JWT_SECRET: getEnv('JWT_SECRET', ''),
-  // RSA key paths (dev defaults)
-  AUTH_PRIVATE_KEY_PATH: getEnv('AUTH_PRIVATE_KEY_PATH', './keys/private.pem'),
+  // Path to auth-service public key for RS256 verification
   AUTH_PUBLIC_KEY_PATH: getEnv('AUTH_PUBLIC_KEY_PATH', './keys/public.pem'),
-  BCRYPT_SALT_ROUNDS: Number(getEnv('BCRYPT_SALT_ROUNDS', '10')),
-  LOG_LEVEL: getEnv('LOG_LEVEL', 'info')
 };

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemedicine
+  labels:
+    app: telemedicine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemedicine
+  template:
+    metadata:
+      labels:
+        app: telemedicine
+    spec:
+      containers:
+      - name: telemedicine
+        image: telemedicine-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 4010
+        env:
+        - name: PORT
+          value: "4010"
+        - name: PGHOST
+          value: "auth-postgres"
+        - name: PGPORT
+          value: "5432"
+        - name: PGUSER
+          value: "postgres"
+        - name: PGPASSWORD
+          value: "postgres"
+        - name: PGDATABASE
+          value: "telemeddb"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-db-secret
+              key: JWT_SECRET
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemedicine
+spec:
+  selector:
+    app: telemedicine
+  ports:
+  - protocol: TCP
+    port: 4010
+    targetPort: 4010
+  type: ClusterIP

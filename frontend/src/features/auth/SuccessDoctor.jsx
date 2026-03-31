@@ -90,8 +90,16 @@ export default function SuccessDoctor({ navigate }){
             <span className="material-symbols-outlined">description</span>
             <span className="font-semibold text-sm">Medical Records</span>
           </a>
-          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">forum</span>
+          <button
+            type="button"
+            onClick={() => (navigate ? navigate('/telemedicine') : (window.location.hash = '/telemedicine'))}
+            className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
+          >
+            <span className="material-symbols-outlined" data-icon="video_chat">video_chat</span>
+            <span className="font-semibold text-sm">Telemedicine</span>
+          </button>
+          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200" href="#">
+            <span className="material-symbols-outlined" data-icon="forum">forum</span>
             <span className="font-semibold text-sm">Messages</span>
           </a>
           <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">

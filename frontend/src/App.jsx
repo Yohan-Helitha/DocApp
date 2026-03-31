@@ -14,6 +14,7 @@ import MyAppointments from "./pages/MyAppointments";
 import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
+import Telemedicine from './features/telemedicine/Telemedicine'
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -58,6 +59,8 @@ export default function App() {
     Page = () => <DoctorAppointments navigate={navigate} />;
   else if (path.startsWith("/doctor/prescriptions"))
     Page = () => <PrescriptionEditor navigate={navigate} />;
+  else if(route.startsWith('/telemedicine')) 
+    Page = ()=> <Telemedicine navigate={navigate} />
 
   return (
     <div className="min-h-screen flex flex-col">

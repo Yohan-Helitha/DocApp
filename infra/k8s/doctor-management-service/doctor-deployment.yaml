@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doctor-management-service
+  labels:
+    app: doctor-management-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: doctor-management-service
+  template:
+    metadata:
+      labels:
+        app: doctor-management-service
+    spec:
+      containers:
+        - name: doctor-management-service
+          image: docapp/doctor-management-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4002
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4002"
+            - name: PGHOST
+              value: "doctors-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: doctor-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: doctor-db-secret
+                  key: JWT_SECRET
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: doctor-management-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: doctor-management-service
+  ports:
+    - protocol: TCP
+      port: 4002
+      targetPort: 4002

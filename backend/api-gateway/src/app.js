@@ -128,4 +128,29 @@ app.use(
   })
 );
 
+// Proxy payment routes to payment-service.
+app.use(
+  '/api/v1/payments',
+  createProxyMiddleware({
+    target: env.PAYMENT_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        {
+          method: req.method,
+          path: req.originalUrl
+        },
+        'Proxying request to payment-service'
+      );
+    },
+    onError(err, req, res) {
+      logger.error({ err }, 'Error proxying request to payment-service');
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'payment_service_unavailable' });
+      }
+    }
+  })
+);
+
 export default app;

@@ -15,6 +15,9 @@ import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
 import Telemedicine from './features/telemedicine/Telemedicine'
+import PaymentCheckout from "./pages/PaymentCheckout";
+import PaymentReturn from "./pages/PaymentReturn";
+import PaymentCancel from "./pages/PaymentCancel";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -59,10 +62,16 @@ export default function App() {
     Page = () => <DoctorAppointments navigate={navigate} />;
   else if (path.startsWith("/doctor/prescriptions"))
     Page = () => <PrescriptionEditor navigate={navigate} />;
-  else if(route.startsWith('/telemedicine')) 
-    Page = ()=> <Telemedicine navigate={navigate} />
+  else if (route.startsWith("/telemedicine"))
+    Page = () => <Telemedicine navigate={navigate} />;
+  else if (path.startsWith("/payments/checkout"))
+    Page = () => <PaymentCheckout navigate={navigate} />;
+  else if (path.startsWith("/payments/return"))
+    Page = () => <PaymentReturn navigate={navigate} />;
+  else if (path.startsWith("/payments/cancel"))
+    Page = () => <PaymentCancel navigate={navigate} />;
 
-  const isAdminRoute = route.startsWith('/success/admin')
+  const isAdminRoute = route.startsWith("/success/admin");
 
   if(isAdminRoute){
     // Admin area uses its own top bar and sidebar layout (AdminLayout)

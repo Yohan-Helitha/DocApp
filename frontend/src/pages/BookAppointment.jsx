@@ -29,6 +29,12 @@ export default function BookAppointment({ navigate }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!token) {
+      setMsg("Your session has expired. Please sign in again.");
+      setMsgType("error");
+      navigate("/login");
+      return;
+    }
     if (!doctorId || !slotId) {
       setMsg("Missing booking information. Please go back and select a slot.");
       setMsgType("error");

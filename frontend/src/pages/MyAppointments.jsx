@@ -35,6 +35,7 @@ export default function MyAppointments({ navigate }) {
     if (!userId) {
       setError("Not authenticated. Please log in.");
       setLoading(false);
+      navigate("/login");
       return;
     }
     setLoading(true);
@@ -291,6 +292,21 @@ export default function MyAppointments({ navigate }) {
                         {cancelling === a.appointment_id
                           ? "Cancelling..."
                           : "Cancel"}
+                      </button>
+                    )}
+                    {a.appointment_status === "confirmed" && (
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/telemedicine?appointmentId=${a.appointment_id}`,
+                          )
+                        }
+                        className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          video_call
+                        </span>
+                        Join Session
                       </button>
                     )}
                   </div>

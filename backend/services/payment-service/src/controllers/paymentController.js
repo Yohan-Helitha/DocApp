@@ -53,6 +53,14 @@ export const createCheckout = async (req, res) => {
           items,
           amount: amountStr,
           currency,
+          // Minimal customer details required by PayHere Simple Checkout
+          first_name: 'Test',
+          last_name: 'Patient',
+          email: 'test.patient@example.com',
+          phone: '0771234567',
+          address: '123 Test Street',
+          city: 'Colombo',
+          country: 'Sri Lanka',
           hash,
           custom_1: patientId,
           custom_2: appointmentId

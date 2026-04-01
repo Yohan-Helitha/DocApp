@@ -357,3 +357,4 @@ export default function SuccessDoctor({ navigate }){
       </main>
     </div>
   )
+}

@@ -48,23 +48,62 @@ export default function DoctorAppointments({ navigate }) {
 
   useEffect(() => {
     const load = async () => {
+      setError("");
+      if (!token) {
+        setError("Your session has expired. Please sign in again.");
+        setLoading(false);
+        goTo("/login");
+        return;
+      }
+
       try {
         let userId = "";
         try {
           userId = JSON.parse(atob(token.split(".")[1])).sub;
-        } catch {}
-        const dRes = await Api.get("/api/v1/doctors", token);
-        const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
-        if (me) {
-          setDoctor(me);
-          const aRes = await Api.get(
-            `/api/v1/appointments/doctors/${me.doctor_id}`,
-            token,
-          );
-          if (aRes.status === 200)
-            setAppointments(aRes.body?.appointments || []);
+        } catch {
+          setError("Invalid login session. Please sign in again.");
+          setLoading(false);
+          goTo("/login");
+          return;
         }
-      } catch {}
+
+        const dRes = await Api.get("/api/v1/doctors", token);
+        if (dRes.status !== 200) {
+          setError(
+            dRes.body?.message ||
+              dRes.body?.error ||
+              `Failed to load doctor profile (${dRes.status}).`,
+          );
+          setLoading(false);
+          return;
+        }
+
+        const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
+        if (!me) {
+          setError(
+            "No doctor profile found for this account. (Token user does not match any doctor profile.)",
+          );
+          setLoading(false);
+          return;
+        }
+
+        setDoctor(me);
+        const aRes = await Api.get(
+          `/api/v1/appointments/doctors/${me.doctor_id}`,
+          token,
+        );
+        if (aRes.status === 200) {
+          setAppointments(aRes.body?.appointments || []);
+        } else {
+          setError(
+            aRes.body?.message ||
+              aRes.body?.error ||
+              `Failed to load appointments (${aRes.status}).`,
+          );
+        }
+      } catch {
+        setError("Failed to load appointments. Please try again.");
+      }
       setLoading(false);
     };
     load();
@@ -111,7 +150,7 @@ export default function DoctorAppointments({ navigate }) {
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
+      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
         <div className="mb-10 px-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -131,7 +170,7 @@ export default function DoctorAppointments({ navigate }) {
         </div>
         <nav className="flex-1 space-y-1">
           <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
             onClick={() => goTo("/success/doctor")}
           >
             <span className="material-symbols-outlined">dashboard</span>
@@ -147,29 +186,29 @@ export default function DoctorAppointments({ navigate }) {
             )}
           </a>
           <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
             onClick={() => goTo("/doctor/availability")}
           >
             <span className="material-symbols-outlined">calendar_month</span>
             <span className="font-semibold text-sm">Availability</span>
           </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">description</span>
-            <span className="font-semibold text-sm">Medical Records</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">forum</span>
-            <span className="font-semibold text-sm">Messages</span>
-          </a>
+          <button
+            type="button"
+            onClick={() => goTo("/telemedicine")}
+            className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
+          >
+            <span className="material-symbols-outlined" data-icon="video_chat">video_chat</span>
+            <span className="font-semibold text-sm">Telemedicine</span>
+          </button>
         </nav>
-        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50">
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer">
+        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
+          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
             <span className="material-symbols-outlined">help</span>
             <span className="font-semibold text-sm">Help Center</span>
           </a>
           <button
             onClick={logout}
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all w-full text-left"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all w-full text-left"
           >
             <span className="material-symbols-outlined">logout</span>
             <span className="font-semibold text-sm">Logout</span>

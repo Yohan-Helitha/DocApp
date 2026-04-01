@@ -17,6 +17,12 @@ export const register = async (userData) => {
     throw err;
   }
 
+  if (!['patient', 'doctor', 'admin'].includes(role)) {
+    const err = new Error('invalid_role');
+    err.status = 400;
+    throw err;
+  }
+
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
   const client = await db.pool.connect();
@@ -27,7 +33,8 @@ export const register = async (userData) => {
       VALUES ($1, $2, $3, $4)
       RETURNING user_id, email, role, account_status, created_at, updated_at
     `;
-    const values = [email.toLowerCase(), passwordHash, role, 'active'];
+    const accountStatus = role === 'doctor' ? 'pending_verification' : 'active';
+    const values = [email.toLowerCase(), passwordHash, role, accountStatus];
     const result = await client.query(insertText, values);
     await client.query('COMMIT');
     const user = result.rows[0];
@@ -35,6 +42,84 @@ export const register = async (userData) => {
   } catch (err) {
     await client.query('ROLLBACK');
     // handle unique violation (email exists)
+    if (err && err.code === '23505') {
+      const e = new Error('email_exists');
+      e.status = 409;
+      throw e;
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+export const registerDoctor = async (doctorPayload, licenseFile) => {
+  const { email, password } = doctorPayload || {};
+  if (!email || !password) {
+    const err = new Error('invalid_input');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!licenseFile) {
+    const err = new Error('license_required');
+    err.status = 400;
+    throw err;
+  }
+
+  const allowedMime = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+  ]);
+  if (!allowedMime.has(licenseFile.mimetype)) {
+    const err = new Error('invalid_license_type');
+    err.status = 400;
+    throw err;
+  }
+
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const insertUserText = `
+      INSERT INTO users (email, password_hash, role, account_status)
+      VALUES ($1, $2, $3, $4)
+      RETURNING user_id, email, role, account_status, created_at, updated_at
+    `;
+    const userRes = await client.query(insertUserText, [
+      email.toLowerCase(),
+      passwordHash,
+      'doctor',
+      'pending_verification',
+    ]);
+    const user = userRes.rows[0];
+
+    const profileData = {
+      full_name: doctorPayload.full_name || doctorPayload.fullName || null,
+      specialization: doctorPayload.specialization || null,
+      notes: doctorPayload.notes || null,
+    };
+
+    await client.query(
+      `INSERT INTO doctor_verification_requests
+        (user_id, status, profile_data, license_original_name, license_mime_type, license_size_bytes, license_data)
+       VALUES ($1, 'pending', $2, $3, $4, $5, $6)`,
+      [
+        user.user_id,
+        profileData,
+        licenseFile.originalname || null,
+        licenseFile.mimetype || null,
+        Number(licenseFile.size || 0) || null,
+        licenseFile.buffer,
+      ],
+    );
+
+    await client.query('COMMIT');
+    return { user, verification: { status: 'pending' } };
+  } catch (err) {
+    await client.query('ROLLBACK');
     if (err && err.code === '23505') {
       const e = new Error('email_exists');
       e.status = 409;
@@ -60,6 +145,16 @@ export const login = async (credentials) => {
   if (!user) {
     const e = new Error('invalid_credentials');
     e.status = 401;
+    throw e;
+  }
+
+  if (user.account_status !== 'active') {
+    const e = new Error(
+      user.account_status === 'pending_verification'
+        ? 'pending_verification'
+        : 'account_inactive',
+    );
+    e.status = 403;
     throw e;
   }
 
@@ -96,6 +191,91 @@ export const login = async (credentials) => {
   );
 
   return { accessToken, refreshToken, expiresAt };
+};
+
+export const listPendingDoctorVerifications = async () => {
+  const { rows } = await db.query(
+    `SELECT u.user_id, u.email, u.account_status, u.created_at,
+            r.status AS verification_status,
+            r.profile_data,
+            r.license_original_name,
+            r.license_mime_type,
+            r.license_size_bytes,
+            r.submitted_at
+     FROM users u
+     LEFT JOIN doctor_verification_requests r ON r.user_id = u.user_id
+     WHERE u.role = 'doctor' AND u.account_status = 'pending_verification'
+     ORDER BY u.created_at DESC`,
+  );
+  return { doctors: rows };
+};
+
+export const getDoctorLicense = async (userId) => {
+  const { rows } = await db.query(
+    `SELECT license_original_name, license_mime_type, license_data
+     FROM doctor_verification_requests
+     WHERE user_id = $1`,
+    [userId],
+  );
+  const row = rows && rows[0];
+  if (!row || !row.license_data) {
+    const e = new Error('license_not_found');
+    e.status = 404;
+    throw e;
+  }
+  return {
+    filename: row.license_original_name || 'license',
+    mimeType: row.license_mime_type || 'application/octet-stream',
+    data: row.license_data,
+  };
+};
+
+export const verifyDoctor = async ({ userId, status, reason, adminUserId }) => {
+  const allowed = ['approved', 'rejected'];
+  if (!allowed.includes(status)) {
+    const e = new Error('invalid_verification_status');
+    e.status = 400;
+    throw e;
+  }
+
+  const newAccountStatus = status === 'approved' ? 'active' : 'rejected';
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const uRes = await client.query(
+      `UPDATE users
+       SET account_status = $1, updated_at = now()
+       WHERE user_id = $2 AND role = 'doctor'
+       RETURNING user_id, email, role, account_status, created_at, updated_at`,
+      [newAccountStatus, userId],
+    );
+    const user = uRes.rows && uRes.rows[0];
+    if (!user) {
+      const e = new Error('doctor_user_not_found');
+      e.status = 404;
+      throw e;
+    }
+
+    await client.query(
+      `UPDATE doctor_verification_requests
+       SET status = $1,
+           reviewed_at = now(),
+           reviewed_by_admin_id = $2,
+           review_reason = $3
+       WHERE user_id = $4`,
+      [status, adminUserId || null, reason || null, userId],
+    );
+
+    await client.query('COMMIT');
+    return { user, verification: { status } };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 export const refreshToken = async (rawToken) => {

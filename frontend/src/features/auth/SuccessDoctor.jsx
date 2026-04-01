@@ -5,23 +5,55 @@ export default function SuccessDoctor({ navigate }){
   const [doctor, setDoctor] = useState(null)
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const token = sessionStorage.getItem('accessToken')
 
   useEffect(() => {
     const load = async () => {
+      setError('')
+
+      if (!token) {
+        setError('Your session has expired. Please sign in again.')
+        setLoading(false)
+        if (navigate) navigate('/login')
+        else window.location.hash = '/login'
+        return
+      }
+
       try {
         let userId = ''
-        try { userId = JSON.parse(atob(token.split('.')[1])).sub } catch {}
+        try {
+          userId = JSON.parse(atob(token.split('.')[1])).sub
+        } catch {
+          setError('Invalid login session. Please sign in again.')
+          setLoading(false)
+          if (navigate) navigate('/login')
+          else window.location.hash = '/login'
+          return
+        }
 
         const dRes = await Api.get('/api/v1/doctors', token)
-        const me = (dRes.body?.doctors || []).find(d => d.user_id === userId)
-        if (me) {
-          setDoctor(me)
-          const aRes = await Api.get(`/api/v1/appointments/doctors/${me.doctor_id}`, token)
-          if (aRes.status === 200) setAppointments(aRes.body?.appointments || [])
+        if (dRes.status !== 200) {
+          setError(dRes.body?.message || dRes.body?.error || `Failed to load doctor profile (${dRes.status}).`)
+          setLoading(false)
+          return
         }
-      } catch {}
+
+        const me = (dRes.body?.doctors || []).find(d => d.user_id === userId)
+        if (!me) {
+          setError('No doctor profile found for this account.')
+          setLoading(false)
+          return
+        }
+
+        setDoctor(me)
+        const aRes = await Api.get(`/api/v1/appointments/doctors/${me.doctor_id}`, token)
+        if (aRes.status === 200) setAppointments(aRes.body?.appointments || [])
+        else setError(aRes.body?.message || aRes.body?.error || `Failed to load appointments (${aRes.status}).`)
+      } catch {
+        setError('Failed to load dashboard data. Please try again.')
+      }
       setLoading(false)
     }
     load()
@@ -86,10 +118,6 @@ export default function SuccessDoctor({ navigate }){
             <span className="material-symbols-outlined">calendar_month</span>
             <span className="font-semibold text-sm">Availability</span>
           </a>
-          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">description</span>
-            <span className="font-semibold text-sm">Medical Records</span>
-          </a>
           <button
             type="button"
             onClick={() => (navigate ? navigate('/telemedicine') : (window.location.hash = '/telemedicine'))}
@@ -98,14 +126,6 @@ export default function SuccessDoctor({ navigate }){
             <span className="material-symbols-outlined" data-icon="video_chat">video_chat</span>
             <span className="font-semibold text-sm">Telemedicine</span>
           </button>
-          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200" href="#">
-            <span className="material-symbols-outlined" data-icon="forum">forum</span>
-            <span className="font-semibold text-sm">Messages</span>
-          </a>
-          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">insert_chart</span>
-            <span className="font-semibold text-sm">Analytics</span>
-          </a>
         </nav>
         <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50">
           <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer">
@@ -147,6 +167,12 @@ export default function SuccessDoctor({ navigate }){
             </div>
           </div>
         </header>
+
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-2xl px-5 py-4 text-sm font-medium">
+            {error}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-20">
@@ -357,3 +383,5 @@ export default function SuccessDoctor({ navigate }){
       </main>
     </div>
   )
+
+}

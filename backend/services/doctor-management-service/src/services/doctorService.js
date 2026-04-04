@@ -39,11 +39,18 @@ export const createDoctor = async (
   return rows[0];
 };
 
-export const listDoctors = async (db, { specialization, name } = {}) => {
+export const listDoctors = async (
+  db,
+  { specialization, name, verifiedOnly = true } = {},
+) => {
   const conditions = [];
   const values = [];
   let idx = 1;
 
+  if (verifiedOnly) {
+    conditions.push(`verification_status = $${idx++}`);
+    values.push("approved");
+  }
   if (specialization) {
     conditions.push(`LOWER(specialization) = LOWER($${idx++})`);
     values.push(specialization);
@@ -84,7 +91,6 @@ export const getDoctorById = async (db, doctorId) => {
 export const updateDoctor = async (db, doctorId, updates) => {
   const allowed = [
     "full_name",
-    "specialization",
     "license_number",
     "experience_years",
     "consultation_fee",

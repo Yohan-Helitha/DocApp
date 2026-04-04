@@ -394,6 +394,19 @@ export default function MyAppointments({ navigate }) {
                         Join Session
                       </button>
                     )}
+                    {a.appointment_status === "completed" && (
+                      <button
+                        onClick={() =>
+                          navigate(`/prescriptions?patientId=${userId}`)
+                        }
+                        className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          description
+                        </span>
+                        View Prescriptions
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

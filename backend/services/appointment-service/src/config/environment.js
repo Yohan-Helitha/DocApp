@@ -21,4 +21,5 @@ export default {
     "http://notification-service:6000",
   ),
   LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
+  INTERNAL_SECRET: getEnv("INTERNAL_SECRET", "change-me-internal"),
 };

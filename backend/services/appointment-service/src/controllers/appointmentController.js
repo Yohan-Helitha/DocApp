@@ -1,6 +1,7 @@
 import * as appointmentService from "../services/appointmentService.js";
 import * as doctorClient from "../services/doctorClient.js";
 import * as notificationClient from "../services/notificationClient.js";
+import env from "../config/environment.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,13 @@ export const bookAppointment = async (req, res) => {
       req.headers.authorization,
       doctor_id,
     );
+
+    // 1a. Reject booking if doctor is not yet verified
+    if (doctor.verification_status !== "approved") {
+      const e = new Error("doctor_not_verified");
+      e.status = 403;
+      throw e;
+    }
 
     // 2. Mark the slot as booked in doctor-management-service (uses service JWT)
     await doctorClient.updateSlotStatus(doctor_id, slot_id, "booked");
@@ -447,5 +455,71 @@ export const doctorDecision = async (req, res) => {
     return res.json({ appointment: updated });
   } catch (err) {
     return handleError(err, res, req, "doctorDecision");
+  }
+};
+
+// ─── Update Payment Status (internal callback) ───────────────────────────────────
+
+export const updatePaymentStatus = async (req, res) => {
+  try {
+    const secret = req.headers["x-internal-secret"];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    const { payment_status } = req.body || {};
+    if (!payment_status) {
+      return res.status(400).json({ error: "payment_status_required" });
+    }
+
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    const updated = await appointmentService.updatePaymentStatus(
+      req.db,
+      req.params.appointmentId,
+      payment_status,
+    );
+
+    if (
+      payment_status === "expired" &&
+      appointment.appointment_status !== "confirmed"
+    ) {
+      await doctorClient.updateSlotStatus(
+        appointment.doctor_id,
+        appointment.slot_id,
+        "available",
+      );
+      await appointmentService.setStatus(
+        req.db,
+        req.params.appointmentId,
+        "cancelled",
+      );
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: "payment_expired",
+        event_actor: null,
+        notes: "Payment window elapsed — slot released",
+      });
+    } else if (
+      payment_status === "expired" &&
+      appointment.appointment_status === "confirmed"
+    ) {
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: "payment_expired_ignored",
+        event_actor: null,
+        notes: "Payment expired but appointment already confirmed — slot kept",
+      });
+    } else {
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: `payment_${payment_status}`,
+        event_actor: null,
+        notes: `Payment status updated to ${payment_status} by payment service`,
+      });
+    }
+
+    return res.json({ appointment: updated });
+  } catch (err) {
+    return handleError(err, res, req, "updatePaymentStatus");
   }
 };

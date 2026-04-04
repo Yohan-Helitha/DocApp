@@ -15,7 +15,8 @@ import MyAppointments from "./pages/MyAppointments";
 import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
-import Telemedicine from './features/telemedicine/Telemedicine'
+import PatientPrescriptions from "./pages/PatientPrescriptions";
+import Telemedicine from "./features/telemedicine/Telemedicine";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -62,19 +63,21 @@ export default function App() {
     Page = () => <DoctorAppointments navigate={navigate} />;
   else if (path.startsWith("/doctor/prescriptions"))
     Page = () => <PrescriptionEditor navigate={navigate} />;
-  else if(route.startsWith('/telemedicine')) 
-    Page = ()=> <Telemedicine navigate={navigate} />
+  else if (path === "/prescriptions")
+    Page = () => <PatientPrescriptions navigate={navigate} />;
+  else if (route.startsWith("/telemedicine"))
+    Page = () => <Telemedicine navigate={navigate} />;
 
-  const isAdminRoute = route.startsWith('/success/admin')
+  const isAdminRoute = route.startsWith("/success/admin");
 
-  if(isAdminRoute){
+  if (isAdminRoute) {
     // Admin area uses its own top bar and sidebar layout (AdminLayout)
     // so we intentionally do NOT render the public Header/Footer here.
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Page />
       </div>
-    )
+    );
   }
 
   return (

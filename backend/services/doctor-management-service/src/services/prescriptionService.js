@@ -58,3 +58,13 @@ export const getPrescriptionById = async (db, doctorId, prescriptionId) => {
   }
   return rows[0];
 };
+
+export const listPrescriptionsByPatient = async (db, patientId) => {
+  const { rows } = await db.query(
+    `SELECT * FROM prescriptions
+     WHERE patient_id = $1
+     ORDER BY issued_at DESC`,
+    [patientId],
+  );
+  return rows;
+};

@@ -80,4 +80,10 @@ router.put(
   appointmentController.doctorDecision,
 );
 
+// Internal: payment service callback (no user auth — uses X-Internal-Secret)
+router.put(
+  "/api/v1/appointments/:appointmentId/payment-status",
+  appointmentController.updatePaymentStatus,
+);
+
 export default router;

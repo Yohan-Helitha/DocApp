@@ -140,3 +140,34 @@ export const getEvents = async (db, appointmentId) => {
   );
   return rows;
 };
+
+// --- Payment Status -------------------------------------------------------
+
+const VALID_PAYMENT_STATUSES = [
+  "unpaid",
+  "partially_paid",
+  "paid",
+  "refunded",
+  "expired",
+];
+
+export const updatePaymentStatus = async (db, appointmentId, paymentStatus) => {
+  if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) {
+    const e = new Error("invalid_payment_status");
+    e.status = 400;
+    throw e;
+  }
+  const { rows } = await db.query(
+    `UPDATE appointments
+     SET payment_status = $1, updated_at = now()
+     WHERE appointment_id = $2
+     RETURNING *`,
+    [paymentStatus, appointmentId],
+  );
+  if (!rows[0]) {
+    const e = new Error("appointment_not_found");
+    e.status = 404;
+    throw e;
+  }
+  return rows[0];
+};

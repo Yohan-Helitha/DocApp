@@ -187,23 +187,19 @@ export default function SuccessDoctor({ navigate }) {
     setEditProfileError("");
     const {
       full_name,
-      specialization,
       license_number,
       experience_years,
       consultation_fee,
       bio,
     } = editForm;
-    if (!full_name.trim() || !specialization.trim() || !license_number.trim()) {
-      setEditProfileError(
-        "Full name, specialization, and license number are required.",
-      );
+    if (!full_name.trim() || !license_number.trim()) {
+      setEditProfileError("Full name and license number are required.");
       return;
     }
     setEditProfileLoading(true);
     try {
       const body = {
         full_name: full_name.trim(),
-        specialization: specialization.trim(),
         license_number: license_number.trim(),
       };
       if (experience_years !== "")
@@ -924,19 +920,12 @@ export default function SuccessDoctor({ navigate }) {
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-                  Specialization <span className="text-red-400">*</span>
+                  Specialization
                 </label>
-                <input
-                  type="text"
-                  value={editForm.specialization}
-                  onChange={(e) =>
-                    setEditForm((f) => ({
-                      ...f,
-                      specialization: e.target.value,
-                    }))
-                  }
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
+                <div className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 text-slate-400 flex items-center justify-between">
+                  <span>{editForm.specialization || "—"}</span>
+                  <span className="text-xs text-slate-400 italic">locked</span>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">

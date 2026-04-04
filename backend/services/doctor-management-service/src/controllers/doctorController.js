@@ -28,9 +28,11 @@ export const createDoctor = async (req, res) => {
 export const listDoctors = async (req, res) => {
   try {
     const { specialization, name } = req.query;
+    const verifiedOnly = req.user.role !== "admin";
     const doctors = await doctorService.listDoctors(req.db, {
       specialization,
       name,
+      verifiedOnly,
     });
     return res.json({ doctors });
   } catch (err) {
@@ -106,6 +108,13 @@ const assertSlotOwner = async (db, doctorId, user) => {
 export const addSlot = async (req, res) => {
   try {
     await assertSlotOwner(req.db, req.params.doctorId, req.user);
+    const doctor = await doctorService.getDoctorById(
+      req.db,
+      req.params.doctorId,
+    );
+    if (doctor.verification_status !== "approved") {
+      return res.status(403).json({ error: "doctor_not_verified" });
+    }
     const slot = await doctorService.addSlot(
       req.db,
       req.params.doctorId,

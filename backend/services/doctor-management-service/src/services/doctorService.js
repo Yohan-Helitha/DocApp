@@ -208,6 +208,20 @@ export const updateSlot = async (db, doctorId, slotId, updates) => {
   return rows[0];
 };
 
+export const getSlotById = async (db, doctorId, slotId) => {
+  const { rows } = await db.query(
+    `SELECT * FROM doctor_availability_slots
+     WHERE doctor_id = $1 AND slot_id = $2`,
+    [doctorId, slotId],
+  );
+  if (!rows[0]) {
+    const e = new Error("slot_not_found");
+    e.status = 404;
+    throw e;
+  }
+  return rows[0];
+};
+
 export const deleteSlot = async (db, doctorId, slotId) => {
   const { rowCount } = await db.query(
     `DELETE FROM doctor_availability_slots

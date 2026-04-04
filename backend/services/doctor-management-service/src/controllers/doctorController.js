@@ -148,6 +148,21 @@ export const updateSlot = async (req, res) => {
 export const deleteSlot = async (req, res) => {
   try {
     await assertSlotOwner(req.db, req.params.doctorId, req.user);
+
+    // Guard: refuse to delete a slot that is currently booked to an appointment.
+    const slot = await doctorService.getSlotById(
+      req.db,
+      req.params.doctorId,
+      req.params.slotId,
+    );
+    if (slot.slot_status === "booked") {
+      return res.status(409).json({
+        error: "slot_is_booked",
+        message:
+          "Cannot delete a booked slot — cancel or reject the associated appointment first.",
+      });
+    }
+
     await doctorService.deleteSlot(
       req.db,
       req.params.doctorId,

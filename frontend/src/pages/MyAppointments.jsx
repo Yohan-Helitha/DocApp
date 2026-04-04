@@ -24,6 +24,12 @@ export default function MyAppointments({ navigate }) {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [cancelling, setCancelling] = useState(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState("");
 
   const token = sessionStorage.getItem("accessToken");
   let userId = "";
@@ -81,6 +87,74 @@ export default function MyAppointments({ navigate }) {
       alert("Network error.");
     }
     setCancelling(null);
+  };
+
+  const openReschedule = async (appointment) => {
+    setSelectedSlot(null);
+    setRescheduleError("");
+    setRescheduleTarget(appointment);
+    setSlotsLoading(true);
+    try {
+      const r = await Api.get(
+        `/api/v1/doctors/${appointment.doctor_id}/availability-slots`,
+        token,
+      );
+      setRescheduleSlots(
+        r.status === 200
+          ? (r.body?.slots || []).filter((s) => s.slot_status === "available")
+          : [],
+      );
+    } catch {
+      setRescheduleSlots([]);
+    }
+    setSlotsLoading(false);
+  };
+
+  const confirmReschedule = async () => {
+    if (!selectedSlot) return;
+    setRescheduling(true);
+    setRescheduleError("");
+    try {
+      const r = await Api.put(
+        `/api/v1/appointments/${rescheduleTarget.appointment_id}`,
+        { slot_id: selectedSlot },
+        token,
+      );
+      if (r.status === 200) {
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a.appointment_id === rescheduleTarget.appointment_id
+              ? { ...a, slot_id: selectedSlot }
+              : a,
+          ),
+        );
+        setRescheduleTarget(null);
+      } else {
+        setRescheduleError(
+          r.body?.message || r.body?.error || "Failed to reschedule.",
+        );
+      }
+    } catch {
+      setRescheduleError("Network error. Please try again.");
+    }
+    setRescheduling(false);
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const [y, m, day] = d.split("-");
+    return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const fmtTime = (t) => {
+    if (!t) return "";
+    const [h, min] = t.split(":");
+    const hour = parseInt(h, 10);
+    return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
   };
 
   const logout = async () => {
@@ -282,6 +356,17 @@ export default function MyAppointments({ navigate }) {
                     >
                       {a.appointment_status}
                     </span>
+                    {a.appointment_status === "pending" && (
+                      <button
+                        onClick={() => openReschedule(a)}
+                        className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          schedule
+                        </span>
+                        Reschedule
+                      </button>
+                    )}
                     {(a.appointment_status === "pending" ||
                       a.appointment_status === "confirmed") && (
                       <button
@@ -316,6 +401,101 @@ export default function MyAppointments({ navigate }) {
           )}
         </div>
       </main>
+
+      {/* Reschedule Modal */}
+      {rescheduleTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-extrabold text-slate-900">
+                Reschedule Appointment
+              </h3>
+              <button
+                onClick={() => setRescheduleTarget(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <p className="text-sm text-slate-500 mb-4">
+                Select a new available slot. Current appointment{" "}
+                <span className="font-mono font-bold">
+                  #{rescheduleTarget.appointment_id.slice(0, 8).toUpperCase()}
+                </span>{" "}
+                will be updated.
+              </p>
+
+              {rescheduleError && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  {rescheduleError}
+                </div>
+              )}
+
+              {slotsLoading ? (
+                <div className="flex justify-center py-8">
+                  <span className="material-symbols-outlined text-primary text-4xl animate-spin">
+                    progress_activity
+                  </span>
+                </div>
+              ) : rescheduleSlots.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <span className="material-symbols-outlined text-4xl block mb-2">
+                    event_busy
+                  </span>
+                  <p className="text-sm font-medium">
+                    No available slots for this doctor.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {rescheduleSlots.map((s) => (
+                    <button
+                      key={s.slot_id}
+                      onClick={() => setSelectedSlot(s.slot_id)}
+                      className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                        selectedSlot === s.slot_id
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                          : "border-slate-100 hover:border-primary/40"
+                      }`}
+                    >
+                      <p className="text-sm font-bold text-slate-900">
+                        {fmtDate(s.slot_date)}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {fmtTime(s.start_time)} – {fmtTime(s.end_time)}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+              <button
+                onClick={() => setRescheduleTarget(null)}
+                className="flex-1 border border-slate-200 text-slate-600 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReschedule}
+                disabled={!selectedSlot || rescheduling}
+                className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+              >
+                {rescheduling ? (
+                  <span className="material-symbols-outlined animate-spin text-lg">
+                    progress_activity
+                  </span>
+                ) : (
+                  "Confirm"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

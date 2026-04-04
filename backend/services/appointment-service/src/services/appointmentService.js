@@ -15,13 +15,19 @@ const VALID_STATUSES = [
 
 export const createAppointment = async (
   db,
-  { patient_id, doctor_id, slot_id, reason_for_visit },
+  { patient_id, doctor_id, slot_id, patient_email, reason_for_visit },
 ) => {
   const { rows } = await db.query(
-    `INSERT INTO appointments (patient_id, doctor_id, slot_id, reason_for_visit)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO appointments (patient_id, doctor_id, slot_id, patient_email, reason_for_visit)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [patient_id, doctor_id, slot_id, reason_for_visit ?? null],
+    [
+      patient_id,
+      doctor_id,
+      slot_id,
+      patient_email ?? null,
+      reason_for_visit ?? null,
+    ],
   );
   return rows[0];
 };

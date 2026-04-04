@@ -15,6 +15,13 @@ export default function DoctorAvailability({ navigate }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [editTarget, setEditTarget] = useState(null);
+  const [editDate, setEditDate] = useState("");
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
   const [slotDate, setSlotDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -119,6 +126,62 @@ export default function DoctorAvailability({ navigate }) {
     }
   };
 
+  const openEdit = (slot) => {
+    setEditError("");
+    setEditDate(slot.slot_date);
+    setEditStartTime(slot.start_time.slice(0, 5));
+    setEditEndTime(slot.end_time.slice(0, 5));
+    setEditTarget(slot);
+  };
+
+  const handleEditSlot = async (e) => {
+    e.preventDefault();
+    setEditError("");
+    if (!editDate || !editStartTime || !editEndTime) {
+      setEditError("All fields are required.");
+      return;
+    }
+    if (editEndTime <= editStartTime) {
+      setEditError("End time must be after start time.");
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const res = await Api.put(
+        `/api/v1/doctors/${doctor.doctor_id}/availability-slots/${editTarget.slot_id}`,
+        {
+          slot_date: editDate,
+          start_time: editStartTime,
+          end_time: editEndTime,
+        },
+        token,
+      );
+      if (res.status === 200) {
+        setSlots((prev) =>
+          prev.map((s) =>
+            s.slot_id === editTarget.slot_id
+              ? {
+                  ...s,
+                  slot_date: editDate,
+                  start_time: editStartTime,
+                  end_time: editEndTime,
+                }
+              : s,
+          ),
+        );
+        setSuccess("Slot updated.");
+        setEditTarget(null);
+      } else {
+        setEditError(
+          res.body?.message || `Failed to update slot (${res.status}).`,
+        );
+      }
+    } catch {
+      setEditError("Network error. Please try again.");
+    }
+    setEditLoading(false);
+  };
+
   const formatDate = (d) => {
     if (!d) return "";
     const [y, m, day] = d.split("-");
@@ -195,7 +258,9 @@ export default function DoctorAvailability({ navigate }) {
             onClick={() => goTo("/telemedicine")}
             className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
           >
-            <span className="material-symbols-outlined" data-icon="video_chat">video_chat</span>
+            <span className="material-symbols-outlined" data-icon="video_chat">
+              video_chat
+            </span>
             <span className="font-semibold text-sm">Telemedicine</span>
           </button>
         </nav>
@@ -383,15 +448,26 @@ export default function DoctorAvailability({ navigate }) {
                           {slot.slot_status}
                         </span>
                         {slot.slot_status === "available" && (
-                          <button
-                            onClick={() => handleDeleteSlot(slot.slot_id)}
-                            title="Remove slot"
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
-                          >
-                            <span className="material-symbols-outlined text-lg">
-                              delete
-                            </span>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => openEdit(slot)}
+                              title="Edit slot"
+                              className="text-slate-400 hover:text-primary transition-colors p-1 rounded-lg hover:bg-primary/10"
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                edit
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSlot(slot.slot_id)}
+                              title="Remove slot"
+                              className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                delete
+                              </span>
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -402,6 +478,88 @@ export default function DoctorAvailability({ navigate }) {
           </div>
         </div>
       </main>
+
+      {/* Edit Slot Modal */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-extrabold text-slate-900">
+                Edit Slot
+              </h3>
+              <button
+                onClick={() => setEditTarget(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleEditSlot} className="px-6 py-5 space-y-4">
+              {editError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  {editError}
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+                  Start Time
+                </label>
+                <input
+                  type="time"
+                  value={editStartTime}
+                  onChange={(e) => setEditStartTime(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  value={editEndTime}
+                  onChange={(e) => setEditEndTime(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditTarget(null)}
+                  className="flex-1 border border-slate-200 text-slate-600 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  {editLoading ? (
+                    <span className="material-symbols-outlined animate-spin text-lg">
+                      progress_activity
+                    </span>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

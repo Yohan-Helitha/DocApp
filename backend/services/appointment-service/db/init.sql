@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   patient_id         UUID        NOT NULL,    -- user_id from JWT sub (auth-service users.user_id)
   doctor_id          UUID        NOT NULL,    -- doctor_id from doctor-management-service doctors table
   slot_id            UUID        NOT NULL,    -- slot_id from doctor-management-service doctor_availability_slots
+  patient_email      TEXT,                   -- stored at booking time so notifications can reach the patient without calling auth-service
   reason_for_visit   TEXT,
   appointment_status TEXT        DEFAULT 'pending',  -- pending/confirmed/rejected/completed/cancelled
   payment_status     TEXT        DEFAULT 'unpaid',   -- unpaid/paid/refunded

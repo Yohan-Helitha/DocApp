@@ -16,6 +16,11 @@ export default function PrescriptionEditor({ navigate }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [instructions, setInstructions] = useState("");
 
+  // Past prescriptions list
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [prescsLoading, setPrescsLoading] = useState(false);
+  const [expandedPresc, setExpandedPresc] = useState(null);
+
   const token = sessionStorage.getItem("accessToken");
 
   // Parse query params from hash
@@ -40,6 +45,15 @@ export default function PrescriptionEditor({ navigate }) {
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("refreshToken");
     goTo("/login");
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   useEffect(() => {
@@ -82,6 +96,21 @@ export default function PrescriptionEditor({ navigate }) {
         }
 
         setDoctor(me);
+
+        // Fetch past prescriptions
+        setPrescsLoading(true);
+        try {
+          const pRes = await Api.get(
+            `/api/v1/doctors/${me.doctor_id}/prescriptions`,
+            token,
+          );
+          if (pRes.status === 200) {
+            setPrescriptions(pRes.body?.prescriptions || []);
+          }
+        } catch {
+          /* ignore presc fetch errors */
+        }
+        setPrescsLoading(false);
       } catch {
         setError("Failed to load profile. Please try again.");
       }
@@ -420,6 +449,103 @@ export default function PrescriptionEditor({ navigate }) {
                 patient follow the prescription accurately.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Past Prescriptions */}
+        <div className="mt-10">
+          <div className="bg-white rounded-2xl p-8 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">
+                history
+              </span>
+              Past Prescriptions
+            </h3>
+            {prescsLoading ? (
+              <div className="flex justify-center py-8">
+                <span className="material-symbols-outlined text-primary text-3xl animate-spin">
+                  progress_activity
+                </span>
+              </div>
+            ) : prescriptions.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-8">
+                No prescriptions issued yet.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {prescriptions.map((p) => (
+                  <div
+                    key={p.prescription_id}
+                    className="border border-slate-100 rounded-xl overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedPresc(
+                          expandedPresc === p.prescription_id
+                            ? null
+                            : p.prescription_id,
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="material-symbols-outlined text-primary">
+                          medication
+                        </span>
+                        <div>
+                          <p className="font-bold text-sm text-slate-900">
+                            {p.medication}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {fmtDate(p.issued_at)}
+                            {p.diagnosis ? ` · ${p.diagnosis}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-mono text-slate-400">
+                          Patient: {p.patient_id.slice(0, 8)}…
+                        </span>
+                        <span className="material-symbols-outlined text-slate-400 text-lg">
+                          {expandedPresc === p.prescription_id
+                            ? "expand_less"
+                            : "expand_more"}
+                        </span>
+                      </div>
+                    </button>
+                    {expandedPresc === p.prescription_id && (
+                      <div className="px-5 pb-5 pt-3 border-t border-slate-100 grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                        {[
+                          ["Dosage", p.dosage],
+                          ["Frequency", p.frequency],
+                          ["Duration", p.duration],
+                          [
+                            "Appointment ID",
+                            p.appointment_id
+                              ? `#${p.appointment_id.slice(0, 8).toUpperCase()}`
+                              : null,
+                          ],
+                          ["Instructions", p.instructions],
+                        ].map(
+                          ([label, val]) =>
+                            val && (
+                              <div key={label}>
+                                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                                  {label}
+                                </span>
+                                <p className="font-medium text-slate-900 mt-0.5">
+                                  {val}
+                                </p>
+                              </div>
+                            ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>

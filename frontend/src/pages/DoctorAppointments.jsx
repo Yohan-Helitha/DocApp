@@ -109,6 +109,34 @@ export default function DoctorAppointments({ navigate }) {
     load();
   }, []);
 
+  const handleComplete = async (appointmentId) => {
+    setError("");
+    setSuccess("");
+    setActionLoading((prev) => ({ ...prev, [appointmentId]: "complete" }));
+    try {
+      const res = await Api.put(
+        `/api/v1/appointments/${appointmentId}/status`,
+        { status: "completed" },
+        token,
+      );
+      if (res.status === 200) {
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a.appointment_id === appointmentId
+              ? { ...a, appointment_status: "completed" }
+              : a,
+          ),
+        );
+        setSuccess("Appointment marked as completed.");
+      } else {
+        setError(res.body?.message || res.body?.error || "Action failed.");
+      }
+    } catch {
+      setError("An error occurred.");
+    }
+    setActionLoading((prev) => ({ ...prev, [appointmentId]: undefined }));
+  };
+
   const handleDecision = async (appointmentId, decision) => {
     setError("");
     setSuccess("");
@@ -197,7 +225,9 @@ export default function DoctorAppointments({ navigate }) {
             onClick={() => goTo("/telemedicine")}
             className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
           >
-            <span className="material-symbols-outlined" data-icon="video_chat">video_chat</span>
+            <span className="material-symbols-outlined" data-icon="video_chat">
+              video_chat
+            </span>
             <span className="font-semibold text-sm">Telemedicine</span>
           </button>
         </nav>
@@ -380,19 +410,37 @@ export default function DoctorAppointments({ navigate }) {
                     </>
                   )}
                   {appt.appointment_status === "confirmed" && (
-                    <button
-                      onClick={() =>
-                        goTo(
-                          `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
-                        )
-                      }
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        medication
-                      </span>
-                      Write Prescription
-                    </button>
+                    <>
+                      <button
+                        disabled={!!actionLoading[appt.appointment_id]}
+                        onClick={() => handleComplete(appt.appointment_id)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-500 hover:text-white transition-colors border border-blue-200 disabled:opacity-50"
+                      >
+                        {actionLoading[appt.appointment_id] === "complete" ? (
+                          <span className="material-symbols-outlined animate-spin text-sm">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <span className="material-symbols-outlined text-sm">
+                            task_alt
+                          </span>
+                        )}
+                        Mark Complete
+                      </button>
+                      <button
+                        onClick={() =>
+                          goTo(
+                            `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
+                          )
+                        }
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          medication
+                        </span>
+                        Write Prescription
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

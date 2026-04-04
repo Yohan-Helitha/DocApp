@@ -48,6 +48,7 @@ export const bookAppointment = async (req, res) => {
       patient_id: req.user.id,
       doctor_id,
       slot_id,
+      patient_email: req.user.email,
       reason_for_visit,
     });
 
@@ -120,7 +121,52 @@ export const getAppointment = async (req, res) => {
     return handleError(err, res, req, "getAppointment");
   }
 };
+// ─── Get Appointment Events ────────────────────────────────────────────────────────────
 
+export const getAppointmentEvents = async (req, res) => {
+  try {
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    if (req.user.role === "admin") {
+      const events = await appointmentService.getEvents(
+        req.db,
+        req.params.appointmentId,
+      );
+      return res.json({ events });
+    }
+    if (req.user.role === "patient") {
+      if (appointment.patient_id !== req.user.id) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+      const events = await appointmentService.getEvents(
+        req.db,
+        req.params.appointmentId,
+      );
+      return res.json({ events });
+    }
+    if (req.user.role === "doctor") {
+      const doctor = await doctorClient.getDoctor(
+        req.headers.authorization,
+        appointment.doctor_id,
+      );
+      if (doctor.user_id !== req.user.id) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+      const events = await appointmentService.getEvents(
+        req.db,
+        req.params.appointmentId,
+      );
+      return res.json({ events });
+    }
+
+    return res.status(403).json({ error: "forbidden" });
+  } catch (err) {
+    return handleError(err, res, req, "getAppointmentEvents");
+  }
+};
 // ─── Reschedule Appointment ───────────────────────────────────────────────────
 
 export const updateAppointment = async (req, res) => {
@@ -264,15 +310,54 @@ export const listByDoctor = async (req, res) => {
   }
 };
 
-// ─── Force-set Status (admin) ─────────────────────────────────────────────────
+// ─── Force-set Status (admin) or Mark Complete (doctor) ──────────────────────
 
 export const setStatus = async (req, res) => {
   try {
+    const { status } = req.body || {};
+    if (!status) return res.status(400).json({ error: "status_required" });
+
+    if (req.user.role === "doctor") {
+      // Doctors may only mark their own confirmed appointments as completed.
+      if (status !== "completed") {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      const appointment = await appointmentService.getAppointmentById(
+        req.db,
+        req.params.appointmentId,
+      );
+
+      const doctor = await doctorClient.getDoctor(
+        req.headers.authorization,
+        appointment.doctor_id,
+      );
+      if (doctor.user_id !== req.user.id) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      if (appointment.appointment_status !== "confirmed") {
+        return res.status(400).json({ error: "appointment_not_confirmed" });
+      }
+
+      const updated = await appointmentService.setStatus(
+        req.db,
+        req.params.appointmentId,
+        "completed",
+      );
+
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: "status_override",
+        event_actor: req.user.id,
+        notes: "Doctor marked appointment as completed",
+      });
+
+      return res.json({ appointment: updated });
+    }
+
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "forbidden" });
     }
-    const { status } = req.body || {};
-    if (!status) return res.status(400).json({ error: "status_required" });
 
     const appointment = await appointmentService.setStatus(
       req.db,
@@ -326,6 +411,16 @@ export const doctorDecision = async (req, res) => {
     }
 
     const newStatus = decision === "accept" ? "confirmed" : "rejected";
+
+    // When rejecting, release the slot so other patients can book it again.
+    if (decision === "reject") {
+      await doctorClient.updateSlotStatus(
+        appointment.doctor_id,
+        appointment.slot_id,
+        "available",
+      );
+    }
+
     const updated = await appointmentService.setStatus(
       req.db,
       req.params.appointmentId,
@@ -344,7 +439,7 @@ export const doctorDecision = async (req, res) => {
         callerId: req.user.id,
         callerRole: req.user.role,
         recipient_user_id: appointment.patient_id,
-        recipient_email: null, // patient email not stored in appointments table; notification-service will handle missing email gracefully
+        recipient_email: appointment.patient_email,
         message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
       })
       .catch((err) => req.log.warn(err, "doctor decision notification failed"));

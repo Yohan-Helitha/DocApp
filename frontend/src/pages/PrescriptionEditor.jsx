@@ -21,6 +21,8 @@ export default function PrescriptionEditor({ navigate }) {
   const [prescsLoading, setPrescsLoading] = useState(false);
   const [expandedPresc, setExpandedPresc] = useState(null);
 
+  const [accessDenied, setAccessDenied] = useState(false);
+
   const token = sessionStorage.getItem("accessToken");
 
   // Parse query params from hash
@@ -68,12 +70,21 @@ export default function PrescriptionEditor({ navigate }) {
 
       try {
         let userId = "";
+        let role = "";
         try {
-          userId = JSON.parse(atob(token.split(".")[1])).sub;
+          const decoded = JSON.parse(atob(token.split(".")[1]));
+          userId = decoded.sub;
+          role = decoded.role;
         } catch {
           setError("Invalid login session. Please sign in again.");
           setLoading(false);
           goTo("/login");
+          return;
+        }
+
+        if (role && role !== "doctor") {
+          setLoading(false);
+          setAccessDenied(true);
           return;
         }
 
@@ -157,8 +168,15 @@ export default function PrescriptionEditor({ navigate }) {
       );
 
       if (res.status === 201 || res.status === 200) {
-        setSuccess("Prescription submitted successfully. Redirecting…");
-        setTimeout(() => goTo("/doctor/appointments"), 1800);
+        setSuccess("Prescription saved.");
+        const newPresc = res.body?.prescription;
+        if (newPresc) setPrescriptions((prev) => [newPresc, ...prev]);
+        setMedication("");
+        setDosage("");
+        setFrequency("");
+        setDuration("");
+        setDiagnosis("");
+        setInstructions("");
       } else {
         setError(res.body?.message || "Failed to submit prescription.");
       }
@@ -167,6 +185,28 @@ export default function PrescriptionEditor({ navigate }) {
     }
     setSubmitting(false);
   };
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for doctors only.</p>
+          <button
+            onClick={() => goTo("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">

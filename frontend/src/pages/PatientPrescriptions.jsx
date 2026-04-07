@@ -6,6 +6,7 @@ export default function PatientPrescriptions({ navigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState({});
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const token = sessionStorage.getItem("accessToken");
   let userId = "";
@@ -20,6 +21,14 @@ export default function PatientPrescriptions({ navigate }) {
   useEffect(() => {
     if (!token || !userId) {
       navigate("/login");
+      return;
+    }
+    let role = "";
+    try {
+      role = JSON.parse(atob(token.split(".")[1])).role;
+    } catch {}
+    if (role && role !== "patient" && role !== "admin") {
+      setAccessDenied(true);
       return;
     }
     const load = async () => {
@@ -45,6 +54,28 @@ export default function PatientPrescriptions({ navigate }) {
   }, [patientId, token]);
 
   const toggle = (id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for patients only.</p>
+          <button
+            onClick={() => navigate("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">

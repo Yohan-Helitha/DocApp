@@ -126,6 +126,19 @@ export const addSlot = async (req, res) => {
   }
 };
 
+export const getSlotById = async (req, res) => {
+  try {
+    const slot = await doctorService.getSlotById(
+      req.db,
+      req.params.doctorId,
+      req.params.slotId,
+    );
+    return res.json({ slot });
+  } catch (err) {
+    return handleError(err, res, req, "getSlotById");
+  }
+};
+
 export const listSlots = async (req, res) => {
   try {
     const { date, status } = req.query;

@@ -27,6 +27,17 @@ export default function DoctorAvailability({ navigate }) {
   const [endTime, setEndTime] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
+  // Bulk slot generator
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkDate, setBulkDate] = useState("");
+  const [bulkFrom, setBulkFrom] = useState("");
+  const [bulkTo, setBulkTo] = useState("");
+  const [bulkDuration, setBulkDuration] = useState("30");
+  const [bulkPreview, setBulkPreview] = useState([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const [accessDenied, setAccessDenied] = useState(false);
+
   const token = sessionStorage.getItem("accessToken");
 
   const goTo = (path) => {
@@ -56,6 +67,19 @@ export default function DoctorAvailability({ navigate }) {
 
   useEffect(() => {
     const load = async () => {
+      if (!token) {
+        goTo("/login");
+        return;
+      }
+      let role = "";
+      try {
+        role = JSON.parse(atob(token.split(".")[1])).role;
+      } catch {}
+      if (role && role !== "doctor") {
+        setLoading(false);
+        setAccessDenied(true);
+        return;
+      }
       try {
         let userId = "";
         try {
@@ -182,9 +206,105 @@ export default function DoctorAvailability({ navigate }) {
     setEditLoading(false);
   };
 
+  const timeToMinutes = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const minutesToTime = (mins) => {
+    const h = Math.floor(mins / 60)
+      .toString()
+      .padStart(2, "0");
+    const m = (mins % 60).toString().padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  const generateBulkPreview = () => {
+    if (!bulkDate || !bulkFrom || !bulkTo || !bulkDuration) {
+      setError("All bulk generator fields are required.");
+      return;
+    }
+    const fromMins = timeToMinutes(bulkFrom);
+    const toMins = timeToMinutes(bulkTo);
+    const dur = parseInt(bulkDuration, 10);
+    if (toMins <= fromMins) {
+      setError("'To' time must be after 'From' time.");
+      return;
+    }
+    const generated = [];
+    let cursor = fromMins;
+    while (cursor + dur <= toMins) {
+      const start = minutesToTime(cursor);
+      const end = minutesToTime(cursor + dur);
+      const isDuplicate = slots.some(
+        (s) =>
+          s.slot_date.slice(0, 10) === bulkDate &&
+          s.start_time.slice(0, 5) === start,
+      );
+      generated.push({
+        start_time: start,
+        end_time: end,
+        duplicate: isDuplicate,
+      });
+      cursor += dur;
+    }
+    if (generated.length === 0) {
+      setError("No slots can be generated in the given time window.");
+      return;
+    }
+    setError("");
+    setBulkPreview(generated);
+  };
+
+  const handleAddBulk = async () => {
+    const toAdd = bulkPreview.filter((s) => !s.duplicate);
+    if (toAdd.length === 0) {
+      setError("All generated slots already exist. No new slots to add.");
+      return;
+    }
+    setBulkLoading(true);
+    setError("");
+    setSuccess("");
+    let added = 0;
+    let failed = 0;
+    for (const slot of toAdd) {
+      try {
+        const res = await Api.post(
+          `/api/v1/doctors/${doctor.doctor_id}/availability-slots`,
+          {
+            slot_date: bulkDate,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+          },
+          token,
+        );
+        if (res.status === 201 || res.status === 200) {
+          added++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+    await loadSlots(doctor);
+    setBulkPreview([]);
+    setBulkDate("");
+    setBulkFrom("");
+    setBulkTo("");
+    if (failed === 0) {
+      setSuccess(`${added} slot${added !== 1 ? "s" : ""} added successfully.`);
+    } else {
+      setSuccess(
+        `${added} slot${added !== 1 ? "s" : ""} added. ${failed} failed.`,
+      );
+    }
+    setBulkLoading(false);
+  };
+
   const formatDate = (d) => {
     if (!d) return "";
-    const [y, m, day] = d.split("-");
+    const [y, m, day] = d.slice(0, 10).split("-");
     return new Date(y, m - 1, day).toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -207,6 +327,28 @@ export default function DoctorAvailability({ navigate }) {
       : slots.filter((s) => s.slot_status === filterStatus);
 
   const pending = slots.filter((s) => s.slot_status === "available").length;
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for doctors only.</p>
+          <button
+            onClick={() => goTo("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
@@ -313,66 +455,219 @@ export default function DoctorAvailability({ navigate }) {
           {/* Add Slot Form */}
           <div className="col-span-5 lg:col-span-2">
             <div className="bg-white rounded-2xl p-8 shadow-sm sticky top-8">
-              <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">
                   add_circle
                 </span>
                 Add New Slot
               </h3>
-              <form onSubmit={handleAddSlot} className="space-y-5">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={slotDate}
-                    onChange={(e) => setSlotDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
-                </div>
+
+              {/* Mode toggle */}
+              <div className="flex gap-2 mb-6">
                 <button
-                  type="submit"
-                  disabled={formLoading || !doctor}
-                  className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  type="button"
+                  onClick={() => {
+                    setBulkMode(false);
+                    setBulkPreview([]);
+                    setError("");
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${!bulkMode ? "bg-primary text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
                 >
-                  {formLoading ? (
-                    <span className="material-symbols-outlined animate-spin text-lg">
-                      progress_activity
-                    </span>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-lg">
-                        add
-                      </span>
-                      Add Slot
-                    </>
-                  )}
+                  Single Slot
                 </button>
-              </form>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkMode(true);
+                    setError("");
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${bulkMode ? "bg-primary text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                >
+                  Bulk Generator
+                </button>
+              </div>
+
+              {!bulkMode ? (
+                <form onSubmit={handleAddSlot} className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={slotDate}
+                      onChange={(e) => setSlotDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={formLoading || !doctor}
+                    className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {formLoading ? (
+                      <span className="material-symbols-outlined animate-spin text-lg">
+                        progress_activity
+                      </span>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-lg">
+                          add
+                        </span>
+                        Add Slot
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={bulkDate}
+                      onChange={(e) => setBulkDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                        From
+                      </label>
+                      <input
+                        type="time"
+                        value={bulkFrom}
+                        onChange={(e) => setBulkFrom(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                        To
+                      </label>
+                      <input
+                        type="time"
+                        value={bulkTo}
+                        onChange={(e) => setBulkTo(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Slot Duration
+                    </label>
+                    <select
+                      value={bulkDuration}
+                      onChange={(e) => {
+                        setBulkDuration(e.target.value);
+                        setBulkPreview([]);
+                      }}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    >
+                      <option value="15">15 minutes</option>
+                      <option value="30">30 minutes</option>
+                      <option value="45">45 minutes</option>
+                      <option value="60">60 minutes</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkPreview([]);
+                      generateBulkPreview();
+                    }}
+                    disabled={!doctor}
+                    className="w-full border border-primary text-primary font-bold py-3 rounded-xl hover:bg-primary/5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      preview
+                    </span>
+                    Preview Slots
+                  </button>
+
+                  {bulkPreview.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                        Preview —{" "}
+                        {bulkPreview.filter((s) => !s.duplicate).length} new,{" "}
+                        {bulkPreview.filter((s) => s.duplicate).length}{" "}
+                        duplicate
+                      </p>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {bulkPreview.map((s, i) => (
+                          <div
+                            key={i}
+                            className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium ${s.duplicate ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}
+                          >
+                            <span>
+                              {formatTime(s.start_time)} –{" "}
+                              {formatTime(s.end_time)}
+                            </span>
+                            {s.duplicate && (
+                              <span className="text-[10px] font-bold uppercase bg-amber-100 px-1.5 py-0.5 rounded">
+                                duplicate
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddBulk}
+                        disabled={bulkLoading || !doctor}
+                        className="w-full mt-4 bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                      >
+                        {bulkLoading ? (
+                          <span className="material-symbols-outlined animate-spin text-lg">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-lg">
+                              add_circle
+                            </span>
+                            Add {bulkPreview.filter((s) => !s.duplicate).length}{" "}
+                            Slot
+                            {bulkPreview.filter((s) => !s.duplicate).length !==
+                            1
+                              ? "s"
+                              : ""}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

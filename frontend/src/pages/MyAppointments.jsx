@@ -18,23 +18,46 @@ const TABS = [
   "rejected",
 ];
 
+const formatDate = (d) => {
+  if (!d) return null;
+  const [y, m, day] = String(d).slice(0, 10).split("-");
+  return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const formatTime = (t) => {
+  if (!t) return null;
+  const [h, min] = t.slice(0, 5).split(":");
+  const hour = parseInt(h, 10);
+  return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
+};
+
 export default function MyAppointments({ navigate }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [cancelling, setCancelling] = useState(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(null);
   const [rescheduleTarget, setRescheduleTarget] = useState(null);
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleError, setRescheduleError] = useState("");
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const token = sessionStorage.getItem("accessToken");
   let userId = "";
+  let userRole = "";
   try {
-    userId = JSON.parse(atob(token.split(".")[1])).sub;
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    userId = decoded.sub;
+    userRole = decoded.role;
   } catch {}
 
   const fetchAppointments = async () => {
@@ -42,6 +65,11 @@ export default function MyAppointments({ navigate }) {
       setError("Not authenticated. Please log in.");
       setLoading(false);
       navigate("/login");
+      return;
+    }
+    if (userRole && userRole !== "patient") {
+      setLoading(false);
+      setAccessDenied(true);
       return;
     }
     setLoading(true);
@@ -64,9 +92,8 @@ export default function MyAppointments({ navigate }) {
   }, []);
 
   const cancel = async (appointmentId) => {
-    if (!window.confirm("Are you sure you want to cancel this appointment?"))
-      return;
     setCancelling(appointmentId);
+    setConfirmingCancel(null);
     try {
       const r = await Api.delete(
         `/api/v1/appointments/${appointmentId}`,
@@ -81,10 +108,10 @@ export default function MyAppointments({ navigate }) {
           ),
         );
       } else {
-        alert(r.body?.error || "Failed to cancel appointment.");
+        setError(r.body?.error || "Failed to cancel appointment.");
       }
     } catch {
-      alert("Network error.");
+      setError("Network error. Please try again.");
     }
     setCancelling(null);
   };
@@ -171,6 +198,28 @@ export default function MyAppointments({ navigate }) {
     filter === "all"
       ? appointments
       : appointments.filter((a) => a.appointment_status === filter);
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for patients only.</p>
+          <button
+            onClick={() => navigate("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-background text-on-background antialiased">
@@ -328,9 +377,25 @@ export default function MyAppointments({ navigate }) {
                       <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-0.5">
                         Appointment
                       </p>
-                      <p className="font-bold text-slate-900 text-sm font-mono">
-                        #{a.appointment_id.slice(0, 8).toUpperCase()}
+                      {/* Bug 7 fix: show doctor name instead of raw ID */}
+                      <p className="font-bold text-slate-900 text-sm">
+                        {a.doctor_name
+                          ? `Dr. ${a.doctor_name}`
+                          : `#${a.appointment_id.slice(0, 8).toUpperCase()}`}
                       </p>
+                      {/* Bug 11 fix: show slot date and time */}
+                      {a.slot_date && (
+                        <p className="text-xs font-semibold text-primary mt-0.5">
+                          {formatDate(a.slot_date)}
+                          {a.start_time && (
+                            <span className="text-slate-500 font-normal">
+                              {" "}
+                              &bull; {formatTime(a.start_time)}
+                              {a.end_time && ` – ${formatTime(a.end_time)}`}
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {a.reason_for_visit && (
                         <p className="text-sm text-slate-500 mt-0.5 max-w-xs">
                           {a.reason_for_visit}
@@ -368,17 +433,37 @@ export default function MyAppointments({ navigate }) {
                       </button>
                     )}
                     {(a.appointment_status === "pending" ||
-                      a.appointment_status === "confirmed") && (
-                      <button
-                        onClick={() => cancel(a.appointment_id)}
-                        disabled={cancelling === a.appointment_id}
-                        className="px-4 py-2 text-xs font-bold text-red-500 border border-red-100 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
-                      >
-                        {cancelling === a.appointment_id
-                          ? "Cancelling..."
-                          : "Cancel"}
-                      </button>
-                    )}
+                      a.appointment_status === "confirmed") &&
+                      (confirmingCancel === a.appointment_id ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-slate-500">
+                            Cancel this appointment?
+                          </span>
+                          <button
+                            onClick={() => cancel(a.appointment_id)}
+                            disabled={cancelling === a.appointment_id}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
+                          >
+                            {cancelling === a.appointment_id
+                              ? "Cancelling..."
+                              : "Yes, Cancel"}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingCancel(null)}
+                            className="px-3 py-1.5 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                          >
+                            Keep
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmingCancel(a.appointment_id)}
+                          disabled={cancelling === a.appointment_id}
+                          className="px-4 py-2 text-xs font-bold text-red-500 border border-red-100 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      ))}
                     {a.appointment_status === "confirmed" && (
                       <button
                         onClick={() =>

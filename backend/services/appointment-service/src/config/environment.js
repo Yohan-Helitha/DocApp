@@ -20,6 +20,10 @@ export default {
     "NOTIFICATION_SERVICE_URL",
     "http://notification-service:6000",
   ),
+  PATIENT_SERVICE_URL: getEnv(
+    "PATIENT_SERVICE_URL",
+    "http://patient-management-service:4005",
+  ),
   LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
   INTERNAL_SECRET: getEnv("INTERNAL_SECRET", "change-me-internal"),
 };

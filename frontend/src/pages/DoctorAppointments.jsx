@@ -1,6 +1,24 @@
 import React, { useEffect, useState } from "react";
 import Api from "../core/api";
 
+const formatDate = (d) => {
+  if (!d) return null;
+  const [y, m, day] = String(d).slice(0, 10).split("-");
+  return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const formatTime = (t) => {
+  if (!t) return null;
+  const [h, min] = t.slice(0, 5).split(":");
+  const hour = parseInt(h, 10);
+  return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
+};
+
 const STATUS_COLORS = {
   pending: "bg-yellow-100 text-yellow-700",
   confirmed: "bg-green-100  text-green-700",
@@ -26,6 +44,7 @@ export default function DoctorAppointments({ navigate }) {
   const [actionLoading, setActionLoading] = useState({});
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const token = sessionStorage.getItem("accessToken");
 
@@ -64,6 +83,16 @@ export default function DoctorAppointments({ navigate }) {
           setError("Invalid login session. Please sign in again.");
           setLoading(false);
           goTo("/login");
+          return;
+        }
+
+        let role = "";
+        try {
+          role = JSON.parse(atob(token.split(".")[1])).role;
+        } catch {}
+        if (role && role !== "doctor") {
+          setLoading(false);
+          setAccessDenied(true);
           return;
         }
 
@@ -174,6 +203,28 @@ export default function DoctorAppointments({ navigate }) {
     filter === "all"
       ? appointments
       : appointments.filter((a) => a.appointment_status === filter);
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for doctors only.</p>
+          <button
+            onClick={() => goTo("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
@@ -328,9 +379,14 @@ export default function DoctorAppointments({ navigate }) {
               >
                 {/* Left: ID + info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap mb-2">
-                    <span className="font-mono text-sm font-bold text-slate-900">
-                      #{appt.appointment_id.slice(0, 8).toUpperCase()}
+                  <div className="flex items-center gap-3 flex-wrap mb-1">
+                    {/* Bug 6 fix: show patient name instead of UUID */}
+                    <span className="font-bold text-slate-900 text-sm">
+                      {appt.patient_name
+                        ? appt.patient_name
+                        : appt.patient_email
+                          ? appt.patient_email.split("@")[0]
+                          : `Patient #${appt.patient_id.slice(0, 8).toUpperCase()}`}
                     </span>
                     <span
                       className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${STATUS_COLORS[appt.appointment_status] || "bg-slate-100 text-slate-500"}`}
@@ -338,24 +394,31 @@ export default function DoctorAppointments({ navigate }) {
                       {appt.appointment_status}
                     </span>
                   </div>
+                  {/* Bug 11 fix: show slot date and time */}
                   <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-                    <span className="material-symbols-outlined text-sm">
-                      person
-                    </span>
-                    <span className="font-mono">
-                      Patient: {appt.patient_id.slice(0, 8)}…
-                    </span>
-                    <span className="text-slate-300">|</span>
                     <span className="material-symbols-outlined text-sm">
                       calendar_today
                     </span>
-                    <span>
-                      {new Date(appt.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </span>
+                    {appt.slot_date ? (
+                      <span>
+                        {formatDate(appt.slot_date)}
+                        {appt.start_time && (
+                          <span className="font-semibold text-slate-700">
+                            {" "}
+                            &bull; {formatTime(appt.start_time)}
+                            {appt.end_time && ` – ${formatTime(appt.end_time)}`}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span>
+                        {new Date(appt.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    )}
                   </div>
                   {appt.reason_for_visit && (
                     <p className="text-xs text-slate-500 mt-2 bg-slate-50 rounded-lg px-3 py-2">

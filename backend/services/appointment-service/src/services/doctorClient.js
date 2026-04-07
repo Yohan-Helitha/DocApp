@@ -55,6 +55,21 @@ export const getDoctor = async (bearerToken, doctorId) => {
 };
 
 /**
+ * Fetch a single availability slot.
+ * Used at booking time to snapshot slot_date, start_time, end_time.
+ * @param {string} bearerToken   The caller's "Bearer <token>" string
+ * @param {string} doctorId      UUID of the doctor
+ * @param {string} slotId        UUID of the slot
+ */
+export const getSlot = async (bearerToken, doctorId, slotId) => {
+  const { data } = await axios.get(
+    `${env.DOCTOR_SERVICE_URL}/api/v1/doctors/${doctorId}/availability-slots/${slotId}`,
+    { headers: { Authorization: bearerToken } },
+  );
+  return data.slot;
+};
+
+/**
  * Update a slot's status (available / booked).
  * Uses a service JWT — no user identity required.
  * @param {string} doctorId

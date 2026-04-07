@@ -48,26 +48,40 @@ export const bookAppointment = async (req, res) => {
       throw e;
     }
 
-    // 2. Mark the slot as booked in doctor-management-service (uses service JWT)
+    // 2. Fetch slot details — snapshot date/time at booking time (Bug 11 fix)
+    const slot = await doctorClient.getSlot(
+      req.headers.authorization,
+      doctor_id,
+      slot_id,
+    );
+
+    // 3. Mark the slot as booked in doctor-management-service (uses service JWT)
     await doctorClient.updateSlotStatus(doctor_id, slot_id, "booked");
 
-    // 3. Persist appointment
+    // 4. Persist appointment with denormalized display fields (Bug 6 / Bug 11 fix)
+    //    patient_name is null until patient-service exposes GET /api/v1/patients/by-user/:userId
+    //    — patientClient.js is the integration hook; populate once teammate builds the endpoint.
     const appointment = await appointmentService.createAppointment(req.db, {
       patient_id: req.user.id,
       doctor_id,
       slot_id,
       patient_email: req.user.email,
       reason_for_visit,
+      doctor_name: doctor.full_name,
+      patient_name: null,
+      slot_date: slot.slot_date,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
     });
 
-    // 4. Log event
+    // 5. Log event
     await appointmentService.addEvent(req.db, appointment.appointment_id, {
       event_type: "appointment_booked",
       event_actor: req.user.id,
       notes: `Booked by patient ${req.user.email}`,
     });
 
-    // 5. Notify patient (best-effort — don't fail booking on notification error)
+    // 6. Notify patient (best-effort — don't fail booking on notification error)
     notificationClient
       .sendEmail({
         callerId: req.user.id,
@@ -78,7 +92,7 @@ export const bookAppointment = async (req, res) => {
       })
       .catch((err) => req.log.warn(err, "patient booking notification failed"));
 
-    // 6. Notify doctor (best-effort)
+    // 7. Notify doctor (best-effort)
     notificationClient
       .sendEmail({
         callerId: req.user.id,

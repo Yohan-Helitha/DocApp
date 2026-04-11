@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-db-init
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        recipient_user_id VARCHAR(50) NOT NULL,
+        channel VARCHAR(20) NOT NULL,
+        -- 'sms', 'email', 'in-app'
+        template_code VARCHAR(50),
+        message TEXT,
+        payload_json JSONB,
+        status VARCHAR(20) DEFAULT 'queued',
+        -- 'queued', 'sent', 'delivered', 'failed'
+        priority VARCHAR(10) DEFAULT 'normal',
+        -- 'low', 'normal', 'high'
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS notification_attempts (
+        id SERIAL PRIMARY KEY,
+        notification_id INTEGER REFERENCES notifications(id) ON DELETE CASCADE,
+        provider VARCHAR(50),
+        provider_response TEXT,
+        status VARCHAR(20),
+        attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-postgres
+  labels:
+    app: notification-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-postgres
+  template:
+    metadata:
+      labels:
+        app: notification-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: notification-db-config
+                  key: PGUSER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: notification-db-config
+                  key: PGDATABASE
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notification-db-secret
+                  key: PGPASSWORD
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: notification-postgres-pvc
+        - name: init-scripts
+          configMap:
+            name: notification-db-init
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-postgres
+spec:
+  selector:
+    app: notification-postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: notification-postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

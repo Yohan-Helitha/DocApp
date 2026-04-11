@@ -7,6 +7,10 @@ import Login from './features/auth/Login'
 import SuccessPatient from './features/auth/SuccessPatient'
 import SuccessDoctor from './features/auth/SuccessDoctor'
 import SuccessAdmin from './features/auth/SuccessAdmin'
+import PatientProfile from './features/patient-management/PatientProfile'
+import PatientHistory from './features/patient-management/PatientHistory'
+import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
+import Notifications from './features/notifications/Notifications'
 
 export default function App(){
   const [route,setRoute] = useState(window.location.hash.replace('#','') || '/')
@@ -25,6 +29,10 @@ export default function App(){
   else if(route.startsWith('/success/patient')) Page = ()=> <SuccessPatient navigate={navigate} />
   else if(route.startsWith('/success/doctor')) Page = ()=> <SuccessDoctor navigate={navigate} />
   else if(route.startsWith('/success/admin')) Page = ()=> <SuccessAdmin navigate={navigate} />
+  else if(route.startsWith('/patient/profile')) Page = ()=> <PatientProfile navigate={navigate} />
+  else if(route.startsWith('/patient/history')) Page = ()=> <PatientHistory navigate={navigate} />
+  else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />
+  else if(route.startsWith('/notifications')) Page = ()=> <Notifications navigate={navigate} />
 
   return (
     <div className="min-h-screen flex flex-col">

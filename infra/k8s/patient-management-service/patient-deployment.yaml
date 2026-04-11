@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+  labels:
+    app: patient-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: patient-service
+  template:
+    metadata:
+      labels:
+        app: patient-service
+    spec:
+      containers:
+        - name: patient-service
+          image: docapp/patient-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6001
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "6001"
+            - name: PGHOST
+              value: "patient-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: patient-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: patient-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: patient-db-secret
+                  key: PGPASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: patient-service
+  ports:
+    - protocol: TCP
+      port: 6001
+      targetPort: 6001

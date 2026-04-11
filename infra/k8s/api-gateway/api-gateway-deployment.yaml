@@ -25,9 +25,12 @@ spec:
               value: "production"
             - name: AUTH_SERVICE_URL
               value: "http://auth-service:4001"
+            - name: PATIENT_SERVICE_URL
+              value: "http://patient-management-service:6001"
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service:6000"
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:

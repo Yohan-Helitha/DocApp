@@ -3,7 +3,6 @@ import Api from '../../core/api';
 
 export default function PatientDashboard({ navigate }) {
   const [appointments, setAppointments] = useState([]);
-  const [prescriptions, setPrescriptions] = useState([]);
   const [reports, setReports] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,15 +11,13 @@ export default function PatientDashboard({ navigate }) {
     let mounted = true;
     (async () => {
       try {
-        const [a, p, r, n] = await Promise.all([
+        const [a, r, n] = await Promise.all([
           Api.get('/api/v1/appointments/upcoming').then((res) => res.data).catch(() => []),
-          Api.get('/api/v1/prescriptions/recent').then((res) => res.data).catch(() => []),
           Api.get('/api/v1/reports/recent').then((res) => res.data).catch(() => []),
           Api.get('/api/v1/notifications/latest').then((res) => res.data).catch(() => []),
         ]);
         if (!mounted) return;
         setAppointments(a);
-        setPrescriptions(p);
         setReports(r);
         setNotifications(n);
       } catch (e) {
@@ -61,32 +58,48 @@ export default function PatientDashboard({ navigate }) {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Clinical Curator</p>
           </div>
           <nav className="flex-1 space-y-1">
-            <a className="bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 transition-all" onClick={() => goTo('/dashboard')}>
+            <a className="bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/dashboard'); }}>
               <span className="material-symbols-outlined">dashboard</span>
               <span className="font-semibold text-sm">Overview</span>
             </a>
-            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all" onClick={() => goTo('/appointments')}>
+            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/appointments'); }}>
               <span className="material-symbols-outlined">event</span>
               <span className="font-semibold text-sm">Appointments</span>
             </a>
-            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all" onClick={() => goTo('/doctors')}>
+            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/doctors'); }}>
               <span className="material-symbols-outlined">person_search</span>
               <span className="font-semibold text-sm">Search Doctors</span>
             </a>
-            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all" onClick={() => goTo('/reports')}>
+            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/patient/medical-reports'); }}>
               <span className="material-symbols-outlined">description</span>
               <span className="font-semibold text-sm">Medical Records</span>
             </a>
-            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all" onClick={() => goTo('/notifications')}>
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="font-semibold text-sm">Notifications</span>
+
+            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/patient/history'); }}>
+              <span className="material-symbols-outlined">history</span>
+              <span className="font-semibold text-sm">Medical History</span>
+            </a>
+            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/patient/profile'); }}>
+              <span className="material-symbols-outlined">account_circle</span>
+              <span className="font-semibold text-sm">Patient Profile</span>
+            </a>
+            <a className="text-slate-500 px-4 py-3 flex items-center justify-between hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/notifications'); }}>
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined">notifications</span>
+                <span className="font-semibold text-sm">Notifications</span>
+              </div>
+              {notifications && notifications.length > 0 && (
+                <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {notifications.filter(n => !n.read).length || notifications.length}
+                </span>
+              )}
             </a>
           </nav>
           <div className="mt-auto space-y-1 pt-4 border-t border-slate-200/50">
             <button className="w-full bg-primary text-on-primary rounded-xl py-3 px-4 mb-4 font-bold text-sm shadow-sm active:scale-95 transition-transform" onClick={() => goTo('/symptom-checker')}>
               Start AI Consultation
             </button>
-            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all" onClick={logout}>
+            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); logout(); }}>
               <span className="material-symbols-outlined">logout</span>
               <span className="font-semibold text-sm">Logout</span>
             </a>

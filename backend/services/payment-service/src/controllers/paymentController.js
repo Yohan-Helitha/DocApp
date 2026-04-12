@@ -25,21 +25,32 @@ export const createCheckout = async (req, res) => {
 
       const payment = insertRes.rows[0];
 
-      const orderId = payment.payment_id;
+      const orderId = `ORD${Date.now()}`;
       const merchantId = env.PAYHERE_MERCHANT_ID;
       const merchantSecret = env.PAYHERE_MERCHANT_SECRET;
       const amountStr = Number(amount).toFixed(2);
 
-      const hash = crypto
+      const innerHash = crypto
         .createHash('md5')
-        .update(
-          `${merchantId}${orderId}${amountStr}${currency}${crypto
-            .createHash('md5')
-            .update(merchantSecret)
-            .digest('hex')}`
-        )
+        .update(merchantSecret)
         .digest('hex')
         .toUpperCase();
+
+      const hash = crypto
+        .createHash('md5')
+        .update(`${merchantId}${orderId}${amountStr}${currency}${innerHash}`)
+        .digest('hex')
+        .toUpperCase();
+
+      await client.query(
+        'UPDATE payments SET provider_reference = $1 WHERE payment_id = $2',
+        [orderId, payment.payment_id]
+      );
+
+      // ✅ notify_url hardcoded to localhost to match registered domain
+      const notifyUrl = env.PAYHERE_SANDBOX
+        ? 'http://localhost'
+        : env.PAYHERE_NOTIFY_URL;
 
       const checkoutPayload = {
         sandbox: env.PAYHERE_SANDBOX,
@@ -48,12 +59,11 @@ export const createCheckout = async (req, res) => {
           merchant_id: merchantId,
           return_url: env.PAYHERE_RETURN_URL,
           cancel_url: env.PAYHERE_CANCEL_URL,
-          notify_url: env.PAYHERE_NOTIFY_URL,
+          notify_url: notifyUrl,
           order_id: orderId,
           items,
           amount: amountStr,
           currency,
-          // Minimal customer details required by PayHere Simple Checkout
           first_name: 'Test',
           last_name: 'Patient',
           email: 'test.patient@example.com',
@@ -92,7 +102,12 @@ export const handleProviderCallback = async (req, res) => {
   } = req.body || {};
 
   try {
-    const localSecretHash = crypto.createHash('md5').update(env.PAYHERE_MERCHANT_SECRET).digest('hex');
+    const localSecretHash = crypto
+      .createHash('md5')
+      .update(env.PAYHERE_MERCHANT_SECRET)
+      .digest('hex')
+      .toUpperCase();
+
     const localSig = crypto
       .createHash('md5')
       .update(`${merchantId}${orderId}${amount}${currency}${statusCode}${localSecretHash}`)
@@ -103,11 +118,13 @@ export const handleProviderCallback = async (req, res) => {
       return res.status(400).json({ error: 'invalid_signature' });
     }
 
-    const status = String(statusCode) === '2' ? 'success' : String(statusCode) === '0' ? 'pending' : 'failed';
+    const status = String(statusCode) === '2' ? 'success'
+                 : String(statusCode) === '0' ? 'pending'
+                 : 'failed';
 
     await db.query(
-      'UPDATE payments SET payment_status = $1, updated_at = now(), provider_reference = $2 WHERE payment_id = $3',
-      [status, orderId, orderId]
+      'UPDATE payments SET payment_status = $1, updated_at = now() WHERE provider_reference = $2',
+      [status, orderId]
     );
 
     return res.json({ received: true });

@@ -129,6 +129,7 @@ app.use(
 );
 
 // Proxy payment routes to payment-service.
+// In your gateway app.js, update the payment proxy:
 app.use(
   '/api/v1/payments',
   createProxyMiddleware({
@@ -136,11 +137,15 @@ app.use(
     changeOrigin: false,
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
+      // Fix body forwarding for urlencoded POST requests
+      if (req.body && Object.keys(req.body).length > 0) {
+        const bodyData = new URLSearchParams(req.body).toString();
+        proxyReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+        proxyReq.write(bodyData);
+      }
       logger.info(
-        {
-          method: req.method,
-          path: req.originalUrl
-        },
+        { method: req.method, path: req.originalUrl },
         'Proxying request to payment-service'
       );
     },
@@ -152,5 +157,4 @@ app.use(
     }
   })
 );
-
 export default app;

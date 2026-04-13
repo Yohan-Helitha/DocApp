@@ -51,15 +51,15 @@ spec:
             - name: PAYHERE_MERCHANT_ID
               value: "1234876"
             - name: PAYHERE_MERCHANT_SECRET
-              value: "MTcxMzA3MjA4NjM1Nzc4NTcwNDgzMDkyMDQwODkwMzEwNTYwNDg3Nw=="
+              value: "3604558174128027780041589310472310552465"
             - name: PAYHERE_SANDBOX
               value: "true"
             - name: PAYHERE_RETURN_URL
-              value: "http://localhost:5173/payments/return"
+              value: "http://localhost:8081/#/payments/return"
             - name: PAYHERE_CANCEL_URL
-              value: "http://localhost:5173/payments/cancel"
+              value: "http://localhost:8081/#/payments/cancel"
             - name: PAYHERE_NOTIFY_URL
-              value: "http://payment-service:4006/api/v1/payments/webhooks/provider-callback"
+              value: "https://switch-unbuckled-statute.ngrok-free.dev/api/v1/payments/webhooks/provider-callback"
 ---
 apiVersion: v1
 kind: Service

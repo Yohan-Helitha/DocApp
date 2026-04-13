@@ -5,6 +5,15 @@ import db from '../config/db.js';
 const getPayHereBaseUrl = () =>
   env.PAYHERE_SANDBOX ? 'https://sandbox.payhere.lk' : 'https://www.payhere.lk';
 
+const getPayHereMerchantSecret = () => String(env.PAYHERE_MERCHANT_SECRET || '').trim();
+
+const isLikelyPayHereAppSecret = (secret) => {
+  const s = String(secret || '').trim();
+  if (!s) return false;
+  // App-type secret is commonly a long numeric string. Some setups may provide a 32-char MD5 hex.
+  return /^\d+$/.test(s) || /^[a-fA-F0-9]{32}$/.test(s);
+};
+
 export const createCheckout = async (req, res) => {
   const { appointmentId, patientId, amount, currency = 'LKR', items = 'Consultation fee' } = req.body;
 
@@ -27,18 +36,24 @@ export const createCheckout = async (req, res) => {
 
       const orderId = `ORD${Date.now()}`;
       const merchantId = env.PAYHERE_MERCHANT_ID;
-      const merchantSecret = env.PAYHERE_MERCHANT_SECRET;
+      const merchantSecret = getPayHereMerchantSecret();
       const amountStr = Number(amount).toFixed(2);
 
-      const innerHash = crypto
-        .createHash('md5')
-        .update(merchantSecret)
-        .digest('hex')
-        .toUpperCase();
+      if (!merchantId || !merchantSecret) {
+        return res.status(500).json({ error: 'missing_payhere_config' });
+      }
+
+      if (!isLikelyPayHereAppSecret(merchantSecret)) {
+        req.log?.warn(
+          { merchantSecretPreview: merchantSecret.slice(0, 6) },
+          'PAYHERE_MERCHANT_SECRET format looks unexpected'
+        );
+        return res.status(500).json({ error: 'invalid_payhere_merchant_secret_format' });
+      }
 
       const hash = crypto
         .createHash('md5')
-        .update(`${merchantId}${orderId}${amountStr}${currency}${innerHash}`)
+        .update(`${merchantId}${orderId}${amountStr}${currency}${merchantSecret}`)
         .digest('hex')
         .toUpperCase();
 
@@ -47,10 +62,7 @@ export const createCheckout = async (req, res) => {
         [orderId, payment.payment_id]
       );
 
-      // ✅ notify_url hardcoded to localhost to match registered domain
-      const notifyUrl = env.PAYHERE_SANDBOX
-        ? 'http://localhost'
-        : env.PAYHERE_NOTIFY_URL;
+      const notifyUrl = env.PAYHERE_NOTIFY_URL;
 
       const checkoutPayload = {
         sandbox: env.PAYHERE_SANDBOX,
@@ -78,6 +90,19 @@ export const createCheckout = async (req, res) => {
       };
 
       await client.query('COMMIT');
+
+      req.log?.info(
+        {
+          merchantId,
+          orderId,
+          amountStr,
+          currency,
+          merchantSecret: merchantSecret.slice(0, 6) + '...',
+          hash
+        },
+        'PayHere checkout hash debug'
+      );
+
       return res.status(201).json({ payment_id: payment.payment_id, checkout: checkoutPayload });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -102,15 +127,9 @@ export const handleProviderCallback = async (req, res) => {
   } = req.body || {};
 
   try {
-    const localSecretHash = crypto
-      .createHash('md5')
-      .update(env.PAYHERE_MERCHANT_SECRET)
-      .digest('hex')
-      .toUpperCase();
-
     const localSig = crypto
       .createHash('md5')
-      .update(`${merchantId}${orderId}${amount}${currency}${statusCode}${localSecretHash}`)
+      .update(`${merchantId}${orderId}${amount}${currency}${statusCode}${getPayHereMerchantSecret()}`)
       .digest('hex')
       .toUpperCase();
 
@@ -145,6 +164,44 @@ export const getPaymentById = async (req, res) => {
   } catch (err) {
     req.log?.error({ err }, 'Error fetching payment');
     return res.status(500).json({ error: 'get_payment_failed' });
+  }
+};
+
+export const proxyCheckout = async (req, res) => {
+  try {
+    const fields = req.body;
+
+    const formBody = new URLSearchParams(fields).toString();
+
+    const response = await fetch('https://sandbox.payhere.lk/pay/checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Referer': 'https://docapp.lk/',
+        'Origin': 'https://docapp.lk',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: formBody,
+      redirect: 'manual'
+    });
+
+    req.log?.info({
+      status: response.status,
+      location: response.headers.get('location')
+    }, 'PayHere proxy response');
+
+    if (response.status === 301 || response.status === 302) {
+      return res.redirect(response.headers.get('location'));
+    }
+
+    const html = await response.text();
+    req.log?.info({ htmlPreview: html.slice(0, 300) }, 'PayHere proxy HTML response');
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(html);
+
+  } catch (err) {
+    req.log?.error({ err }, 'PayHere proxy failed');
+    return res.status(500).json({ error: 'proxy_failed' });
   }
 };
 
@@ -186,4 +243,6 @@ export const createRefund = async (req, res) => {
     req.log?.error({ err }, 'Error creating refund');
     return res.status(500).json({ error: 'refund_failed' });
   }
+
+  
 };

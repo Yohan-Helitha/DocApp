@@ -3,10 +3,14 @@ import {
   createCheckout,
   handleProviderCallback,
   getPaymentById,
-  createRefund
+  createRefund,
+  proxyCheckout
 } from '../controllers/paymentController.js';
 
 const router = express.Router();
+
+// Add this line with your other routes:
+router.post('/proxy-checkout', proxyCheckout);
 
 router.post('/checkout', createCheckout);
 router.post('/webhooks/provider-callback', handleProviderCallback);

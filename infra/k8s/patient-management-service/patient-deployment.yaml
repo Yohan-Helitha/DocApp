@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: patient-service
+  name: patient-management-service
   labels:
-    app: patient-service
+    app: patient-management-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: patient-service
+      app: patient-management-service
   template:
     metadata:
       labels:
-        app: patient-service
+        app: patient-management-service
     spec:
       containers:
-        - name: patient-service
-          image: docapp/patient-service:local
+        - name: patient-management-service
+          image: docapp/patient-management-service:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6001
@@ -49,11 +49,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: patient-service
+  name: patient-management-service
 spec:
   type: LoadBalancer
   selector:
-    app: patient-service
+    app: patient-management-service
   ports:
     - protocol: TCP
       port: 6001

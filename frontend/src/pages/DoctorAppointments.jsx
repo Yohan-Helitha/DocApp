@@ -1,6 +1,24 @@
 import React, { useEffect, useState } from "react";
 import Api from "../core/api";
 
+const formatDate = (d) => {
+  if (!d) return null;
+  const [y, m, day] = String(d).slice(0, 10).split("-");
+  return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const formatTime = (t) => {
+  if (!t) return null;
+  const [h, min] = t.slice(0, 5).split(":");
+  const hour = parseInt(h, 10);
+  return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
+};
+
 const STATUS_COLORS = {
   pending: "bg-yellow-100 text-yellow-700",
   confirmed: "bg-green-100  text-green-700",
@@ -26,6 +44,7 @@ export default function DoctorAppointments({ navigate }) {
   const [actionLoading, setActionLoading] = useState({});
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const token = sessionStorage.getItem("accessToken");
 
@@ -48,27 +67,104 @@ export default function DoctorAppointments({ navigate }) {
 
   useEffect(() => {
     const load = async () => {
+      setError("");
+      if (!token) {
+        setError("Your session has expired. Please sign in again.");
+        setLoading(false);
+        goTo("/login");
+        return;
+      }
+
       try {
         let userId = "";
         try {
           userId = JSON.parse(atob(token.split(".")[1])).sub;
-        } catch {}
-        const dRes = await Api.get("/api/v1/doctors", token);
-        const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
-        if (me) {
-          setDoctor(me);
-          const aRes = await Api.get(
-            `/api/v1/appointments/doctors/${me.doctor_id}`,
-            token,
-          );
-          if (aRes.status === 200)
-            setAppointments(aRes.body?.appointments || []);
+        } catch {
+          setError("Invalid login session. Please sign in again.");
+          setLoading(false);
+          goTo("/login");
+          return;
         }
-      } catch {}
+
+        let role = "";
+        try {
+          role = JSON.parse(atob(token.split(".")[1])).role;
+        } catch {}
+        if (role && role !== "doctor") {
+          setLoading(false);
+          setAccessDenied(true);
+          return;
+        }
+
+        const dRes = await Api.get("/api/v1/doctors", token);
+        if (dRes.status !== 200) {
+          setError(
+            dRes.body?.message ||
+              dRes.body?.error ||
+              `Failed to load doctor profile (${dRes.status}).`,
+          );
+          setLoading(false);
+          return;
+        }
+
+        const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
+        if (!me) {
+          setError(
+            "No doctor profile found for this account. (Token user does not match any doctor profile.)",
+          );
+          setLoading(false);
+          return;
+        }
+
+        setDoctor(me);
+        const aRes = await Api.get(
+          `/api/v1/appointments/doctors/${me.doctor_id}`,
+          token,
+        );
+        if (aRes.status === 200) {
+          setAppointments(aRes.body?.appointments || []);
+        } else {
+          setError(
+            aRes.body?.message ||
+              aRes.body?.error ||
+              `Failed to load appointments (${aRes.status}).`,
+          );
+        }
+      } catch {
+        setError("Failed to load appointments. Please try again.");
+      }
       setLoading(false);
     };
     load();
   }, []);
+
+  const handleComplete = async (appointmentId) => {
+    setError("");
+    setSuccess("");
+    setActionLoading((prev) => ({ ...prev, [appointmentId]: "complete" }));
+    try {
+      const res = await Api.put(
+        `/api/v1/appointments/${appointmentId}/status`,
+        { status: "completed" },
+        token,
+      );
+      if (res.status === 200) {
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a.appointment_id === appointmentId
+              ? { ...a, appointment_status: "completed" }
+              : a,
+          ),
+        );
+        setSuccess("Appointment marked as completed.");
+      } else {
+        setError(res.body?.message || res.body?.error || "Action failed.");
+      }
+    } catch {
+      setError("An error occurred.");
+    }
+    setActionLoading((prev) => ({ ...prev, [appointmentId]: undefined }));
+  };
 
   const handleDecision = async (appointmentId, decision) => {
     setError("");
@@ -108,10 +204,32 @@ export default function DoctorAppointments({ navigate }) {
       ? appointments
       : appointments.filter((a) => a.appointment_status === filter);
 
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for doctors only.</p>
+          <button
+            onClick={() => goTo("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
+      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
         <div className="mb-10 px-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -131,7 +249,7 @@ export default function DoctorAppointments({ navigate }) {
         </div>
         <nav className="flex-1 space-y-1">
           <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
             onClick={() => goTo("/success/doctor")}
           >
             <span className="material-symbols-outlined">dashboard</span>
@@ -147,29 +265,31 @@ export default function DoctorAppointments({ navigate }) {
             )}
           </a>
           <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
             onClick={() => goTo("/doctor/availability")}
           >
             <span className="material-symbols-outlined">calendar_month</span>
             <span className="font-semibold text-sm">Availability</span>
           </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">description</span>
-            <span className="font-semibold text-sm">Medical Records</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">forum</span>
-            <span className="font-semibold text-sm">Messages</span>
-          </a>
+          <button
+            type="button"
+            onClick={() => goTo("/telemedicine")}
+            className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
+          >
+            <span className="material-symbols-outlined" data-icon="video_chat">
+              video_chat
+            </span>
+            <span className="font-semibold text-sm">Telemedicine</span>
+          </button>
         </nav>
-        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50">
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer">
+        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
+          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
             <span className="material-symbols-outlined">help</span>
             <span className="font-semibold text-sm">Help Center</span>
           </a>
           <button
             onClick={logout}
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all w-full text-left"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all w-full text-left"
           >
             <span className="material-symbols-outlined">logout</span>
             <span className="font-semibold text-sm">Logout</span>
@@ -259,9 +379,14 @@ export default function DoctorAppointments({ navigate }) {
               >
                 {/* Left: ID + info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap mb-2">
-                    <span className="font-mono text-sm font-bold text-slate-900">
-                      #{appt.appointment_id.slice(0, 8).toUpperCase()}
+                  <div className="flex items-center gap-3 flex-wrap mb-1">
+                    {/* Bug 6 fix: show patient name instead of UUID */}
+                    <span className="font-bold text-slate-900 text-sm">
+                      {appt.patient_name
+                        ? appt.patient_name
+                        : appt.patient_email
+                          ? appt.patient_email.split("@")[0]
+                          : `Patient #${appt.patient_id.slice(0, 8).toUpperCase()}`}
                     </span>
                     <span
                       className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${STATUS_COLORS[appt.appointment_status] || "bg-slate-100 text-slate-500"}`}
@@ -269,24 +394,31 @@ export default function DoctorAppointments({ navigate }) {
                       {appt.appointment_status}
                     </span>
                   </div>
+                  {/* Bug 11 fix: show slot date and time */}
                   <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-                    <span className="material-symbols-outlined text-sm">
-                      person
-                    </span>
-                    <span className="font-mono">
-                      Patient: {appt.patient_id.slice(0, 8)}…
-                    </span>
-                    <span className="text-slate-300">|</span>
                     <span className="material-symbols-outlined text-sm">
                       calendar_today
                     </span>
-                    <span>
-                      {new Date(appt.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </span>
+                    {appt.slot_date ? (
+                      <span>
+                        {formatDate(appt.slot_date)}
+                        {appt.start_time && (
+                          <span className="font-semibold text-slate-700">
+                            {" "}
+                            &bull; {formatTime(appt.start_time)}
+                            {appt.end_time && ` – ${formatTime(appt.end_time)}`}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span>
+                        {new Date(appt.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    )}
                   </div>
                   {appt.reason_for_visit && (
                     <p className="text-xs text-slate-500 mt-2 bg-slate-50 rounded-lg px-3 py-2">
@@ -341,19 +473,50 @@ export default function DoctorAppointments({ navigate }) {
                     </>
                   )}
                   {appt.appointment_status === "confirmed" && (
-                    <button
-                      onClick={() =>
-                        goTo(
-                          `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
-                        )
-                      }
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        medication
-                      </span>
-                      Write Prescription
-                    </button>
+                    <>
+                      <button
+                        onClick={() =>
+                          goTo(
+                            `/telemedicine?appointmentId=${appt.appointment_id}`,
+                          )
+                        }
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold hover:bg-violet-500 hover:text-white transition-colors border border-violet-200"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          video_call
+                        </span>
+                        Create Session
+                      </button>
+                      <button
+                        disabled={!!actionLoading[appt.appointment_id]}
+                        onClick={() => handleComplete(appt.appointment_id)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-500 hover:text-white transition-colors border border-blue-200 disabled:opacity-50"
+                      >
+                        {actionLoading[appt.appointment_id] === "complete" ? (
+                          <span className="material-symbols-outlined animate-spin text-sm">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <span className="material-symbols-outlined text-sm">
+                            task_alt
+                          </span>
+                        )}
+                        Mark Complete
+                      </button>
+                      <button
+                        onClick={() =>
+                          goTo(
+                            `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
+                          )
+                        }
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          medication
+                        </span>
+                        Write Prescription
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

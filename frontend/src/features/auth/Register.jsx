@@ -103,6 +103,7 @@ export default function RegisterPatient({ navigate }){
 
           <div className="mt-8 pt-6 border-t border-slate-800 text-center">
             <p className="text-sm text-slate-400">Already have an account? <a className="text-primary font-bold hover:text-primary/80 ml-1" href="#/login">Log in</a></p>
+            <p className="text-sm text-slate-400 mt-2">If you are a Doctor? <a className="text-primary font-bold hover:text-primary/80 ml-1" href="#/register/doctor">Register here</a></p>
           </div>
         </div>
 

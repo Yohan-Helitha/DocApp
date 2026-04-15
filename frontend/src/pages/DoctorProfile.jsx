@@ -27,10 +27,19 @@ export default function DoctorProfile({ navigate }) {
   const routePath = window.location.hash.replace("#", "").split("?")[0];
   const doctorId = routePath.split("/")[2];
 
+  const goTo = (path) => {
+    if (navigate) navigate(path);
+    else window.location.hash = path;
+  };
+
   useEffect(() => {
     if (!doctorId) {
       setError("Invalid doctor ID.");
       setLoading(false);
+      return;
+    }
+    if (!token) {
+      goTo("/login");
       return;
     }
     const load = async () => {

@@ -49,6 +49,31 @@ export const getSession = async (sessionId) => {
   return session;
 };
 
+export const listSessions = async ({ status } = {}) => {
+  const normalized = String(status || '').toLowerCase().trim();
+
+  let where = '';
+  const params = [];
+  if (normalized === 'ended') {
+    where = 'WHERE session_status = $1';
+    params.push('ended');
+  } else if (normalized === 'pending') {
+    // Treat anything not ended as pending (created/active)
+    where = 'WHERE session_status <> $1';
+    params.push('ended');
+  }
+
+  const { rows } = await db.query(
+    `SELECT session_id, appointment_id, provider, external_room_id, session_status, started_at, ended_at, created_at
+     FROM telemedicine_sessions
+     ${where}
+     ORDER BY created_at DESC`,
+    params,
+  );
+
+  return { sessions: rows || [] };
+};
+
 export const createJoinToken = async (sessionId, user, role = 'patient') => {
   if (!sessionId) {
     const err = new Error('missing_session_id');
@@ -98,4 +123,30 @@ export const endSession = async (sessionId, user) => {
     throw err;
   }
   await db.query('UPDATE telemedicine_sessions SET session_status = $1, ended_at = now() WHERE session_id = $2', ['ended', sessionId]);
+};
+
+export const deleteSession = async (sessionId, user) => {
+  if (!sessionId) {
+    const err = new Error('missing_session_id');
+    err.status = 400;
+    throw err;
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM session_participants WHERE session_id = $1', [sessionId]);
+    const res = await client.query('DELETE FROM telemedicine_sessions WHERE session_id = $1', [sessionId]);
+    await client.query('COMMIT');
+    if (!res || res.rowCount === 0) {
+      const e = new Error('session_not_found');
+      e.status = 404;
+      throw e;
+    }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };

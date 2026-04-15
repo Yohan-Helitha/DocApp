@@ -3,6 +3,7 @@ import Header from "./layouts/Header";
 import Footer from "./layouts/Footer";
 import Home from "./pages/Home";
 import RegisterPatient from "./features/auth/Register";
+import RegisterDoctor from "./features/auth/RegisterDoctor";
 import Login from "./features/auth/Login";
 import SuccessPatient from "./features/auth/SuccessPatient";
 import SuccessDoctor from "./features/auth/SuccessDoctor";
@@ -18,6 +19,7 @@ import Telemedicine from './features/telemedicine/Telemedicine'
 import PaymentCheckout from "./pages/PaymentCheckout";
 import PaymentReturn from "./pages/PaymentReturn";
 import PaymentCancel from "./pages/PaymentCancel";
+import PatientPrescriptions from "./pages/PatientPrescriptions";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -40,6 +42,8 @@ export default function App() {
   let Page = Home;
   if (path.startsWith("/register/patient"))
     Page = () => <RegisterPatient navigate={navigate} />;
+  else if (path.startsWith("/register/doctor"))
+    Page = () => <RegisterDoctor navigate={navigate} />;
   else if (path.startsWith("/login"))
     Page = () => <Login navigate={navigate} />;
   else if (path.startsWith("/success/patient"))
@@ -70,17 +74,19 @@ export default function App() {
     Page = () => <PaymentReturn navigate={navigate} />;
   else if (path.startsWith("/payments/cancel"))
     Page = () => <PaymentCancel navigate={navigate} />;
+  else if (path === "/prescriptions")
+    Page = () => <PatientPrescriptions navigate={navigate} />;
 
   const isAdminRoute = route.startsWith("/success/admin");
 
-  if(isAdminRoute){
+  if (isAdminRoute) {
     // Admin area uses its own top bar and sidebar layout (AdminLayout)
     // so we intentionally do NOT render the public Header/Footer here.
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Page />
       </div>
-    )
+    );
   }
 
   return (

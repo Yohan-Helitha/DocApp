@@ -28,9 +28,11 @@ export const createDoctor = async (req, res) => {
 export const listDoctors = async (req, res) => {
   try {
     const { specialization, name } = req.query;
+    const verifiedOnly = req.user.role !== "admin";
     const doctors = await doctorService.listDoctors(req.db, {
       specialization,
       name,
+      verifiedOnly,
     });
     return res.json({ doctors });
   } catch (err) {
@@ -106,6 +108,13 @@ const assertSlotOwner = async (db, doctorId, user) => {
 export const addSlot = async (req, res) => {
   try {
     await assertSlotOwner(req.db, req.params.doctorId, req.user);
+    const doctor = await doctorService.getDoctorById(
+      req.db,
+      req.params.doctorId,
+    );
+    if (doctor.verification_status !== "approved") {
+      return res.status(403).json({ error: "doctor_not_verified" });
+    }
     const slot = await doctorService.addSlot(
       req.db,
       req.params.doctorId,
@@ -114,6 +123,19 @@ export const addSlot = async (req, res) => {
     return res.status(201).json({ slot });
   } catch (err) {
     return handleError(err, res, req, "addSlot");
+  }
+};
+
+export const getSlotById = async (req, res) => {
+  try {
+    const slot = await doctorService.getSlotById(
+      req.db,
+      req.params.doctorId,
+      req.params.slotId,
+    );
+    return res.json({ slot });
+  } catch (err) {
+    return handleError(err, res, req, "getSlotById");
   }
 };
 
@@ -148,6 +170,21 @@ export const updateSlot = async (req, res) => {
 export const deleteSlot = async (req, res) => {
   try {
     await assertSlotOwner(req.db, req.params.doctorId, req.user);
+
+    // Guard: refuse to delete a slot that is currently booked to an appointment.
+    const slot = await doctorService.getSlotById(
+      req.db,
+      req.params.doctorId,
+      req.params.slotId,
+    );
+    if (slot.slot_status === "booked") {
+      return res.status(409).json({
+        error: "slot_is_booked",
+        message:
+          "Cannot delete a booked slot — cancel or reject the associated appointment first.",
+      });
+    }
+
     await doctorService.deleteSlot(
       req.db,
       req.params.doctorId,

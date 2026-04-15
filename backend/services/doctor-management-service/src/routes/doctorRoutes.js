@@ -44,6 +44,11 @@ router.get(
   authMiddleware,
   doctorController.listSlots,
 );
+router.get(
+  "/api/v1/doctors/:doctorId/availability-slots/:slotId",
+  authMiddleware,
+  doctorController.getSlotById,
+);
 router.put(
   "/api/v1/doctors/:doctorId/availability-slots/:slotId",
   authMiddleware,

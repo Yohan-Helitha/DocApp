@@ -28,6 +28,11 @@ export default function BrowseDoctors({ navigate }) {
 
   const token = sessionStorage.getItem("accessToken");
 
+  const goTo = (path) => {
+    if (navigate) navigate(path);
+    else window.location.hash = path;
+  };
+
   const fetchDoctors = async (name, spec) => {
     setLoading(true);
     setError("");
@@ -52,6 +57,10 @@ export default function BrowseDoctors({ navigate }) {
   };
 
   useEffect(() => {
+    if (!token) {
+      goTo("/login");
+      return;
+    }
     fetchDoctors("", "");
   }, []);
 

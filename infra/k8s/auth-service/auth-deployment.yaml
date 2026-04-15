@@ -14,6 +14,76 @@ spec:
       labels:
         app: auth-service
     spec:
+      initContainers:
+        - name: init-auth-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "auth-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying auth schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Auth schema applied."
+          volumeMounts:
+            - name: auth-db-init
+              mountPath: /db-init
+        - name: seed-auth-demo-users
+          image: docapp/auth-service:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PGHOST
+              value: "auth-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: JWT_SECRET
+          command: ["node", "seed-doctor.js"]
       containers:
         - name: auth-service
           image: docapp/auth-service:local
@@ -49,6 +119,13 @@ spec:
                 secretKeyRef:
                   name: auth-db-secret
                   key: JWT_SECRET
+      volumes:
+        - name: auth-db-init
+          configMap:
+            name: auth-db-init
+            items:
+              - key: init.sql
+                path: init.sql
 
 ---
 apiVersion: v1

@@ -1,6 +1,7 @@
 import * as appointmentService from "../services/appointmentService.js";
 import * as doctorClient from "../services/doctorClient.js";
 import * as notificationClient from "../services/notificationClient.js";
+import env from "../config/environment.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,25 +41,47 @@ export const bookAppointment = async (req, res) => {
       doctor_id,
     );
 
-    // 2. Mark the slot as booked in doctor-management-service (uses service JWT)
+    // 1a. Reject booking if doctor is not yet verified
+    if (doctor.verification_status !== "approved") {
+      const e = new Error("doctor_not_verified");
+      e.status = 403;
+      throw e;
+    }
+
+    // 2. Fetch slot details — snapshot date/time at booking time (Bug 11 fix)
+    const slot = await doctorClient.getSlot(
+      req.headers.authorization,
+      doctor_id,
+      slot_id,
+    );
+
+    // 3. Mark the slot as booked in doctor-management-service (uses service JWT)
     await doctorClient.updateSlotStatus(doctor_id, slot_id, "booked");
 
-    // 3. Persist appointment
+    // 4. Persist appointment with denormalized display fields (Bug 6 / Bug 11 fix)
+    //    patient_name is null until patient-service exposes GET /api/v1/patients/by-user/:userId
+    //    — patientClient.js is the integration hook; populate once teammate builds the endpoint.
     const appointment = await appointmentService.createAppointment(req.db, {
       patient_id: req.user.id,
       doctor_id,
       slot_id,
+      patient_email: req.user.email,
       reason_for_visit,
+      doctor_name: doctor.full_name,
+      patient_name: null,
+      slot_date: slot.slot_date,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
     });
 
-    // 4. Log event
+    // 5. Log event
     await appointmentService.addEvent(req.db, appointment.appointment_id, {
       event_type: "appointment_booked",
       event_actor: req.user.id,
       notes: `Booked by patient ${req.user.email}`,
     });
 
-    // 5. Notify patient (best-effort — don't fail booking on notification error)
+    // 6. Notify patient (best-effort — don't fail booking on notification error)
     notificationClient
       .sendEmail({
         callerId: req.user.id,
@@ -69,7 +92,7 @@ export const bookAppointment = async (req, res) => {
       })
       .catch((err) => req.log.warn(err, "patient booking notification failed"));
 
-    // 6. Notify doctor (best-effort)
+    // 7. Notify doctor (best-effort)
     notificationClient
       .sendEmail({
         callerId: req.user.id,
@@ -120,7 +143,52 @@ export const getAppointment = async (req, res) => {
     return handleError(err, res, req, "getAppointment");
   }
 };
+// ─── Get Appointment Events ────────────────────────────────────────────────────────────
 
+export const getAppointmentEvents = async (req, res) => {
+  try {
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    if (req.user.role === "admin") {
+      const events = await appointmentService.getEvents(
+        req.db,
+        req.params.appointmentId,
+      );
+      return res.json({ events });
+    }
+    if (req.user.role === "patient") {
+      if (appointment.patient_id !== req.user.id) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+      const events = await appointmentService.getEvents(
+        req.db,
+        req.params.appointmentId,
+      );
+      return res.json({ events });
+    }
+    if (req.user.role === "doctor") {
+      const doctor = await doctorClient.getDoctor(
+        req.headers.authorization,
+        appointment.doctor_id,
+      );
+      if (doctor.user_id !== req.user.id) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+      const events = await appointmentService.getEvents(
+        req.db,
+        req.params.appointmentId,
+      );
+      return res.json({ events });
+    }
+
+    return res.status(403).json({ error: "forbidden" });
+  } catch (err) {
+    return handleError(err, res, req, "getAppointmentEvents");
+  }
+};
 // ─── Reschedule Appointment ───────────────────────────────────────────────────
 
 export const updateAppointment = async (req, res) => {
@@ -264,15 +332,54 @@ export const listByDoctor = async (req, res) => {
   }
 };
 
-// ─── Force-set Status (admin) ─────────────────────────────────────────────────
+// ─── Force-set Status (admin) or Mark Complete (doctor) ──────────────────────
 
 export const setStatus = async (req, res) => {
   try {
+    const { status } = req.body || {};
+    if (!status) return res.status(400).json({ error: "status_required" });
+
+    if (req.user.role === "doctor") {
+      // Doctors may only mark their own confirmed appointments as completed.
+      if (status !== "completed") {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      const appointment = await appointmentService.getAppointmentById(
+        req.db,
+        req.params.appointmentId,
+      );
+
+      const doctor = await doctorClient.getDoctor(
+        req.headers.authorization,
+        appointment.doctor_id,
+      );
+      if (doctor.user_id !== req.user.id) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      if (appointment.appointment_status !== "confirmed") {
+        return res.status(400).json({ error: "appointment_not_confirmed" });
+      }
+
+      const updated = await appointmentService.setStatus(
+        req.db,
+        req.params.appointmentId,
+        "completed",
+      );
+
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: "status_override",
+        event_actor: req.user.id,
+        notes: "Doctor marked appointment as completed",
+      });
+
+      return res.json({ appointment: updated });
+    }
+
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "forbidden" });
     }
-    const { status } = req.body || {};
-    if (!status) return res.status(400).json({ error: "status_required" });
 
     const appointment = await appointmentService.setStatus(
       req.db,
@@ -326,6 +433,16 @@ export const doctorDecision = async (req, res) => {
     }
 
     const newStatus = decision === "accept" ? "confirmed" : "rejected";
+
+    // When rejecting, release the slot so other patients can book it again.
+    if (decision === "reject") {
+      await doctorClient.updateSlotStatus(
+        appointment.doctor_id,
+        appointment.slot_id,
+        "available",
+      );
+    }
+
     const updated = await appointmentService.setStatus(
       req.db,
       req.params.appointmentId,
@@ -344,7 +461,7 @@ export const doctorDecision = async (req, res) => {
         callerId: req.user.id,
         callerRole: req.user.role,
         recipient_user_id: appointment.patient_id,
-        recipient_email: null, // patient email not stored in appointments table; notification-service will handle missing email gracefully
+        recipient_email: appointment.patient_email,
         message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
       })
       .catch((err) => req.log.warn(err, "doctor decision notification failed"));
@@ -352,5 +469,71 @@ export const doctorDecision = async (req, res) => {
     return res.json({ appointment: updated });
   } catch (err) {
     return handleError(err, res, req, "doctorDecision");
+  }
+};
+
+// ─── Update Payment Status (internal callback) ───────────────────────────────────
+
+export const updatePaymentStatus = async (req, res) => {
+  try {
+    const secret = req.headers["x-internal-secret"];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    const { payment_status } = req.body || {};
+    if (!payment_status) {
+      return res.status(400).json({ error: "payment_status_required" });
+    }
+
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    const updated = await appointmentService.updatePaymentStatus(
+      req.db,
+      req.params.appointmentId,
+      payment_status,
+    );
+
+    if (
+      payment_status === "expired" &&
+      appointment.appointment_status !== "confirmed"
+    ) {
+      await doctorClient.updateSlotStatus(
+        appointment.doctor_id,
+        appointment.slot_id,
+        "available",
+      );
+      await appointmentService.setStatus(
+        req.db,
+        req.params.appointmentId,
+        "cancelled",
+      );
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: "payment_expired",
+        event_actor: null,
+        notes: "Payment window elapsed — slot released",
+      });
+    } else if (
+      payment_status === "expired" &&
+      appointment.appointment_status === "confirmed"
+    ) {
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: "payment_expired_ignored",
+        event_actor: null,
+        notes: "Payment expired but appointment already confirmed — slot kept",
+      });
+    } else {
+      await appointmentService.addEvent(req.db, req.params.appointmentId, {
+        event_type: `payment_${payment_status}`,
+        event_actor: null,
+        notes: `Payment status updated to ${payment_status} by payment service`,
+      });
+    }
+
+    return res.json({ appointment: updated });
+  } catch (err) {
+    return handleError(err, res, req, "updatePaymentStatus");
   }
 };

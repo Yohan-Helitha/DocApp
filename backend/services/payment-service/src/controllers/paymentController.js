@@ -78,6 +78,12 @@ export const initiatePayment = async (req, res) => {
     amount,
     currency = 'LKR',
     items = 'Consultation fee',
+    // Optional: when only the payment flow is served on the public ngrok domain
+    // (for PayHere Origin/Referer checks) but the rest of the app lives on localhost,
+    // you can pass where the browser should be redirected after PayHere completes.
+    // Example: returnTo = 'http://localhost:8081/#/appointments/123?paid=1'
+    returnTo,
+    cancelTo,
     firstName,
     lastName,
     email,
@@ -125,12 +131,27 @@ export const initiatePayment = async (req, res) => {
 
       const hash = generatePayHereHash({ orderId, amountStr, currency: normalizedCurrency });
 
+      const withReturnTo = (baseUrl, to) => {
+        const trimmed = String(baseUrl || '').trim();
+        const target = String(to || '').trim();
+        if (!trimmed || !target) return trimmed;
+        try {
+          const url = new URL(trimmed);
+          url.searchParams.set('to', target);
+          return url.toString();
+        } catch {
+          // Should not happen (these URLs are expected to be absolute), but keep it safe.
+          const sep = trimmed.includes('?') ? '&' : '?';
+          return trimmed + sep + 'to=' + encodeURIComponent(target);
+        }
+      };
+
       const checkout = {
         actionUrl: `${getPayHereBaseUrl()}/pay/checkout`,
         fields: {
           merchant_id: String(env.PAYHERE_MERCHANT_ID || '').trim(),
-          return_url: env.PAYHERE_RETURN_URL,
-          cancel_url: env.PAYHERE_CANCEL_URL,
+          return_url: withReturnTo(env.PAYHERE_RETURN_URL, returnTo),
+          cancel_url: withReturnTo(env.PAYHERE_CANCEL_URL, cancelTo),
           notify_url: env.PAYHERE_NOTIFY_URL,
           order_id: orderId,
           items,

@@ -35,6 +35,16 @@ spec:
               value: "http://payment-service:4006"
             - name: TELEMEDICINE_SERVICE_URL
               value: "http://telemedicine:4010"
+            # After PayHere returns to the public ngrok domain, bounce the browser back to
+            # your local "main" app. If your local app is actually on 8081, change these to
+            # http://localhost:8081/#/payments/return and http://localhost:8081/#/payments/cancel
+            - name: PAYHERE_DEFAULT_RETURN_TO
+              value: "http://localhost:8081/#/payments/return"
+            - name: PAYHERE_DEFAULT_CANCEL_TO
+              value: "http://localhost:8081/#/payments/cancel"
+            # Safety: only allow redirecting to these hosts.
+            - name: PAYHERE_RETURN_TO_ALLOWLIST
+              value: "localhost,127.0.0.1"
             - name: LOG_LEVEL
               value: "info"
 

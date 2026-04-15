@@ -1,5 +1,8 @@
 # Payment Service Specification
 
+## Runbook
+For step-by-step instructions to run locally, via Docker, or deploy to Kubernetes (including required secrets/env vars), see `RUNBOOK.md`.
+
 ## 1. What this microservice should build
 - Consultation payment flow with local/global providers and refund support.
 

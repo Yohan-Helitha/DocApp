@@ -18,5 +18,12 @@ export default {
     "APPOINTMENT_SERVICE_URL",
     "http://appointment-service:4003",
   ),
+  // Optional: after PayHere returns to /payhere/return or /payhere/cancel on the public domain,
+  // we can redirect the browser back to a local app (e.g. http://localhost:8081/#/payments/return).
+  // This is useful when only the payment flow is hosted via ngrok and the rest of the app runs on localhost.
+  PAYHERE_DEFAULT_RETURN_TO: getEnv('PAYHERE_DEFAULT_RETURN_TO', ''),
+  PAYHERE_DEFAULT_CANCEL_TO: getEnv('PAYHERE_DEFAULT_CANCEL_TO', ''),
+  // Comma-separated allowlist of hosts for redirects (prevents open redirects). Examples: "localhost,127.0.0.1"
+  PAYHERE_RETURN_TO_ALLOWLIST: getEnv('PAYHERE_RETURN_TO_ALLOWLIST', 'localhost,127.0.0.1'),
   LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
 };

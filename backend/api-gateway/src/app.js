@@ -27,14 +27,52 @@ app.get("/health", (req, res) => {
 // PayHere return/cancel URLs must typically use the same allowed domain/app
 // as notify_url (domain security). These endpoints are used as stable targets
 // (e.g., via ngrok) and then redirect the user back to the local SPA.
+const isAllowedRedirectTarget = (targetUrl) => {
+  try {
+    const url = new URL(targetUrl);
+    const protocolAllowed = url.protocol === 'http:' || url.protocol === 'https:';
+    if (!protocolAllowed) return false;
+
+    const allowedHosts = String(env.PAYHERE_RETURN_TO_ALLOWLIST || '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean);
+    if (allowedHosts.length === 0) return false;
+
+    return allowedHosts.includes(String(url.hostname || '').toLowerCase());
+  } catch {
+    return false;
+  }
+};
+
+const buildRedirectWithQuery = (baseUrl, query) => {
+  const params = new URLSearchParams();
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (!key || key === 'to') return;
+    if (value == null) return;
+    params.append(key, String(value));
+  });
+
+  const qs = params.toString();
+  if (!qs) return baseUrl;
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return baseUrl + separator + qs;
+};
+
 app.get('/payhere/return', (req, res) => {
-  // Redirect within the same host (works for localhost, ngrok, or any other domain).
-  res.redirect(302, '/#/payments/return');
+  const to = String(req.query?.to || '').trim() || String(env.PAYHERE_DEFAULT_RETURN_TO || '').trim();
+  if (to && isAllowedRedirectTarget(to)) {
+    return res.redirect(302, buildRedirectWithQuery(to, req.query));
+  }
+  return res.redirect(302, buildRedirectWithQuery('/#/payments/return', req.query));
 });
 
 app.get('/payhere/cancel', (req, res) => {
-  // Redirect within the same host (works for localhost, ngrok, or any other domain).
-  res.redirect(302, '/#/payments/cancel');
+  const to = String(req.query?.to || '').trim() || String(env.PAYHERE_DEFAULT_CANCEL_TO || '').trim();
+  if (to && isAllowedRedirectTarget(to)) {
+    return res.redirect(302, buildRedirectWithQuery(to, req.query));
+  }
+  return res.redirect(302, buildRedirectWithQuery('/#/payments/cancel', req.query));
 });
 
 // Proxy all auth routes to the auth-service.

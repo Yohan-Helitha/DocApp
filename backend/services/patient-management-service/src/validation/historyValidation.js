@@ -23,7 +23,7 @@ export const notFutureDate = body('diagnosed_on')
     });
 
 export const patientIdValidator = [
-    param('patientId').isInt().withMessage('Invalid patient ID'),
+    param('patientId').notEmpty().withMessage('Patient ID is required').isString().withMessage('Patient ID must be a string'),
     validate
 ];
 

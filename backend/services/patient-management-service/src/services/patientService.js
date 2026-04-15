@@ -5,52 +5,67 @@ const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL;
 
 export default {
     createPatient: async (patientData, user = { id: 'system-patient-service', role: 'admin' }) => {
-        const newPatient = await Patient.create(patientData);
-
-        // Send Welcome Notification
         try {
-            const { user_id, full_name, email, phone } = patientData;
-            
-            // Send Email
-            await axios.post(`${NOTIFICATION_SERVICE_URL}/send-email`, {
-                recipient_user_id: user_id || 1, 
-                channel: 'email',             
-                message: `Welcome to DocApp, ${full_name}! Your profile has been created successfully.`, 
-                recipient_email: email,
-                subject: 'Welcome to DocApp!'
-            }, {
-                headers: { 'x-user-id': user?.id, 'x-user-role': user?.role }
-            });
+            // Check for duplicate email across different User IDs
+            const existingWithEmail = await Patient.findOne({ where: { email: patientData.email } });
+            if (existingWithEmail) {
+                if (existingWithEmail.user_id !== patientData.user_id) {
+                    const error = new Error('This email is already registered to another patient account.');
+                    error.status = 409;
+                    throw error;
+                }
+                // If it's the same user_id, it's safe to proceed (or we could return the existing one)
+            }
 
-            // Send SMS
-            await axios.post(`${NOTIFICATION_SERVICE_URL}/send-sms`, {
-                recipient_user_id: user_id || 1, 
-                channel: 'sms',             
-                message: `Hi ${full_name}, welcome to DocApp! Your account is ready.`, 
-                recipient_phone: phone
-            }, {
-                headers: { 'x-user-id': user?.id, 'x-user-role': user?.role }
-            });
+            const newPatient = await Patient.create(patientData);
 
-        } catch (notifErr) {
-            console.error('⚠️ Failed to send notification in Service:', notifErr.message);
+            // Send Welcome Notification (Email + SMS + In-App)
+            try {
+                const { user_id, first_name, last_name, email, phone } = patientData;
+                const name = `${first_name} ${last_name}`;
+                
+                if (NOTIFICATION_SERVICE_URL) {
+                    await axios.post(`${NOTIFICATION_SERVICE_URL}/send-email`, {
+                        recipient_user_id: user_id || 1, 
+                        recipient_email: email,
+                        recipient_phone: phone, // This triggers SMS automatically in notification-service
+                        channel: 'email', // Explicitly required by notification service validation
+                        template_code: 'WELCOME_USER',
+                        payload_json: { 
+                            name: name,
+                            role: 'Patient'
+                        },
+                        priority: 'high'
+                    }, {
+                        headers: { 
+                            'x-user-id': user?.sub || user?.id || 'system-patient-service', 
+                            'x-user-role': user?.role || 'admin' 
+                        }
+                    });
+                    console.log(`Integrated Welcome Notifications triggered for ${email} and ${phone}`);
+                }
+            } catch (notifErr) {
+                console.error('⚠️ Welcome Notification failed:', notifErr.message);
+            }
+
+            return newPatient;
+        } catch (dbErr) {
+            console.error('❌ Database Creation Error:', dbErr);
+            throw dbErr;
         }
-
-        return newPatient;
     },
 
     getPatientById: async (patientId) => {
-        return await Patient.findByPk(patientId);
+        return await Patient.findOne({ where: { user_id: patientId } });
     },
-
-    updatePatient: async (patientId, updateData) => {
-        const patient = await Patient.findByPk(patientId);
+        updatePatient: async (patientId, updateData) => {
+        const patient = await Patient.findOne({ where: { user_id: patientId } });
         if (!patient) return null;
         return await patient.update(updateData);
     },
 
     deletePatient: async (patientId) => {
-        const patient = await Patient.findByPk(patientId);
+        const patient = await Patient.findOne({ where: { user_id: patientId } });
         if (!patient) return null;
         await patient.destroy();
         return patient;

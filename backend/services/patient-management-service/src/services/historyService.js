@@ -1,27 +1,35 @@
-import { MedicalHistoryEntry } from '../models/index.js';
+import { MedicalHistoryEntry, Patient } from '../models/index.js';
 
 export default {
     /**
      * Create a new medical history entry
-     * @param {number} patientId - The ID of the patient
+     * @param {string} patientId - The UUID of the patient (user_id)
      * @param {Object} historyData - The history data
      * @returns {Promise<Object>} The created history entry
      */
     createHistoryEntry: async (patientId, historyData) => {
+        // Resolve UUID to integer ID
+        const patient = await Patient.findOne({ where: { user_id: patientId } });
+        if (!patient) throw new Error('Patient record not found');
+
         return await MedicalHistoryEntry.create({ 
             ...historyData, 
-            patient_id: patientId 
+            patient_id: patient.id 
         });
     },
 
     /**
      * Get all medical history entries for a patient
-     * @param {number} patientId - The ID of the patient
+     * @param {string} patientId - The UUID of the patient (user_id)
      * @returns {Promise<Array>} List of medical history entries
      */
     getMedicalHistory: async (patientId) => {
+        // Resolve UUID to integer ID
+        const patient = await Patient.findOne({ where: { user_id: patientId } });
+        if (!patient) throw new Error('Patient record not found');
+
         return await MedicalHistoryEntry.findAll({
-            where: { patient_id: patientId },
+            where: { patient_id: patient.id },
             order: [['diagnosed_on', 'DESC']]
         });
     },

@@ -12,7 +12,7 @@ export const createHistoryEntry = async (req, res) => {
 export const getMedicalHistory = async (req, res) => {
     try {
         const history = await historyService.getMedicalHistory(req.params.patientId);
-        res.status(200).json(history);
+        res.status(200).json({ history });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -1,21 +1,20 @@
 import multer from 'multer';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinaryConfig.js';
 import path from 'path';
-import fs from 'fs';
 
-// Configuration for Multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+// Configuration for Cloudinary Storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'medical_reports',
+    resource_type: 'raw',      // 'raw' = no transcoding, publicly accessible for all file types
+    access_mode: 'public',
+    public_id: (req, file) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const filename = path.parse(file.originalname).name;
+      return `${filename}-${uniqueSuffix}`;
     }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Save file with timestamp to prevent duplicates
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 

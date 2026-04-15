@@ -36,7 +36,8 @@ const verifyReportOwnership = async (req, res, next) => {
         const { patientId } = req.params;
 
         // Get patient to compare with user_id from JWT
-        const patient = await Patient.findByPk(patientId);
+        // Resolve UUID to internal ID if necessary
+        const patient = await Patient.findOne({ where: { user_id: patientId } });
         
         if (!patient) {
             return res.status(404).json({ error: 'Patient not found' });

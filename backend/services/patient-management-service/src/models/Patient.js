@@ -10,7 +10,7 @@ Patient.init({
     autoIncrement: true
   },
   user_id: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING, // Changed from INTEGER to STRING to support UUID
     allowNull: false,
     unique: true
   },

@@ -9,7 +9,7 @@ export const validate = (req, res, next) => {
 };
 
 export const patientIdValidator = [
-    param('patientId').isInt().withMessage('Invalid patient ID'),
+    param('patientId').notEmpty().withMessage('Patient ID is required').isString().withMessage('Patient ID must be a string'),
     validate
 ];
 
@@ -20,19 +20,21 @@ export const uploadReportValidator = [
 ];
 
 export const getReportValidator = [
-    param('patientId').isInt().withMessage('Invalid patient ID'),
+    param('patientId').notEmpty().withMessage('Patient ID is required').isString().withMessage('Patient ID must be a string'),
     validate
 ];
 
 export const updateReportValidator = [
-    param('patientId').isInt().withMessage('Invalid patient ID'),
+    param('patientId').notEmpty().withMessage('Patient ID is required').isString().withMessage('Patient ID must be a string'),
     param('reportId').isInt().withMessage('Invalid report ID'),
     body('notes').optional().isString(),
+    body('report_name').optional().isString(),
+    body('file_type').optional().isString(),
     validate
 ];
 
 export const deleteReportValidator = [
-    param('patientId').isInt().withMessage('Invalid patient ID'),
+    param('patientId').notEmpty().withMessage('Patient ID is required').isString().withMessage('Patient ID must be a string'),
     param('reportId').isInt().withMessage('Invalid report ID'),
     validate
 ];

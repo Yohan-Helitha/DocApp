@@ -21,11 +21,11 @@ const router = express.Router();
 // POST - Upload report (patient auth + ownership verification required)
 router.post('/:patientId/medical-reports', reportAuthMiddleware, verifyReportOwnership, upload.single('report_file'), uploadReportValidator, uploadReport);
 
-// GET - Retrieve all reports for a patient (internal service auth required)
-router.get('/:patientId/medical-reports', internalAuthMiddleware, getReportValidator, getMedicalReports);
+// GET - Retrieve all reports for a patient (patient auth + ownership verification)
+router.get('/:patientId/medical-reports', reportAuthMiddleware, verifyReportOwnership, getReportValidator, getMedicalReports);
 
 // PUT - Update report notes (patient auth + ownership verification required)
-router.put('/:patientId/medical-reports/:reportId', reportAuthMiddleware, verifyReportOwnership, updateReportValidator, updateReport);
+router.put('/:patientId/medical-reports/:reportId', reportAuthMiddleware, verifyReportOwnership, upload.single('report_file'), updateReportValidator, updateReport);
 
 // DELETE - Delete report (patient auth + ownership verification required)
 router.delete('/:patientId/medical-reports/:reportId', reportAuthMiddleware, verifyReportOwnership, deleteReportValidator, deleteReport);

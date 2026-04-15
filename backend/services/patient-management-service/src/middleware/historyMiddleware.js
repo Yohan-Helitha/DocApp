@@ -17,13 +17,15 @@ const historyMiddleware = async (req, res, next) => {
         // If a patientId is in the URL, verify the user owns this record or is an admin/doctor
         const { patientId } = req.params;
         if (patientId) {
-            const patient = await Patient.findByPk(patientId);
+            // Resolve UUID to internal ID if necessary
+            const patient = await Patient.findOne({ where: { user_id: patientId } });
+            
             if (!patient) {
                 return res.status(404).json({ message: 'Patient not found' });
             }
 
             // Authorization: User can only see their own history, unless they are admin/doctor
-            const isOwner = patient.user_id === decoded.id;
+            const isOwner = patient.user_id === decoded.id || patient.user_id === decoded.sub;
             const isAuthorizedRole = ['admin', 'doctor'].includes(decoded.role);
 
             if (!isOwner && !isAuthorizedRole) {

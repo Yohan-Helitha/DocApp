@@ -21,7 +21,7 @@ MedicalReport.init({
     type: DataTypes.STRING
   },
   file_url: {
-    type: DataTypes.STRING,
+    type: DataTypes.TEXT,
     allowNull: false
   },
   file_type: {

@@ -1,24 +1,24 @@
 // Auth service: implements registration and login per schema
-import db from '../config/db.js';
-import env from '../config/environment.js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import db from "../config/db.js";
+import env from "../config/environment.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 
 const SALT_ROUNDS = Number(env.BCRYPT_SALT_ROUNDS) || 10;
 
 export const register = async (userData) => {
   const { email, password, role } = userData || {};
   if (!email || !password || !role) {
-    const err = new Error('invalid_input');
+    const err = new Error("invalid_input");
     err.status = 400;
     throw err;
   }
 
-  if (!['patient', 'doctor', 'admin'].includes(role)) {
-    const err = new Error('invalid_role');
+  if (!["patient", "doctor", "admin"].includes(role)) {
+    const err = new Error("invalid_role");
     err.status = 400;
     throw err;
   }
@@ -27,23 +27,23 @@ export const register = async (userData) => {
 
   const client = await db.pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
     const insertText = `
       INSERT INTO users (email, password_hash, role, account_status)
       VALUES ($1, $2, $3, $4)
       RETURNING user_id, email, role, account_status, created_at, updated_at
     `;
-    const accountStatus = role === 'doctor' ? 'pending_verification' : 'active';
+    const accountStatus = role === "doctor" ? "pending_verification" : "active";
     const values = [email.toLowerCase(), passwordHash, role, accountStatus];
     const result = await client.query(insertText, values);
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     const user = result.rows[0];
     return { user };
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     // handle unique violation (email exists)
-    if (err && err.code === '23505') {
-      const e = new Error('email_exists');
+    if (err && err.code === "23505") {
+      const e = new Error("email_exists");
       e.status = 409;
       throw e;
     }
@@ -56,24 +56,20 @@ export const register = async (userData) => {
 export const registerDoctor = async (doctorPayload, licenseFile) => {
   const { email, password } = doctorPayload || {};
   if (!email || !password) {
-    const err = new Error('invalid_input');
+    const err = new Error("invalid_input");
     err.status = 400;
     throw err;
   }
 
   if (!licenseFile) {
-    const err = new Error('license_required');
+    const err = new Error("license_required");
     err.status = 400;
     throw err;
   }
 
-  const allowedMime = new Set([
-    'application/pdf',
-    'image/png',
-    'image/jpeg',
-  ]);
+  const allowedMime = new Set(["application/pdf", "image/png", "image/jpeg"]);
   if (!allowedMime.has(licenseFile.mimetype)) {
-    const err = new Error('invalid_license_type');
+    const err = new Error("invalid_license_type");
     err.status = 400;
     throw err;
   }
@@ -81,7 +77,7 @@ export const registerDoctor = async (doctorPayload, licenseFile) => {
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   const client = await db.pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     const insertUserText = `
       INSERT INTO users (email, password_hash, role, account_status)
@@ -91,8 +87,8 @@ export const registerDoctor = async (doctorPayload, licenseFile) => {
     const userRes = await client.query(insertUserText, [
       email.toLowerCase(),
       passwordHash,
-      'doctor',
-      'pending_verification',
+      "doctor",
+      "pending_verification",
     ]);
     const user = userRes.rows[0];
 
@@ -116,12 +112,12 @@ export const registerDoctor = async (doctorPayload, licenseFile) => {
       ],
     );
 
-    await client.query('COMMIT');
-    return { user, verification: { status: 'pending' } };
+    await client.query("COMMIT");
+    return { user, verification: { status: "pending" } };
   } catch (err) {
-    await client.query('ROLLBACK');
-    if (err && err.code === '23505') {
-      const e = new Error('email_exists');
+    await client.query("ROLLBACK");
+    if (err && err.code === "23505") {
+      const e = new Error("email_exists");
       e.status = 409;
       throw e;
     }
@@ -134,7 +130,7 @@ export const registerDoctor = async (doctorPayload, licenseFile) => {
 export const login = async (credentials) => {
   const { email, password } = credentials || {};
   if (!email || !password) {
-    const err = new Error('invalid_input');
+    const err = new Error("invalid_input");
     err.status = 400;
     throw err;
   }
@@ -143,16 +139,16 @@ export const login = async (credentials) => {
   const res = await db.query(text, [email.toLowerCase()]);
   const user = res.rows && res.rows[0];
   if (!user) {
-    const e = new Error('invalid_credentials');
+    const e = new Error("invalid_credentials");
     e.status = 401;
     throw e;
   }
 
-  if (user.account_status !== 'active') {
+  if (user.account_status !== "active") {
     const e = new Error(
-      user.account_status === 'pending_verification'
-        ? 'pending_verification'
-        : 'account_inactive',
+      user.account_status === "pending_verification"
+        ? "pending_verification"
+        : "account_inactive",
     );
     e.status = 403;
     throw e;
@@ -160,7 +156,7 @@ export const login = async (credentials) => {
 
   const match = await bcrypt.compare(password, user.password_hash);
   if (!match) {
-    const e = new Error('invalid_credentials');
+    const e = new Error("invalid_credentials");
     e.status = 401;
     throw e;
   }
@@ -169,25 +165,36 @@ export const login = async (credentials) => {
   // Sign with RS256 if private key is available, otherwise fallback to HS256
   let accessToken;
   try {
-    const pkPath = path.resolve(process.cwd(), env.AUTH_PRIVATE_KEY_PATH || './keys/private.pem');
+    const pkPath = path.resolve(
+      process.cwd(),
+      env.AUTH_PRIVATE_KEY_PATH || "./keys/private.pem",
+    );
     if (fs.existsSync(pkPath)) {
-      const privateKey = fs.readFileSync(pkPath, 'utf8');
-      accessToken = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '15m', keyid: 'auth-key-1' });
+      const privateKey = fs.readFileSync(pkPath, "utf8");
+      accessToken = jwt.sign(payload, privateKey, {
+        algorithm: "RS256",
+        expiresIn: "15m",
+        keyid: "auth-key-1",
+      });
     } else {
-      accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+      accessToken = jwt.sign(payload, env.JWT_SECRET || "change-me", {
+        expiresIn: "15m",
+      });
     }
   } catch (e) {
-    accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+    accessToken = jwt.sign(payload, env.JWT_SECRET || "change-me", {
+      expiresIn: "15m",
+    });
   }
 
   // create refresh token (raw returned to client) and store hashed form
-  const refreshToken = crypto.randomBytes(64).toString('hex');
+  const refreshToken = crypto.randomBytes(64).toString("hex");
   const refreshHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
   await db.query(
-    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
-    [user.user_id, refreshHash, expiresAt]
+    "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+    [user.user_id, refreshHash, expiresAt],
   );
 
   return { accessToken, refreshToken, expiresAt };
@@ -219,30 +226,30 @@ export const getDoctorLicense = async (userId) => {
   );
   const row = rows && rows[0];
   if (!row || !row.license_data) {
-    const e = new Error('license_not_found');
+    const e = new Error("license_not_found");
     e.status = 404;
     throw e;
   }
   return {
-    filename: row.license_original_name || 'license',
-    mimeType: row.license_mime_type || 'application/octet-stream',
+    filename: row.license_original_name || "license",
+    mimeType: row.license_mime_type || "application/octet-stream",
     data: row.license_data,
   };
 };
 
 export const verifyDoctor = async ({ userId, status, reason, adminUserId }) => {
-  const allowed = ['approved', 'rejected'];
+  const allowed = ["approved", "rejected"];
   if (!allowed.includes(status)) {
-    const e = new Error('invalid_verification_status');
+    const e = new Error("invalid_verification_status");
     e.status = 400;
     throw e;
   }
 
-  const newAccountStatus = status === 'approved' ? 'active' : 'rejected';
+  const newAccountStatus = status === "approved" ? "active" : "rejected";
 
   const client = await db.pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     const uRes = await client.query(
       `UPDATE users
@@ -253,7 +260,7 @@ export const verifyDoctor = async ({ userId, status, reason, adminUserId }) => {
     );
     const user = uRes.rows && uRes.rows[0];
     if (!user) {
-      const e = new Error('doctor_user_not_found');
+      const e = new Error("doctor_user_not_found");
       e.status = 404;
       throw e;
     }
@@ -268,10 +275,10 @@ export const verifyDoctor = async ({ userId, status, reason, adminUserId }) => {
       [status, adminUserId || null, reason || null, userId],
     );
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return { user, verification: { status } };
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
@@ -280,7 +287,9 @@ export const verifyDoctor = async ({ userId, status, reason, adminUserId }) => {
 
 export const refreshToken = async (rawToken) => {
   // find non-expired tokens
-  const res = await db.query('SELECT token_id, user_id, token_hash, expires_at, revoked_at FROM refresh_tokens WHERE expires_at > now()');
+  const res = await db.query(
+    "SELECT token_id, user_id, token_hash, expires_at, revoked_at FROM refresh_tokens WHERE expires_at > now()",
+  );
   const rows = res.rows || [];
   let found = null;
   for (const row of rows) {
@@ -292,7 +301,7 @@ export const refreshToken = async (rawToken) => {
     }
   }
   if (!found) {
-    const e = new Error('invalid_refresh_token');
+    const e = new Error("invalid_refresh_token");
     e.status = 401;
     throw e;
   }
@@ -301,53 +310,92 @@ export const refreshToken = async (rawToken) => {
   const payload = { sub: found.user_id };
   let accessToken;
   try {
-    const pkPath = path.resolve(process.cwd(), env.AUTH_PRIVATE_KEY_PATH || './keys/private.pem');
+    const pkPath = path.resolve(
+      process.cwd(),
+      env.AUTH_PRIVATE_KEY_PATH || "./keys/private.pem",
+    );
     if (fs.existsSync(pkPath)) {
-      const privateKey = fs.readFileSync(pkPath, 'utf8');
-      accessToken = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '15m', keyid: 'auth-key-1' });
+      const privateKey = fs.readFileSync(pkPath, "utf8");
+      accessToken = jwt.sign(payload, privateKey, {
+        algorithm: "RS256",
+        expiresIn: "15m",
+        keyid: "auth-key-1",
+      });
     } else {
-      accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+      accessToken = jwt.sign(payload, env.JWT_SECRET || "change-me", {
+        expiresIn: "15m",
+      });
     }
   } catch (e) {
-    accessToken = jwt.sign(payload, env.JWT_SECRET || 'change-me', { expiresIn: '15m' });
+    accessToken = jwt.sign(payload, env.JWT_SECRET || "change-me", {
+      expiresIn: "15m",
+    });
   }
 
   // rotate: revoke old token and insert a new one
-  await db.query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1', [found.token_id]);
-  const newRaw = crypto.randomBytes(64).toString('hex');
+  await db.query(
+    "UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1",
+    [found.token_id],
+  );
+  const newRaw = crypto.randomBytes(64).toString("hex");
   const newHash = await bcrypt.hash(newRaw, SALT_ROUNDS);
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await db.query('INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)', [found.user_id, newHash, expiresAt]);
+  await db.query(
+    "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+    [found.user_id, newHash, expiresAt],
+  );
 
   return { accessToken, refreshToken: newRaw, expiresAt };
 };
 
 export const logout = async (rawToken) => {
   // mark matching refresh token as revoked
-  const res = await db.query('SELECT token_id, token_hash FROM refresh_tokens WHERE revoked_at IS NULL');
+  const res = await db.query(
+    "SELECT token_id, token_hash FROM refresh_tokens WHERE revoked_at IS NULL",
+  );
   const rows = res.rows || [];
   for (const row of rows) {
     const match = await bcrypt.compare(rawToken, row.token_hash);
     if (match) {
-      await db.query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1', [row.token_id]);
+      await db.query(
+        "UPDATE refresh_tokens SET revoked_at = now() WHERE token_id = $1",
+        [row.token_id],
+      );
       return;
     }
   }
-  const e = new Error('invalid_refresh_token');
+  const e = new Error("invalid_refresh_token");
   e.status = 401;
   throw e;
+};
+
+export const getRegistrationData = async (userId) => {
+  const { rows } = await db.query(
+    `SELECT profile_data FROM doctor_verification_requests WHERE user_id = $1`,
+    [userId],
+  );
+  const row = rows && rows[0];
+  if (!row || !row.profile_data) return null;
+  const { full_name, specialization } = row.profile_data;
+  return {
+    full_name: full_name || null,
+    specialization: specialization || null,
+  };
 };
 
 export const verifyToken = async (token) => {
   // Verify using public key if available; fallback to shared secret
   try {
-    const pubPath = path.resolve(process.cwd(), env.AUTH_PUBLIC_KEY_PATH || './keys/public.pem');
+    const pubPath = path.resolve(
+      process.cwd(),
+      env.AUTH_PUBLIC_KEY_PATH || "./keys/public.pem",
+    );
     if (fs.existsSync(pubPath)) {
-      const publicKey = fs.readFileSync(pubPath, 'utf8');
-      return jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+      const publicKey = fs.readFileSync(pubPath, "utf8");
+      return jwt.verify(token, publicKey, { algorithms: ["RS256"] });
     }
   } catch (e) {
     // fallthrough to HS256
   }
-  return jwt.verify(token, env.JWT_SECRET || '');
+  return jwt.verify(token, env.JWT_SECRET || "");
 };

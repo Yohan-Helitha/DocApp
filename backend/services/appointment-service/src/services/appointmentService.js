@@ -161,13 +161,7 @@ export const getEvents = async (db, appointmentId) => {
 
 // --- Payment Status -------------------------------------------------------
 
-const VALID_PAYMENT_STATUSES = [
-  "unpaid",
-  "partially_paid",
-  "paid",
-  "refunded",
-  "expired",
-];
+const VALID_PAYMENT_STATUSES = ["unpaid", "paid", "refunded", "expired"];
 
 export const updatePaymentStatus = async (db, appointmentId, paymentStatus) => {
   if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) {

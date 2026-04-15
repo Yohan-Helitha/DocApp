@@ -17,6 +17,7 @@ export default function SuccessDoctor({ navigate }) {
   });
   const [createError, setCreateError] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
+  const [specializationLocked, setSpecializationLocked] = useState(false);
 
   // Edit profile
   const [editProfile, setEditProfile] = useState(false);
@@ -70,6 +71,20 @@ export default function SuccessDoctor({ navigate }) {
 
         const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
         if (!me) {
+          try {
+            const meRes = await Api.get("/api/v1/auth/me", token);
+            if (meRes.status === 200 && meRes.body?.registrationData) {
+              const rd = meRes.body.registrationData;
+              setCreateForm((f) => ({
+                ...f,
+                full_name: rd.full_name || "",
+                specialization: rd.specialization || "",
+              }));
+              if (rd.specialization) setSpecializationLocked(true);
+            }
+          } catch {
+            // silently ignore — form will just be blank
+          }
           setCreateMode(true);
           setLoading(false);
           return;
@@ -408,18 +423,27 @@ export default function SuccessDoctor({ navigate }) {
                   <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
                     Specialization *
                   </label>
-                  <input
-                    type="text"
-                    value={createForm.specialization}
-                    onChange={(e) =>
-                      setCreateForm((f) => ({
-                        ...f,
-                        specialization: e.target.value,
-                      }))
-                    }
-                    placeholder="e.g. Cardiology"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
+                  {specializationLocked ? (
+                    <div className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 text-slate-700 flex items-center justify-between">
+                      <span>{createForm.specialization}</span>
+                      <span className="text-xs text-slate-400 italic">
+                        locked
+                      </span>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={createForm.specialization}
+                      onChange={(e) =>
+                        setCreateForm((f) => ({
+                          ...f,
+                          specialization: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g. Cardiology"
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">

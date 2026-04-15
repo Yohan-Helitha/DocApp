@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   end_time           TIME,                   -- snapshotted from doctor_availability_slots at booking time (Bug 11 fix)
   reason_for_visit   TEXT,
   appointment_status TEXT        DEFAULT 'pending',  -- pending/confirmed/rejected/completed/cancelled
-  payment_status     TEXT        DEFAULT 'unpaid',   -- unpaid/paid/refunded
+  payment_status     TEXT        DEFAULT 'unpaid',   -- unpaid/paid/refunded/expired
   created_at         TIMESTAMPTZ DEFAULT now(),
   updated_at         TIMESTAMPTZ DEFAULT now()
 );

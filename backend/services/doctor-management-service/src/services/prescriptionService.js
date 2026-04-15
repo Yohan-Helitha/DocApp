@@ -59,12 +59,20 @@ export const getPrescriptionById = async (db, doctorId, prescriptionId) => {
   return rows[0];
 };
 
-export const listPrescriptionsByPatient = async (db, patientId) => {
+export const listPrescriptionsByPatient = async (
+  db,
+  patientId,
+  appointmentId = null,
+) => {
+  const sqlParams = [patientId];
+  let filter = `WHERE patient_id = $1`;
+  if (appointmentId) {
+    sqlParams.push(appointmentId);
+    filter += ` AND appointment_id = $2`;
+  }
   const { rows } = await db.query(
-    `SELECT * FROM prescriptions
-     WHERE patient_id = $1
-     ORDER BY issued_at DESC`,
-    [patientId],
+    `SELECT * FROM prescriptions ${filter} ORDER BY issued_at DESC`,
+    sqlParams,
   );
   return rows;
 };

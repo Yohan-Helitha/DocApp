@@ -475,6 +475,19 @@ export default function DoctorAppointments({ navigate }) {
                   {appt.appointment_status === "confirmed" && (
                     <>
                       <button
+                        onClick={() =>
+                          goTo(
+                            `/telemedicine?appointmentId=${appt.appointment_id}`,
+                          )
+                        }
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold hover:bg-violet-500 hover:text-white transition-colors border border-violet-200"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          video_call
+                        </span>
+                        Create Session
+                      </button>
+                      <button
                         disabled={!!actionLoading[appt.appointment_id]}
                         onClick={() => handleComplete(appt.appointment_id)}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-500 hover:text-white transition-colors border border-blue-200 disabled:opacity-50"

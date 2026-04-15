@@ -482,7 +482,9 @@ export default function MyAppointments({ navigate }) {
                     {a.appointment_status === "completed" && (
                       <button
                         onClick={() =>
-                          navigate(`/prescriptions?patientId=${userId}`)
+                          navigate(
+                            `/prescriptions?patientId=${userId}&appointmentId=${a.appointment_id}`,
+                          )
                         }
                         className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
                       >

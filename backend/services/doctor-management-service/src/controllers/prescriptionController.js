@@ -69,9 +69,11 @@ export const listPrescriptionsByPatient = async (req, res) => {
     if (req.user.role === "patient" && req.user.id !== req.params.patientId) {
       return res.status(403).json({ error: "forbidden" });
     }
+    const appointmentId = req.query.appointmentId || null;
     const prescriptions = await prescriptionService.listPrescriptionsByPatient(
       req.db,
       req.params.patientId,
+      appointmentId,
     );
     return res.json({ prescriptions });
   } catch (err) {

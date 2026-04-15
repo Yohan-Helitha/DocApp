@@ -34,13 +34,20 @@ export default function App(){
   else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />
   else if(route.startsWith('/notifications')) Page = ()=> <Notifications navigate={navigate} />
 
+  const isDashboard = route.startsWith('/patient/') || 
+                      route.startsWith('/success/') || 
+                      route.startsWith('/notifications') ||
+                      route.startsWith('/appointments') ||
+                      route.startsWith('/doctors') ||
+                      route.startsWith('/symptom-checker');
+
   return (
     <div className="min-h-screen flex flex-col">
-      <Header navigate={navigate} />
+      {!isDashboard && <Header navigate={navigate} />}
       <main className="flex-1">
         <Page />
       </main>
-      <Footer />
+      {!isDashboard && <Footer />}
     </div>
   )
 }

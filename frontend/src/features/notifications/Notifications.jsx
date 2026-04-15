@@ -9,8 +9,20 @@ export default function Notifications({ navigate }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
 
-  const patientId = localStorage.getItem('patientId');
+  // patientId is the JWT sub (UUID) – same as recipient_user_id in notifications table
   const token = sessionStorage.getItem('accessToken');
+  let patientId = localStorage.getItem('patientId');
+
+  // If patientId is missing, extract it from token sub
+  if (!patientId && token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      patientId = payload.sub || payload.userId;
+      if (patientId) localStorage.setItem('patientId', patientId);
+    } catch (e) {
+      console.error('Failed to parse token for patientId:', e);
+    }
+  }
 
   useEffect(() => {
     if (patientId && token) {
@@ -22,7 +34,7 @@ export default function Notifications({ navigate }) {
     try {
       setLoading(true);
       const response = await fetch(
-        `/api/v1/notifications?recipient_user_id=${patientId}`,
+        `/api/v1/notifications/user/${patientId}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -31,7 +43,18 @@ export default function Notifications({ navigate }) {
       if (!response.ok) throw new Error('Failed to fetch notifications');
 
       const data = await response.json();
-      setNotifications(data.notifications || []);
+      // Only show in-app notifications in this view
+      const allNotifs = data.notifications || [];
+      const notifs = allNotifs.filter(n => n.channel === 'in-app');
+      setNotifications(notifs);
+      
+      // Initialize read status from the is_read field in DB
+      const initialReadStatus = {};
+      notifs.forEach(n => {
+        if (n.is_read) initialReadStatus[n.id] = true;
+      });
+      setReadStatus(initialReadStatus);
+      
       setError(null);
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -42,22 +65,43 @@ export default function Notifications({ navigate }) {
     }
   };
 
-  const markAsRead = (id) => {
-    setReadStatus(prev => ({ ...prev, [id]: true }));
+  const markAsRead = async (id) => {
+    try {
+      // Optimistic update
+      setReadStatus(prev => ({ ...prev, [id]: true }));
+      
+      const response = await fetch(`/api/v1/notifications/${id}/read`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to mark as read');
+    } catch (err) {
+      console.error('Error persisting read status:', err);
+      // Revert optimistic update on failure
+      setReadStatus(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
   };
 
-  const markAllAsRead = () => {
-    const allRead = {};
-    notifications.forEach(n => {
-      allRead[n.id] = true;
-    });
-    setReadStatus(allRead);
+  const markAllAsRead = async () => {
+    const unreadNotifs = notifications.filter(n => !readStatus[n.id]);
+    
+    // Batch updates (parallel)
+    await Promise.all(unreadNotifs.map(n => markAsRead(n.id)));
   };
 
   const getChannelIcon = (channel) => {
     switch (channel) {
       case 'email': return 'mail';
       case 'sms': return 'sms';
+      case 'in-app': return 'notifications';
       case 'push': return 'notifications';
       default: return 'info';
     }
@@ -67,6 +111,7 @@ export default function Notifications({ navigate }) {
     switch (channel) {
       case 'email': return 'Email';
       case 'sms': return 'SMS';
+      case 'in-app': return 'In-App';
       case 'push': return 'Push';
       default: return 'Notification';
     }
@@ -229,19 +274,27 @@ export default function Notifications({ navigate }) {
                 return (
                   <div 
                     key={notification.id} 
-                    className={`p-6 rounded-2xl border transition-all duration-300 flex gap-5 items-start ${
+                    className={`relative p-6 rounded-2xl border transition-all duration-300 flex gap-5 items-start overflow-hidden border-l-[6px] ${
                       isRead 
-                        ? 'opacity-75' 
-                        : 'shadow-sm hover:shadow-md'
+                        ? 'opacity-60 bg-slate-50 border-slate-200 border-l-slate-200' 
+                        : 'shadow-md bg-white border-primary/20 border-l-primary ring-1 ring-primary/10'
                     } ${
-                      notification.priority === 'high'
-                        ? 'bg-red-50 border-red-200'
-                        : notification.priority === 'normal'
-                        ? 'bg-blue-50 border-blue-200'
-                        : 'bg-slate-50 border-slate-200'
+                      !isRead && notification.priority === 'high'
+                        ? 'bg-red-50/30'
+                        : ''
                     }`}
                   >
-                    <div className={`size-14 rounded-full flex items-center justify-center shrink-0 ${getStatusStyles(notification.status, notification.priority)}`}>
+                    {!isRead && (
+                      <div className="absolute top-0 right-0 p-2">
+                        <span className="flex size-2 rounded-full bg-primary animate-pulse"></span>
+                      </div>
+                    )}
+
+                    <div className={`size-14 rounded-full flex items-center justify-center shrink-0 ${
+                      isRead 
+                        ? 'bg-slate-100 text-slate-400' 
+                        : 'bg-primary/10 text-primary'
+                    }`}>
                       <span className="material-symbols-outlined text-2xl">{getChannelIcon(notification.channel)}</span>
                     </div>
                     
@@ -251,33 +304,36 @@ export default function Notifications({ navigate }) {
                           <h3 className={`text-lg font-bold ${isRead ? 'text-slate-700' : 'text-slate-900'} mb-1`}>
                             {notification.template_code ? notification.template_code.replace(/_/g, ' ') : getChannelLabel(notification.channel)}
                           </h3>
-                          <p className="text-xs text-slate-500 font-medium">
+                          <p className={`text-xs font-medium ${isRead ? 'text-slate-500' : 'text-primary/70'}`}>
                             <span className="inline-block mr-2">
-                              <span className="material-symbols-outlined text-xs align-middle">mail_outline</span> {getChannelLabel(notification.channel)}
+                              <span className="material-symbols-outlined text-xs align-middle">notifications</span> In-App
                             </span>
-                            • {formatTime(notification.createdAt)}
+                            • {formatTime(notification.created_at || notification.createdAt)}
                           </p>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap ${
-                          notification.priority === 'high'
-                            ? 'border-red-300 bg-red-100 text-red-700'
-                            : notification.priority === 'normal'
-                            ? 'border-blue-300 bg-blue-100 text-blue-700'
-                            : 'border-slate-300 bg-slate-100 text-slate-700'
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap ${
+                          isRead
+                            ? notification.priority === 'high'
+                              ? 'border-red-200 bg-red-50 text-red-600'
+                              : 'border-slate-200 bg-slate-100 text-slate-500'
+                            : notification.priority === 'high'
+                              ? 'border-red-400 bg-red-500 text-white'
+                              : 'border-primary/20 bg-primary/10 text-primary'
                         }`}>
                           {notification.priority}
                         </span>
                       </div>
                       
-                      <p className={`text-sm leading-relaxed mb-3 ${isRead ? 'text-slate-600' : 'text-slate-700'}`}>
+                      <p className={`text-sm leading-relaxed mb-4 ${isRead ? 'text-slate-500' : 'text-slate-700 font-medium'}`}>
                         {notification.message}
                       </p>
                       
                       {!isRead && (
                         <button 
                           onClick={() => markAsRead(notification.id)}
-                          className="text-primary hover:text-primary/80 text-sm font-bold flex items-center gap-1 transition-colors"
+                          className="text-primary hover:text-primary-dark text-sm font-bold flex items-center gap-2 transition-all group"
                         >
+                          <span className="material-symbols-outlined text-base group-hover:scale-110 transition-transform">done</span>
                           Mark as read
                         </button>
                       )}

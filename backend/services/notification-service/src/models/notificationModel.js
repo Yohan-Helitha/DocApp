@@ -10,30 +10,37 @@ Notification.init({
     autoIncrement: true
   },
   recipient_user_id: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING,
     allowNull: false
   },
   channel: {
-    type: DataTypes.ENUM('email', 'sms', 'push'),
-    allowNull: false
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    validate: {
+      isIn: [['email', 'sms', 'in-app', 'push']]
+    }
   },
   template_code: {
     type: DataTypes.STRING
   },
   message: {
     type: DataTypes.TEXT,
-    allowNull: false
+    allowNull: true
   },
   payload_json: {
     type: DataTypes.JSONB
   },
   status: {
-    type: DataTypes.ENUM('PENDING', 'SENT', 'FAILED'),
+    type: DataTypes.STRING(20),
     defaultValue: 'PENDING'
   },
   priority: {
-    type: DataTypes.ENUM('low', 'normal', 'high'),
+    type: DataTypes.STRING(10),
     defaultValue: 'normal'
+  },
+  is_read: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   sequelize,

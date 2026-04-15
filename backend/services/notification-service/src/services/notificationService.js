@@ -42,13 +42,16 @@ export const createBulkNotifications = async (recipients, data) => {
     const userId = recipients[i];
     
     // Store original channel notification
-    const res = await db.query(
-      `INSERT INTO notifications(recipient_user_id, channel, template_code, message, payload_json, priority)
-       VALUES($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [userId, channel, template_code, message, payload_json, priority || 'normal']
-    );
-    const notificationId = res.rows[0].id;
-    created.push(res.rows[0]);
+    const notification = await Notification.create({
+      recipient_user_id: userId,
+      channel,
+      template_code,
+      message,
+      payload_json,
+      priority: priority || 'normal'
+    });
+    const notificationId = notification.id;
+    created.push(notification);
 
     if (channel === 'email' && recipient_emails && recipient_emails[i]) {
       await sendEmail(recipient_emails[i], payload_json?.subject || 'Bulk Notification', message, payload_json?.html || `<p>${message}</p>`, template_code, payload_json, notificationId);
@@ -56,21 +59,26 @@ export const createBulkNotifications = async (recipients, data) => {
       await sendSMS(recipient_phones[i], message, template_code, payload_json, notificationId);
     }
 
-    // Handle cross-channel auto-trigger for bulk
     if (channel === 'email' && recipient_phones && recipient_phones[i]) {
-      const smsRes = await db.query(
-        `INSERT INTO notifications(recipient_user_id, channel, template_code, message, payload_json, priority)
-         VALUES($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [userId, 'sms', template_code, message, payload_json, priority || 'normal']
-      );
-      await sendSMS(recipient_phones[i], message, template_code, payload_json, smsRes.rows[0].id);
+      const smsNotification = await Notification.create({
+        recipient_user_id: userId,
+        channel: 'sms',
+        template_code,
+        message,
+        payload_json,
+        priority: priority || 'normal'
+      });
+      await sendSMS(recipient_phones[i], message, template_code, payload_json, smsNotification.id);
     } else if (channel === 'sms' && recipient_emails && recipient_emails[i]) {
-      const emailRes = await db.query(
-        `INSERT INTO notifications(recipient_user_id, channel, template_code, message, payload_json, priority)
-         VALUES($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [userId, 'email', template_code, message, payload_json, priority || 'normal']
-      );
-      await sendEmail(recipient_emails[i], payload_json?.subject || 'Bulk Notification', message, payload_json?.html || `<p>${message}</p>`, template_code, payload_json, emailRes.rows[0].id);
+      const emailNotification = await Notification.create({
+        recipient_user_id: userId,
+        channel: 'email',
+        template_code,
+        message,
+        payload_json,
+        priority: priority || 'normal'
+      });
+      await sendEmail(recipient_emails[i], payload_json?.subject || 'Bulk Notification', message, payload_json?.html || `<p>${message}</p>`, template_code, payload_json, emailNotification.id);
     }
   }
   return created;

@@ -17,6 +17,7 @@ import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
 import Telemedicine from "./features/telemedicine/Telemedicine";
+import SymptomCheckerChat from "./features/AI/pages/SymptomCheckerChat";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -45,6 +46,8 @@ export default function App() {
     Page = () => <Login navigate={navigate} />;
   else if (path.startsWith("/success/patient"))
     Page = () => <SuccessPatient navigate={navigate} />;
+  else if (path === "/dashboard")
+    Page = () => <SuccessPatient navigate={navigate} />;
   else if (path.startsWith("/success/doctor"))
     Page = () => <SuccessDoctor navigate={navigate} />;
   else if (path.startsWith("/success/admin"))
@@ -65,6 +68,8 @@ export default function App() {
     Page = () => <PrescriptionEditor navigate={navigate} />;
   else if (path === "/prescriptions")
     Page = () => <PatientPrescriptions navigate={navigate} />;
+  else if (path === "/symptom-checker")
+    Page = () => <SymptomCheckerChat navigate={navigate} />;
   else if (route.startsWith("/telemedicine"))
     Page = () => <Telemedicine navigate={navigate} />;
 

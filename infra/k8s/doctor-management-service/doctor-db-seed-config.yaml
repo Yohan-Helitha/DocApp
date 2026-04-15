@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: doctor-db-seed
+data:
+  seed.sql: |
+    -- Schema + seed for doctor-management-service (idempotent)
+
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+    CREATE TABLE IF NOT EXISTS doctors (
+      doctor_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id             UUID        UNIQUE NOT NULL,
+      email               TEXT        NOT NULL,
+      full_name           TEXT        NOT NULL,
+      specialization      TEXT        NOT NULL,
+      license_number      TEXT        UNIQUE NOT NULL,
+      experience_years    INTEGER     DEFAULT 0,
+      consultation_fee    NUMERIC(10,2) DEFAULT 0,
+      bio                 TEXT,
+      verification_status TEXT        DEFAULT 'pending',
+      created_at          TIMESTAMPTZ DEFAULT now(),
+      updated_at          TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS doctor_availability_slots (
+      slot_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id   UUID        NOT NULL REFERENCES doctors(doctor_id) ON DELETE CASCADE,
+      slot_date   DATE        NOT NULL,
+      start_time  TIME        NOT NULL,
+      end_time    TIME        NOT NULL,
+      slot_status TEXT        DEFAULT 'available',
+      created_at  TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS doctor_documents (
+      document_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id     UUID        NOT NULL REFERENCES doctors(doctor_id) ON DELETE CASCADE,
+      document_type TEXT        NOT NULL,
+      file_url      TEXT        NOT NULL,
+      uploaded_at   TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS prescriptions (
+      prescription_id UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id       UUID        NOT NULL REFERENCES doctors(doctor_id) ON DELETE CASCADE,
+      patient_id      UUID        NOT NULL,
+      appointment_id  UUID,
+      diagnosis       TEXT,
+      medication      TEXT        NOT NULL,
+      dosage          TEXT,
+      frequency       TEXT,
+      duration        TEXT,
+      instructions    TEXT,
+      issued_at       TIMESTAMPTZ DEFAULT now()
+    );
+
+    -- Seed doctors for demo/testing (visible to patients because verification_status='approved').
+    INSERT INTO doctors (
+      user_id,
+      email,
+      full_name,
+      specialization,
+      license_number,
+      experience_years,
+      consultation_fee,
+      bio,
+      verification_status
+    )
+    VALUES
+      (
+        '7b5a7b31-2d95-4ef3-9b3f-fd0b0ff8b8a1',
+        'dr.nimal.perera@docapp.local',
+        'Dr. Nimal Perera',
+        'Rheumatology',
+        'SLMC-RHE-1001',
+        16,
+        3500,
+        'Specializes in inflammatory arthritis and autoimmune joint conditions. Focuses on early diagnosis and long-term management.',
+        'approved'
+      ),
+      (
+        'b4f9e3a6-5c2f-4cbb-a79f-9a2d9c2b6b03',
+        'dr.anjali.fernando@docapp.local',
+        'Dr. Anjali Fernando',
+        'Orthopedics',
+        'SLMC-ORT-2001',
+        12,
+        4000,
+        'Orthopedic surgeon with experience in knee pain, sports injuries, and degenerative joint disease. Emphasizes conservative care where possible.',
+        'approved'
+      ),
+      (
+        'c6d2f9d1-19a4-4f2b-9b9e-79a1e2a5e7c9',
+        'dr.kavindi.silva@docapp.local',
+        'Dr. Kavindi Silva',
+        'General Practice',
+        'SLMC-GP-3001',
+        9,
+        2500,
+        'General practitioner for first-line assessment, chronic disease management, and referrals to specialists when needed.',
+        'approved'
+      )
+    ON CONFLICT (license_number) DO NOTHING;

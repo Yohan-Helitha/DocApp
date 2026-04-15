@@ -25,6 +25,7 @@ export async function fetchDoctorsBySpecialty({ specialty, authorization }) {
     doctor_id: d.doctor_id,
     full_name: d.full_name,
     specialization: d.specialization,
+    bio: d.bio,
     consultation_fee: d.consultation_fee,
     experience_years: d.experience_years,
   }));

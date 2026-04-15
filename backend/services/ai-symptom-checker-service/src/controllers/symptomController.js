@@ -96,6 +96,17 @@ export const analyze = async (req, res) => {
     });
   } catch (err) {
     if (err instanceof GeminiError) {
+      // GeminiError is user-facing; still log the underlying cause for diagnostics.
+      const causeMessage =
+        err?.cause?.message || err?.cause?.toString?.() || undefined;
+      req.log?.error?.(
+        {
+          status: err.status,
+          code: err.code,
+          cause: causeMessage,
+        },
+        "GeminiError",
+      );
       return res.status(err.status).json({ error: err.message });
     }
     return handleError(err, res, req, "analyze");

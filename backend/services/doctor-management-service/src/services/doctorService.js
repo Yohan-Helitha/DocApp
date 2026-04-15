@@ -39,11 +39,18 @@ export const createDoctor = async (
   return rows[0];
 };
 
-export const listDoctors = async (db, { specialization, name } = {}) => {
+export const listDoctors = async (
+  db,
+  { specialization, name, verifiedOnly = true } = {},
+) => {
   const conditions = [];
   const values = [];
   let idx = 1;
 
+  if (verifiedOnly) {
+    conditions.push(`verification_status = $${idx++}`);
+    values.push("approved");
+  }
   if (specialization) {
     conditions.push(`LOWER(specialization) = LOWER($${idx++})`);
     values.push(specialization);
@@ -84,7 +91,6 @@ export const getDoctorById = async (db, doctorId) => {
 export const updateDoctor = async (db, doctorId, updates) => {
   const allowed = [
     "full_name",
-    "specialization",
     "license_number",
     "experience_years",
     "consultation_fee",
@@ -199,6 +205,20 @@ export const updateSlot = async (db, doctorId, slotId, updates) => {
      WHERE doctor_id = $${doctorIdx} AND slot_id = $${slotIdx}
      RETURNING *`,
     values,
+  );
+  if (!rows[0]) {
+    const e = new Error("slot_not_found");
+    e.status = 404;
+    throw e;
+  }
+  return rows[0];
+};
+
+export const getSlotById = async (db, doctorId, slotId) => {
+  const { rows } = await db.query(
+    `SELECT * FROM doctor_availability_slots
+     WHERE doctor_id = $1 AND slot_id = $2`,
+    [doctorId, slotId],
   );
   if (!rows[0]) {
     const e = new Error("slot_not_found");

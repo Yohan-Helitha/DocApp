@@ -81,6 +81,31 @@ app.use(
   }),
 );
 
+// Proxy prescription routes to doctor-management-service.
+app.use(
+  "/api/v1/prescriptions",
+  createProxyMiddleware({
+    target: env.DOCTOR_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        { method: req.method, path: req.originalUrl },
+        "Proxying request to doctor-management-service (prescriptions)",
+      );
+    },
+    onError(err, req, res) {
+      logger.error(
+        { err },
+        "Error proxying request to doctor-management-service",
+      );
+      if (!res.headersSent) {
+        res.status(502).json({ error: "doctor_service_unavailable" });
+      }
+    },
+  }),
+);
+
 // Proxy all appointment routes to appointment-service.
 app.use(
   "/api/v1/appointments",
@@ -105,7 +130,7 @@ app.use(
 
 // Proxy telemedicine routes to telemedicine-service.
 app.use(
-  '/api/v1/telemedicine',
+  "/api/v1/telemedicine",
   createProxyMiddleware({
     target: env.TELEMEDICINE_SERVICE_URL,
     changeOrigin: false,
@@ -114,18 +139,18 @@ app.use(
       logger.info(
         {
           method: req.method,
-          path: req.originalUrl
+          path: req.originalUrl,
         },
-        'Proxying request to telemedicine-service'
+        "Proxying request to telemedicine-service",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to telemedicine-service');
+      logger.error({ err }, "Error proxying request to telemedicine-service");
       if (!res.headersSent) {
-        res.status(502).json({ error: 'telemedicine_service_unavailable' });
+        res.status(502).json({ error: "telemedicine_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
 
 export default app;

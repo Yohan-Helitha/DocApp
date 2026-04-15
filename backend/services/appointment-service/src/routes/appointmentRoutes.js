@@ -66,11 +66,24 @@ router.put(
   appointmentController.setStatus,
 );
 
+// Get appointment event history
+router.get(
+  "/api/v1/appointments/:appointmentId/events",
+  authMiddleware,
+  appointmentController.getAppointmentEvents,
+);
+
 // Doctor accept/reject decision
 router.put(
   "/api/v1/appointments/:appointmentId/doctor-decision",
   authMiddleware,
   appointmentController.doctorDecision,
+);
+
+// Internal: payment service callback (no user auth — uses X-Internal-Secret)
+router.put(
+  "/api/v1/appointments/:appointmentId/payment-status",
+  appointmentController.updatePaymentStatus,
 );
 
 export default router;

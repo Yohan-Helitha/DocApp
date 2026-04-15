@@ -21,5 +21,10 @@ router.get(
   authMiddleware,
   prescriptionController.getPrescriptionById,
 );
+router.get(
+  "/api/v1/prescriptions/patients/:patientId",
+  authMiddleware,
+  prescriptionController.listPrescriptionsByPatient,
+);
 
 export default router;

@@ -60,3 +60,23 @@ export const getPrescriptionById = async (req, res) => {
     return handleError(err, res, req, "getPrescriptionById");
   }
 };
+
+export const listPrescriptionsByPatient = async (req, res) => {
+  try {
+    if (req.user.role !== "patient" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    if (req.user.role === "patient" && req.user.id !== req.params.patientId) {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    const appointmentId = req.query.appointmentId || null;
+    const prescriptions = await prescriptionService.listPrescriptionsByPatient(
+      req.db,
+      req.params.patientId,
+      appointmentId,
+    );
+    return res.json({ prescriptions });
+  } catch (err) {
+    return handleError(err, res, req, "listPrescriptionsByPatient");
+  }
+};

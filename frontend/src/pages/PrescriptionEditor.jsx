@@ -16,6 +16,13 @@ export default function PrescriptionEditor({ navigate }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [instructions, setInstructions] = useState("");
 
+  // Past prescriptions list
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [prescsLoading, setPrescsLoading] = useState(false);
+  const [expandedPresc, setExpandedPresc] = useState(null);
+
+  const [accessDenied, setAccessDenied] = useState(false);
+
   const token = sessionStorage.getItem("accessToken");
 
   // Parse query params from hash
@@ -42,17 +49,82 @@ export default function PrescriptionEditor({ navigate }) {
     goTo("/login");
   };
 
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
   useEffect(() => {
     const load = async () => {
+      setError("");
+      if (!token) {
+        setError("Your session has expired. Please sign in again.");
+        setLoading(false);
+        goTo("/login");
+        return;
+      }
+
       try {
         let userId = "";
+        let role = "";
         try {
-          userId = JSON.parse(atob(token.split(".")[1])).sub;
-        } catch {}
+          const decoded = JSON.parse(atob(token.split(".")[1]));
+          userId = decoded.sub;
+          role = decoded.role;
+        } catch {
+          setError("Invalid login session. Please sign in again.");
+          setLoading(false);
+          goTo("/login");
+          return;
+        }
+
+        if (role && role !== "doctor") {
+          setLoading(false);
+          setAccessDenied(true);
+          return;
+        }
+
         const dRes = await Api.get("/api/v1/doctors", token);
+        if (dRes.status !== 200) {
+          setError(
+            dRes.body?.message ||
+              dRes.body?.error ||
+              `Failed to load doctor profile (${dRes.status}).`,
+          );
+          setLoading(false);
+          return;
+        }
+
         const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
-        if (me) setDoctor(me);
-      } catch {}
+        if (!me) {
+          setError("No doctor profile found for this account.");
+          setLoading(false);
+          return;
+        }
+
+        setDoctor(me);
+
+        // Fetch past prescriptions
+        setPrescsLoading(true);
+        try {
+          const pRes = await Api.get(
+            `/api/v1/doctors/${me.doctor_id}/prescriptions`,
+            token,
+          );
+          if (pRes.status === 200) {
+            setPrescriptions(pRes.body?.prescriptions || []);
+          }
+        } catch {
+          /* ignore presc fetch errors */
+        }
+        setPrescsLoading(false);
+      } catch {
+        setError("Failed to load profile. Please try again.");
+      }
       setLoading(false);
     };
     load();
@@ -96,8 +168,15 @@ export default function PrescriptionEditor({ navigate }) {
       );
 
       if (res.status === 201 || res.status === 200) {
-        setSuccess("Prescription submitted successfully. Redirecting…");
-        setTimeout(() => goTo("/doctor/appointments"), 1800);
+        setSuccess("Prescription saved.");
+        const newPresc = res.body?.prescription;
+        if (newPresc) setPrescriptions((prev) => [newPresc, ...prev]);
+        setMedication("");
+        setDosage("");
+        setFrequency("");
+        setDuration("");
+        setDiagnosis("");
+        setInstructions("");
       } else {
         setError(res.body?.message || "Failed to submit prescription.");
       }
@@ -107,10 +186,32 @@ export default function PrescriptionEditor({ navigate }) {
     setSubmitting(false);
   };
 
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for doctors only.</p>
+          <button
+            onClick={() => goTo("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
+      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
         <div className="mb-10 px-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -130,7 +231,7 @@ export default function PrescriptionEditor({ navigate }) {
         </div>
         <nav className="flex-1 space-y-1">
           <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
             onClick={() => goTo("/success/doctor")}
           >
             <span className="material-symbols-outlined">dashboard</span>
@@ -144,29 +245,31 @@ export default function PrescriptionEditor({ navigate }) {
             <span className="font-semibold text-sm">Appointments</span>
           </a>
           <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
             onClick={() => goTo("/doctor/availability")}
           >
             <span className="material-symbols-outlined">calendar_month</span>
             <span className="font-semibold text-sm">Availability</span>
           </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">description</span>
-            <span className="font-semibold text-sm">Medical Records</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all hover:translate-x-1 duration-200 cursor-pointer">
-            <span className="material-symbols-outlined">forum</span>
-            <span className="font-semibold text-sm">Messages</span>
-          </a>
+          <button
+            type="button"
+            onClick={() => goTo("/telemedicine")}
+            className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
+          >
+            <span className="material-symbols-outlined" data-icon="video_chat">
+              video_chat
+            </span>
+            <span className="font-semibold text-sm">Telemedicine</span>
+          </button>
         </nav>
-        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50">
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer">
+        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
+          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
             <span className="material-symbols-outlined">help</span>
             <span className="font-semibold text-sm">Help Center</span>
           </a>
           <button
             onClick={logout}
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all w-full text-left"
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all w-full text-left"
           >
             <span className="material-symbols-outlined">logout</span>
             <span className="font-semibold text-sm">Logout</span>
@@ -386,6 +489,103 @@ export default function PrescriptionEditor({ navigate }) {
                 patient follow the prescription accurately.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Past Prescriptions */}
+        <div className="mt-10">
+          <div className="bg-white rounded-2xl p-8 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">
+                history
+              </span>
+              Past Prescriptions
+            </h3>
+            {prescsLoading ? (
+              <div className="flex justify-center py-8">
+                <span className="material-symbols-outlined text-primary text-3xl animate-spin">
+                  progress_activity
+                </span>
+              </div>
+            ) : prescriptions.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-8">
+                No prescriptions issued yet.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {prescriptions.map((p) => (
+                  <div
+                    key={p.prescription_id}
+                    className="border border-slate-100 rounded-xl overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedPresc(
+                          expandedPresc === p.prescription_id
+                            ? null
+                            : p.prescription_id,
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="material-symbols-outlined text-primary">
+                          medication
+                        </span>
+                        <div>
+                          <p className="font-bold text-sm text-slate-900">
+                            {p.medication}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {fmtDate(p.issued_at)}
+                            {p.diagnosis ? ` · ${p.diagnosis}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-mono text-slate-400">
+                          Patient: {p.patient_id.slice(0, 8)}…
+                        </span>
+                        <span className="material-symbols-outlined text-slate-400 text-lg">
+                          {expandedPresc === p.prescription_id
+                            ? "expand_less"
+                            : "expand_more"}
+                        </span>
+                      </div>
+                    </button>
+                    {expandedPresc === p.prescription_id && (
+                      <div className="px-5 pb-5 pt-3 border-t border-slate-100 grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                        {[
+                          ["Dosage", p.dosage],
+                          ["Frequency", p.frequency],
+                          ["Duration", p.duration],
+                          [
+                            "Appointment ID",
+                            p.appointment_id
+                              ? `#${p.appointment_id.slice(0, 8).toUpperCase()}`
+                              : null,
+                          ],
+                          ["Instructions", p.instructions],
+                        ].map(
+                          ([label, val]) =>
+                            val && (
+                              <div key={label}>
+                                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                                  {label}
+                                </span>
+                                <p className="font-medium text-slate-900 mt-0.5">
+                                  {val}
+                                </p>
+                              </div>
+                            ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>

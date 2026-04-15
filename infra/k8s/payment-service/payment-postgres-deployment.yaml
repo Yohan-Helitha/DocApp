@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: admin-postgres
+  name: payment-postgres
   labels:
-    app: admin-postgres
+    app: payment-postgres
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: admin-postgres
+      app: payment-postgres
   template:
     metadata:
       labels:
-        app: admin-postgres
+        app: payment-postgres
     spec:
       containers:
         - name: postgres
@@ -23,33 +23,39 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 configMapKeyRef:
-                  name: admin-db-config
+                  name: payment-db-config
                   key: PGUSER
             - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
-                  name: admin-db-config
+                  name: payment-db-config
                   key: PGDATABASE
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: admin-db-secret
+                  name: payment-db-secret
                   key: PGPASSWORD
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
-            claimName: admin-postgres-pvc
+            claimName: payment-postgres-pvc
+        - name: init-sql
+          configMap:
+            name: payment-db-init
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: admin-postgres
+  name: payment-postgres
 spec:
   selector:
-    app: admin-postgres
+    app: payment-postgres
   ports:
     - protocol: TCP
       port: 5432
@@ -58,7 +64,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: admin-postgres-pvc
+  name: payment-postgres-pvc
 spec:
   accessModes:
     - ReadWriteOnce

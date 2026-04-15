@@ -1,10 +1,8 @@
 const Api = {
   // Frontend talks to backend through API Gateway.
-  // Default gateway URL is localhost:4000 for local development.
-  base: (import.meta.env.VITE_API_BASE || "http://localhost:4000").replace(
-    /\/$/,
-    "",
-  ),
+  // Prefer same-origin in production (nginx/Vite dev server can proxy /api).
+  // Override with VITE_API_BASE if you need an absolute URL.
+  base: (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, ""),
   headers() {
     return { "Content-Type": "application/json" };
   },

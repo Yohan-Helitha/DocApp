@@ -37,6 +37,7 @@ export default function DoctorAvailability({ navigate }) {
   const [bulkLoading, setBulkLoading] = useState(false);
 
   const [accessDenied, setAccessDenied] = useState(false);
+  const [profileStatus, setProfileStatus] = useState(null); // null | "none" | "pending" | "rejected"
 
   const token = sessionStorage.getItem("accessToken");
 
@@ -90,6 +91,14 @@ export default function DoctorAvailability({ navigate }) {
         if (me) {
           setDoctor(me);
           await loadSlots(me);
+        } else {
+          // Profile exists but not approved, or no profile at all
+          const ownRes = await Api.get("/api/v1/doctors/me", token);
+          if (ownRes.status === 200 && ownRes.body?.doctor) {
+            setProfileStatus(ownRes.body.doctor.verification_status);
+          } else {
+            setProfileStatus("none");
+          }
         }
       } catch {}
       setLoading(false);
@@ -344,6 +353,56 @@ export default function DoctorAvailability({ navigate }) {
             className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
           >
             Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileStatus !== null) {
+    const isPending = profileStatus === "pending";
+    const isNone = profileStatus === "none";
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="bg-white rounded-2xl shadow-sm p-10 max-w-md w-full text-center">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{
+              background: isNone
+                ? "rgb(241 245 249)"
+                : isPending
+                  ? "rgb(254 249 195)"
+                  : "rgb(254 226 226)",
+            }}
+          >
+            <span
+              className="material-symbols-outlined text-3xl"
+              style={{
+                color: isNone ? "#64748b" : isPending ? "#ca8a04" : "#dc2626",
+              }}
+            >
+              {isNone ? "person_off" : isPending ? "schedule" : "cancel"}
+            </span>
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">
+            {isNone
+              ? "No Doctor Profile Found"
+              : isPending
+                ? "Profile Verification Pending"
+                : "Profile Not Approved"}
+          </h2>
+          <p className="text-slate-500 text-sm leading-relaxed mb-6">
+            {isNone
+              ? "You haven't set up your doctor profile yet. Please visit the Overview page to create your profile first."
+              : isPending
+                ? "Your profile is awaiting admin verification. Availability slots can be managed once your profile is approved."
+                : "Your profile application was not approved. Please contact platform support for assistance."}
+          </p>
+          <button
+            onClick={() => goTo("/success/doctor")}
+            className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 transition-colors text-sm"
+          >
+            Go to Overview
           </button>
         </div>
       </div>

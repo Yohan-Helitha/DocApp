@@ -17,6 +17,11 @@ router.post(
 );
 router.get("/api/v1/doctors", authMiddleware, doctorController.listDoctors);
 router.get(
+  "/api/v1/doctors/me",
+  authMiddleware,
+  doctorController.getMyDoctorProfile,
+);
+router.get(
   "/api/v1/doctors/:doctorId",
   authMiddleware,
   doctorController.getDoctorById,

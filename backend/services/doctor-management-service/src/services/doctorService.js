@@ -88,6 +88,22 @@ export const getDoctorById = async (db, doctorId) => {
   return rows[0];
 };
 
+export const getDoctorByUserId = async (db, userId) => {
+  const { rows } = await db.query(
+    `SELECT doctor_id, user_id, email, full_name, specialization, license_number,
+            experience_years, consultation_fee, bio, verification_status,
+            created_at, updated_at
+     FROM doctors WHERE user_id = $1`,
+    [userId],
+  );
+  if (!rows[0]) {
+    const e = new Error("doctor_not_found");
+    e.status = 404;
+    throw e;
+  }
+  return rows[0];
+};
+
 export const updateDoctor = async (db, doctorId, updates) => {
   const allowed = [
     "full_name",

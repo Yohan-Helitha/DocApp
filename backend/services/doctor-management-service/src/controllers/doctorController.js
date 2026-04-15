@@ -40,6 +40,17 @@ export const listDoctors = async (req, res) => {
   }
 };
 
+export const getMyDoctorProfile = async (req, res) => {
+  try {
+    if (req.user.role !== "doctor")
+      return res.status(403).json({ error: "forbidden" });
+    const doctor = await doctorService.getDoctorByUserId(req.db, req.user.id);
+    return res.json({ doctor });
+  } catch (err) {
+    return handleError(err, res, req, "getMyDoctorProfile");
+  }
+};
+
 export const getDoctorById = async (req, res) => {
   try {
     const doctor = await doctorService.getDoctorById(

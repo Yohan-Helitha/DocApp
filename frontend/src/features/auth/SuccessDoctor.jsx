@@ -173,13 +173,20 @@ export default function SuccessDoctor({ navigate }) {
         const newDoctor = res.body?.doctor;
         setDoctor(newDoctor);
         setCreateMode(false);
-        setLoading(true);
-        const aRes = await Api.get(
-          `/api/v1/appointments/doctors/${newDoctor.doctor_id}`,
-          token,
-        );
-        if (aRes.status === 200) setAppointments(aRes.body?.appointments || []);
-        setLoading(false);
+        if (newDoctor?.verification_status !== "approved") {
+          // New profiles are always pending — show the verification screen immediately
+          // without trying to load the dashboard (which requires an approved profile).
+          setPendingMode(true);
+        } else {
+          setLoading(true);
+          const aRes = await Api.get(
+            `/api/v1/appointments/doctors/${newDoctor.doctor_id}`,
+            token,
+          );
+          if (aRes.status === 200)
+            setAppointments(aRes.body?.appointments || []);
+          setLoading(false);
+        }
       } else {
         setCreateError(
           res.body?.message ||

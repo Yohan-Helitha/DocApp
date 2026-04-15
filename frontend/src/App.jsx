@@ -17,6 +17,7 @@ import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
 import Telemedicine from "./features/telemedicine/Telemedicine";
+import TelemedicineGuard from "./features/auth/TelemedicineGuard";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -66,7 +67,7 @@ export default function App() {
   else if (path === "/prescriptions")
     Page = () => <PatientPrescriptions navigate={navigate} />;
   else if (route.startsWith("/telemedicine"))
-    Page = () => <Telemedicine navigate={navigate} />;
+    Page = () => <TelemedicineGuard navigate={navigate} />;
 
   const isAdminRoute = route.startsWith("/success/admin");
 

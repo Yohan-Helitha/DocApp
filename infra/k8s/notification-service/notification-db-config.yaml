@@ -4,4 +4,4 @@ metadata:
   name: notification-db-config
 data:
   PGUSER: "postgres"
-  PGDATABASE: "notificationdb"
+  PGDATABASE: "notification_service_db"

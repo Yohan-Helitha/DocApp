@@ -12,6 +12,18 @@ export const createSession = async (req, res) => {
   }
 };
 
+export const listSessions = async (req, res) => {
+  try {
+    const { status } = req.query || {};
+    const result = await service.listSessions({ status });
+    return res.json(result);
+  } catch (err) {
+    req.log && req.log.error && req.log.error(err, 'listSessions error');
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+};
+
 export const getSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -56,6 +68,18 @@ export const endSession = async (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'endSession error');
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+};
+
+export const deleteSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    await service.deleteSession(sessionId, req.user);
+    return res.json({ ok: true });
+  } catch (err) {
+    req.log && req.log.error && req.log.error(err, 'deleteSession error');
     if (err.status) return res.status(err.status).json({ error: err.message });
     return res.status(500).json({ error: 'internal_error' });
   }

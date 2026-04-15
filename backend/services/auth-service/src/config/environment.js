@@ -17,5 +17,6 @@ export default {
   AUTH_PRIVATE_KEY_PATH: getEnv('AUTH_PRIVATE_KEY_PATH', './keys/private.pem'),
   AUTH_PUBLIC_KEY_PATH: getEnv('AUTH_PUBLIC_KEY_PATH', './keys/public.pem'),
   BCRYPT_SALT_ROUNDS: Number(getEnv('BCRYPT_SALT_ROUNDS', '10')),
-  LOG_LEVEL: getEnv('LOG_LEVEL', 'info')
+  LOG_LEVEL: getEnv('LOG_LEVEL', 'info'),
+  INTERNAL_API_KEY: getEnv('INTERNAL_API_KEY', '')
 };

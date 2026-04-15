@@ -3,6 +3,7 @@ const router = express.Router();
 import * as controller from '../controllers/authController.js';
 import { validateRegister, validateLogin } from '../validation/authValidation.js';
 import authMiddleware from '../middleware/authMiddleware.js';
+import internalAuthMiddleware from '../middleware/internalAuthMiddleware.js';
 import multer from 'multer';
 
 const upload = multer({
@@ -45,6 +46,23 @@ router.put(
 	'/api/v1/auth/admin/doctors/:userId/verify',
 	authMiddleware,
 	controller.verifyDoctor,
+);
+
+// Internal (service-to-service) doctor verification workflow
+router.get(
+	'/api/v1/internal/auth/doctors/pending-verification',
+	internalAuthMiddleware,
+	controller.internalListPendingDoctorVerifications,
+);
+router.get(
+	'/api/v1/internal/auth/doctors/:userId/license',
+	internalAuthMiddleware,
+	controller.internalDownloadDoctorLicense,
+);
+router.put(
+	'/api/v1/internal/auth/doctors/:userId/verify',
+	internalAuthMiddleware,
+	controller.internalVerifyDoctor,
 );
 
 export default router;

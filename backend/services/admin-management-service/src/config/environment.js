@@ -15,5 +15,6 @@ export default {
   LOG_LEVEL: getEnv('LOG_LEVEL', 'info'),
   AUTH_SERVICE_BASE_URL: getEnv('AUTH_SERVICE_BASE_URL', 'http://auth-service:4001'),
   DOCTOR_SERVICE_BASE_URL: getEnv('DOCTOR_SERVICE_BASE_URL', 'http://doctor-management-service:4000'),
-  PAYMENT_SERVICE_BASE_URL: getEnv('PAYMENT_SERVICE_BASE_URL', 'http://payment-service:4000')
+  PAYMENT_SERVICE_BASE_URL: getEnv('PAYMENT_SERVICE_BASE_URL', 'http://payment-service:4000'),
+  INTERNAL_API_KEY: getEnv('INTERNAL_API_KEY', '')
 };

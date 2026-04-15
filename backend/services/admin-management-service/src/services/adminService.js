@@ -1,4 +1,13 @@
 import db from '../config/db.js';
+import axios from 'axios';
+import env from '../config/environment.js';
+
+const SYSTEM_ADMIN_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+const authClient = axios.create({
+  baseURL: (env.AUTH_SERVICE_BASE_URL || '').replace(/\/$/, ''),
+  timeout: 10_000
+});
 
 // NOTE: This service operates on the shared Postgres DB used by Auth,
 // using the auth schema's `users` table and the admin-specific tables
@@ -29,7 +38,7 @@ export const updateUserStatus = async ({ userId, status, adminUserId }) => {
 
     await client.query(
       'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5)',
-      [adminUserId, 'user_status_change', 'user', userId, `Changed status to ${status}`]
+      [adminUserId || SYSTEM_ADMIN_USER_ID, 'user_status_change', 'user', userId, `Changed status to ${status}`]
     );
 
     await client.query('COMMIT');
@@ -43,12 +52,34 @@ export const updateUserStatus = async ({ userId, status, adminUserId }) => {
 };
 
 export const listPendingDoctors = async () => {
-  // Relies on users table with role=doctor and account_status=pending_verification
-  const result = await db.query(
-    'SELECT user_id as doctor_id, full_name, email, specialization, account_status, created_at FROM users WHERE role = $1 AND account_status = $2 ORDER BY created_at ASC',
-    ['doctor', 'pending_verification']
+  if (!env.INTERNAL_API_KEY) {
+    const err = new Error('internal_api_key_not_configured');
+    err.status = 503;
+    throw err;
+  }
+
+  const res = await authClient.get(
+    '/api/v1/internal/auth/doctors/pending-verification',
+    {
+      headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
+    }
   );
-  return result.rows || [];
+
+  const doctors = Array.isArray(res.data?.doctors) ? res.data.doctors : [];
+  return doctors.map((d) => {
+    const profile = d.profile_data || {};
+    return {
+      doctor_id: d.user_id,
+      user_id: d.user_id,
+      email: d.email,
+      full_name: profile.full_name || null,
+      specialization: profile.specialization || null,
+      account_status: d.account_status,
+      created_at: d.created_at,
+      submitted_at: d.submitted_at,
+      verification_status: d.verification_status
+    };
+  });
 };
 
 export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) => {
@@ -56,31 +87,32 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) 
   try {
     await client.query('BEGIN');
 
-    const newStatus = approved ? 'active' : 'disabled';
-
-    const updateRes = await client.query(
-      'UPDATE users SET account_status = $1, updated_at = now() WHERE user_id = $2 AND role = $3 RETURNING user_id, email, role, account_status, updated_at',
-      [newStatus, doctorId, 'doctor']
-    );
-
-    if (updateRes.rowCount === 0) {
-      const err = new Error('doctor_not_found');
-      err.status = 404;
+    if (!env.INTERNAL_API_KEY) {
+      const err = new Error('internal_api_key_not_configured');
+      err.status = 503;
       throw err;
     }
 
+    const effectiveAdminUserId = adminUserId || SYSTEM_ADMIN_USER_ID;
+    const status = approved ? 'approved' : 'rejected';
+    const authRes = await authClient.put(
+      `/api/v1/internal/auth/doctors/${doctorId}/verify`,
+      { status, reason, adminUserId: adminUserId || null },
+      { headers: { 'x-internal-api-key': env.INTERNAL_API_KEY } }
+    );
+
     await client.query(
       'INSERT INTO doctor_verification_reviews (doctor_id, reviewed_by_admin_id, review_status, reason) VALUES ($1, $2, $3, $4)',
-      [doctorId, adminUserId, approved ? 'approved' : 'rejected', reason || null]
+      [doctorId, effectiveAdminUserId, approved ? 'approved' : 'rejected', reason || null]
     );
 
     await client.query(
       'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5)',
-      [adminUserId, 'verify_doctor', 'doctor', doctorId, approved ? 'Doctor approved' : 'Doctor rejected']
+      [effectiveAdminUserId, 'verify_doctor', 'doctor', doctorId, approved ? 'Doctor approved' : 'Doctor rejected']
     );
 
     await client.query('COMMIT');
-    return updateRes.rows[0];
+    return authRes.data?.user || { user_id: doctorId, account_status: approved ? 'active' : 'rejected' };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

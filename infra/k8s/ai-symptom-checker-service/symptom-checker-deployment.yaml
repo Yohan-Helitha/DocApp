@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-symptom-checker-service
+  labels:
+    app: ai-symptom-checker-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-symptom-checker-service
+  template:
+    metadata:
+      labels:
+        app: ai-symptom-checker-service
+    spec:
+      initContainers:
+        - name: init-symptom-checker-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "symptom-checker-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: symptom-checker-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: symptom-checker-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: symptom-checker-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying symptom-checker schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Schema applied."
+          volumeMounts:
+            - name: symptom-checker-db-init
+              mountPath: /db-init
+      containers:
+        - name: ai-symptom-checker-service
+          image: docapp/ai-symptom-checker-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4009
+          volumeMounts:
+            - name: auth-public-key
+              mountPath: /keys
+              readOnly: true
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4009"
+            - name: PGHOST
+              value: "symptom-checker-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: symptom-checker-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: symptom-checker-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: symptom-checker-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: symptom-checker-db-secret
+                  key: JWT_SECRET
+            - name: AUTH_PUBLIC_KEY_PATH
+              value: "/keys/public.pem"
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: symptom-checker-db-secret
+                  key: GEMINI_API_KEY
+            - name: GEMINI_MODEL
+              value: "gemini-2.5-flash"
+            - name: DOCTOR_SERVICE_URL
+              value: "http://doctor-management-service:4002"
+      volumes:
+        - name: symptom-checker-db-init
+          configMap:
+            name: symptom-checker-db-init
+            items:
+              - key: init.sql
+                path: init.sql
+        - name: auth-public-key
+          secret:
+            secretName: auth-public-key
+            items:
+              - key: public.pem
+                path: public.pem
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-symptom-checker-service
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-symptom-checker-service
+  ports:
+    - protocol: TCP
+      port: 4009
+      targetPort: 4009

@@ -27,6 +27,8 @@ spec:
               value: "http://auth-service:4001"
             - name: TELEMEDICINE_SERVICE_URL
               value: "http://telemedicine:4010"
+            - name: SYMPTOM_CHECKER_SERVICE_URL
+              value: "http://ai-symptom-checker-service:4009"
 
 ---
 

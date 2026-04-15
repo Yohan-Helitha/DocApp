@@ -153,4 +153,32 @@ app.use(
   }),
 );
 
+// Proxy AI symptom checker routes to ai-symptom-checker-service.
+app.use(
+  "/api/v1/symptom-checker",
+  createProxyMiddleware({
+    target: env.SYMPTOM_CHECKER_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        {
+          method: req.method,
+          path: req.originalUrl,
+        },
+        "Proxying request to ai-symptom-checker-service",
+      );
+    },
+    onError(err, req, res) {
+      logger.error(
+        { err },
+        "Error proxying request to ai-symptom-checker-service",
+      );
+      if (!res.headersSent) {
+        res.status(502).json({ error: "symptom_checker_service_unavailable" });
+      }
+    },
+  }),
+);
+
 export default app;

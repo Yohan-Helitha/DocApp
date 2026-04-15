@@ -27,6 +27,10 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Kubernetes secrets (use .template.yaml for reference)
+infra/k8s/*/notification-db-secret.yaml
+infra/k8s/*/*secret.yaml
+
 # IDE
 .vscode/
 .idea/
@@ -35,3 +39,6 @@ yarn-error.log*
 
 # OS
 Thumbs.db
+
+# Environment backups
+*_env_backup.txt

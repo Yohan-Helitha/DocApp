@@ -23,10 +23,20 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            - name: PORT
+              value: "4000"
             - name: AUTH_SERVICE_URL
               value: "http://auth-service:4001"
+            - name: DOCTOR_SERVICE_URL
+              value: "http://doctor-management-service:4002"
+            - name: APPOINTMENT_SERVICE_URL
+              value: "http://appointment-service:4003"
+            - name: PAYMENT_SERVICE_URL
+              value: "http://payment-service:4006"
             - name: TELEMEDICINE_SERVICE_URL
               value: "http://telemedicine:4010"
+            - name: LOG_LEVEL
+              value: "info"
 
 ---
 
@@ -35,7 +45,7 @@ kind: Service
 metadata:
   name: api-gateway
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: api-gateway
   ports:

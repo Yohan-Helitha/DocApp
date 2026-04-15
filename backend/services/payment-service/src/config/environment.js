@@ -15,7 +15,8 @@ export default {
   PAYHERE_MERCHANT_ID: getEnv('PAYHERE_MERCHANT_ID', ''),
   PAYHERE_MERCHANT_SECRET: getEnv('PAYHERE_MERCHANT_SECRET', ''),
   PAYHERE_SANDBOX: getEnv('PAYHERE_SANDBOX', 'true') === 'true',
-  PAYHERE_RETURN_URL: getEnv('PAYHERE_RETURN_URL', 'http://localhost:5173/payments/return'),
-  PAYHERE_CANCEL_URL: getEnv('PAYHERE_CANCEL_URL', 'http://localhost:5173/payments/cancel'),
-  PAYHERE_NOTIFY_URL: getEnv('PAYHERE_NOTIFY_URL', 'http://localhost:4006/api/v1/payments/webhooks/provider-callback')
+  PAYHERE_RETURN_URL: getEnv('PAYHERE_RETURN_URL', 'http://localhost:8081/#/payments/return'),
+  PAYHERE_CANCEL_URL: getEnv('PAYHERE_CANCEL_URL', 'http://localhost:8081/#/payments/cancel'),
+  PAYHERE_NOTIFY_URL: getEnv('PAYHERE_NOTIFY_URL', 'http://localhost:4006/api/v1/payments/notify'),
+  CORS_ORIGIN: getEnv('CORS_ORIGIN', '')
 };

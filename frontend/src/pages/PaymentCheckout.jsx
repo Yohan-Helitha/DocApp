@@ -15,12 +15,11 @@ const parseQueryFromHash = () => {
   };
 };
 
-// Posts fields to your backend proxy which forwards to PayHere with spoofed Referer
-const redirectViaProxy = (fields) => {
+// Posts fields directly to PayHere checkout endpoint
+const redirectToPayHere = (actionUrl, fields) => {
   const form = document.createElement('form');
   form.method = 'POST';
-  const base = (import.meta.env.VITE_API_BASE || 'http://localhost:4000').replace(/\/$/, '');
-  form.action = `${base}/api/v1/payments/proxy-checkout`;
+  form.action = actionUrl;
 
   Object.entries(fields).forEach(([key, value]) => {
     if (value === undefined || value === null) return;
@@ -47,23 +46,21 @@ export default function PaymentCheckout({ navigate }) {
       const { appointmentId, patientId, amount, currency } = parseQueryFromHash();
 
       try {
-        const { status: httpStatus, body } = await Api.post('/api/v1/payments/checkout', {
+        const { status: httpStatus, body } = await Api.post('/api/v1/payments/initiate', {
           appointmentId,
           patientId,
           amount,
           currency
         });
 
-        if (httpStatus !== 201 || !body?.checkout) {
+        if ((httpStatus !== 200 && httpStatus !== 201) || !body?.checkout) {
           setError(body?.error ? String(body.error) : 'Unable to create checkout');
           setLoading(false);
           return;
         }
 
-        const { fields } = body.checkout;
-
-        // POST to backend proxy — proxy adds spoofed Referer/Origin for PayHere domain validation
-        redirectViaProxy(fields);
+        const { actionUrl, fields } = body.checkout;
+        redirectToPayHere(actionUrl, fields);
 
       } catch (err) {
         console.error(err);

@@ -38,10 +38,16 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: payment-postgres-pvc
+        - name: init-sql
+          configMap:
+            name: payment-db-init
 ---
 apiVersion: v1
 kind: Service

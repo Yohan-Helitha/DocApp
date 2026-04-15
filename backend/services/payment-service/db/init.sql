@@ -23,3 +23,12 @@ CREATE TABLE IF NOT EXISTS refunds (
   requested_at TIMESTAMPTZ DEFAULT now(),
   processed_at TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS payment_logs (
+  log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id UUID REFERENCES payments(payment_id) ON DELETE CASCADE,
+  order_id TEXT,
+  event_type TEXT NOT NULL,
+  raw_payload TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);

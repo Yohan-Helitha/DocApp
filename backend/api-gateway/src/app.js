@@ -24,6 +24,19 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "api-gateway", env: env.NODE_ENV });
 });
 
+// PayHere return/cancel URLs must typically use the same allowed domain/app
+// as notify_url (domain security). These endpoints are used as stable targets
+// (e.g., via ngrok) and then redirect the user back to the local SPA.
+app.get('/payhere/return', (req, res) => {
+  // Redirect within the same host (works for localhost, ngrok, or any other domain).
+  res.redirect(302, '/#/payments/return');
+});
+
+app.get('/payhere/cancel', (req, res) => {
+  // Redirect within the same host (works for localhost, ngrok, or any other domain).
+  res.redirect(302, '/#/payments/cancel');
+});
+
 // Proxy all auth routes to the auth-service.
 // This keeps the frontend talking only to the gateway while the
 // auth microservice owns the actual auth logic.

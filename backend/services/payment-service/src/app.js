@@ -7,7 +7,19 @@ import paymentRoutes from './routes/paymentRoutes.js';
 
 const app = express();
 
-app.use(cors());
+const corsOrigin = String(env.CORS_ORIGIN || '').trim();
+app.use(
+  cors(
+    corsOrigin
+      ? {
+          origin: corsOrigin.split(',').map((s) => s.trim()).filter(Boolean),
+          methods: ['GET', 'POST', 'OPTIONS'],
+          allowedHeaders: ['Content-Type', 'Authorization'],
+          credentials: true
+        }
+      : undefined
+  )
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -1,4 +1,4 @@
-const base = (import.meta.env.VITE_ADMIN_BASE || 'http://localhost:4008').replace(/\/$/, '');
+const base = (import.meta.env.VITE_ADMIN_BASE ?? '').replace(/\/$/, '');
 
 const headers = { 'Content-Type': 'application/json' };
 

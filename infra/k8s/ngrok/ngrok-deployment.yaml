@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ngrok-api-gateway
+  labels:
+    app: ngrok-api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ngrok-api-gateway
+  template:
+    metadata:
+      labels:
+        app: ngrok-api-gateway
+    spec:
+      containers:
+        - name: ngrok
+          image: ngrok/ngrok:alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NGROK_AUTHTOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ngrok-authtoken
+                  key: NGROK_AUTHTOKEN
+          args:
+            # Expose the in-cluster frontend (service DNS name) to a stable public ngrok URL.
+            # PayHere enforces domain authorization based on the submitting page's Origin/Referer,
+            # so the SPA must be accessed via this public domain (not localhost).
+            # Note: using --url requires that this domain is available to your ngrok account.
+            - "http"
+            - "http://frontend:80"
+            - "--url"
+            - "https://docapp.ngrok.app"
+            - "--log"
+            - "stdout"

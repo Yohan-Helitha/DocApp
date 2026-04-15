@@ -105,7 +105,7 @@ export default function PatientHistory({ navigate }) {
       if (editingId) {
         // Update existing entry via API
         const response = await fetch(
-          `/api/v1/${editingId}/medical-history-entry`,
+          `/api/v1/patients/${editingId}/medical-history-entry`,
           {
             method: 'PUT',
             headers: {
@@ -155,7 +155,7 @@ export default function PatientHistory({ navigate }) {
     if (window.confirm('Are you sure you want to remove this record?')) {
       try {
         const response = await fetch(
-          `/api/v1/${historyId}/medical-history-entry`,
+          `/api/v1/patients/${historyId}/medical-history-entry`,
           {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${token}` }
@@ -463,7 +463,7 @@ export default function PatientHistory({ navigate }) {
             
             <form onSubmit={handleSubmit} className="p-8 space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">Condition / Diagnosis Name</label>
+                <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">CONDITION / DIAGNOSIS NAME *</label>
                 <input 
                   required
                   name="condition_name"
@@ -475,7 +475,7 @@ export default function PatientHistory({ navigate }) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">Diagnosed On</label>
+                  <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">DIAGNOSED ON *</label>
                   <input 
                     type="date"
                     required
@@ -483,12 +483,13 @@ export default function PatientHistory({ navigate }) {
                     value={formData.diagnosed_on}
                     onChange={handleInputChange}
                     max={getTodayDate()}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                    disabled={!!editingId}
+                    className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-primary/50 outline-none transition-all ${editingId ? 'bg-slate-50 opacity-70 cursor-not-allowed' : ''}`}
                   />
-                  <p className="text-xs text-slate-600 mt-1">Cannot select future dates</p>
+                  {!editingId && <p className="text-xs text-slate-500 mt-1">Cannot select future dates</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">Status</label>
+                  <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">STATUS *</label>
                   <select 
                     name="status"
                     value={formData.status}
@@ -504,7 +505,7 @@ export default function PatientHistory({ navigate }) {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">Medical Remarks / Notes</label>
+                <label className="text-[10px] font-bold text-slate-600 uppercase ml-1">MEDICAL REMARKS / NOTES (Optional)</label>
                 <textarea 
                   name="remarks"
                   value={formData.remarks}

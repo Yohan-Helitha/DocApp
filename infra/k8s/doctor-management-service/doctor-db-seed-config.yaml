@@ -56,6 +56,67 @@ data:
     );
 
     -- Seed doctors for demo/testing (visible to patients because verification_status='approved').
+    -- IMPORTANT: This first doctor is also seeded in authdb with the SAME user_id.
+    -- This makes doctor login + doctor portal matching work (JWT sub == doctors.user_id).
+
+    WITH telemed_doctor AS (
+      INSERT INTO doctors (
+        user_id,
+        email,
+        full_name,
+        specialization,
+        license_number,
+        experience_years,
+        consultation_fee,
+        bio,
+        verification_status
+      )
+      VALUES (
+        '1300a38c-bbc4-46f3-8732-c789bf9f807d',
+        'dr.nimal.perera@docapp.local',
+        'Dr. Nimal Perera',
+        'Rheumatology',
+        'SLMC-RHE-1001',
+        16,
+        3500,
+        'Specializes in inflammatory arthritis and autoimmune joint conditions. Focuses on early diagnosis and long-term management.',
+        'approved'
+      )
+      ON CONFLICT (license_number) DO UPDATE
+        SET user_id = EXCLUDED.user_id,
+            email = EXCLUDED.email,
+            full_name = EXCLUDED.full_name,
+            specialization = EXCLUDED.specialization,
+            experience_years = EXCLUDED.experience_years,
+            consultation_fee = EXCLUDED.consultation_fee,
+            bio = EXCLUDED.bio,
+            verification_status = 'approved',
+            updated_at = now()
+      RETURNING doctor_id
+    )
+    INSERT INTO doctor_availability_slots (
+      slot_id,
+      doctor_id,
+      slot_date,
+      start_time,
+      end_time,
+      slot_status
+    )
+    SELECT
+      'aa225ff6-1bf0-4e87-bd74-b747045a303c',
+      doctor_id,
+      (current_date + 1),
+      '09:00',
+      '09:30',
+      'available'
+    FROM telemed_doctor
+    ON CONFLICT (slot_id) DO UPDATE
+      SET doctor_id = EXCLUDED.doctor_id,
+          slot_date = EXCLUDED.slot_date,
+          start_time = EXCLUDED.start_time,
+          end_time = EXCLUDED.end_time,
+          slot_status = EXCLUDED.slot_status;
+
     INSERT INTO doctors (
       user_id,
       email,
@@ -68,17 +129,6 @@ data:
       verification_status
     )
     VALUES
-      (
-        '7b5a7b31-2d95-4ef3-9b3f-fd0b0ff8b8a1',
-        'dr.nimal.perera@docapp.local',
-        'Dr. Nimal Perera',
-        'Rheumatology',
-        'SLMC-RHE-1001',
-        16,
-        3500,
-        'Specializes in inflammatory arthritis and autoimmune joint conditions. Focuses on early diagnosis and long-term management.',
-        'approved'
-      ),
       (
         'b4f9e3a6-5c2f-4cbb-a79f-9a2d9c2b6b03',
         'dr.anjali.fernando@docapp.local',

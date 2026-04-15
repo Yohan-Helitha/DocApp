@@ -32,22 +32,32 @@ const login = async (email, password) => {
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
-const tomorrowISO = () => {
+const daysAheadISO = (daysAhead) => {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + daysAhead);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+
+const getSlotDate = () => {
+  const explicit = (process.env.DEMO_SLOT_DATE || '').trim();
+  if (explicit) return explicit;
+
+  const rawDays = Number(process.env.DEMO_DAYS_AHEAD || '1');
+  const days = Number.isFinite(rawDays) ? rawDays : 1;
+  return daysAheadISO(days);
 };
 
 const main = async () => {
   const summary = { apiBase: API_BASE };
 
-  // Pre-seeded users from auth-service integration test
-  const doctorEmail = 'doctor1@example.com';
-  const patientEmail = 'patient2@example.com';
-  const password = 'Password123';
+  // Credentials can be overridden via env vars.
+  const doctorEmail = process.env.DEMO_DOCTOR_EMAIL || 'doctor1@example.com';
+  const doctorPassword = process.env.DEMO_DOCTOR_PASSWORD || 'Password123';
+  const patientEmail = process.env.DEMO_PATIENT_EMAIL || 'patient2@example.com';
+  const patientPassword = process.env.DEMO_PATIENT_PASSWORD || 'Password123';
 
-  const doctorToken = await login(doctorEmail, password);
-  const patientToken = await login(patientEmail, password);
+  const doctorToken = await login(doctorEmail, doctorPassword);
+  const patientToken = await login(patientEmail, patientPassword);
   summary.tokens = { doctor: 'ok', patient: 'ok' };
 
   // 1) Ensure doctor profile exists
@@ -75,8 +85,8 @@ const main = async () => {
     summary.doctorProfile = { created: false, doctor_id: doctor.doctor_id };
   }
 
-  // 2) Create two availability slots for tomorrow
-  const slotDate = tomorrowISO();
+  // 2) Create two availability slots for the requested date
+  const slotDate = getSlotDate();
   const slot1 = await jsonFetch(`/api/v1/doctors/${doctor.doctor_id}/availability-slots`, {
     method: 'POST',
     token: doctorToken,

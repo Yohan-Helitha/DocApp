@@ -73,6 +73,24 @@ export const listByPatient = async (db, patientId) => {
   return rows;
 };
 
+export const listUpcomingForPatient = async (db, patientId) => {
+  const { rows } = await db.query(
+    `SELECT * FROM appointments
+     WHERE patient_id = $1
+       AND appointment_status IN ('pending', 'confirmed')
+       AND slot_date IS NOT NULL
+       AND start_time IS NOT NULL
+       AND end_time IS NOT NULL
+       AND (
+         slot_date > CURRENT_DATE
+         OR (slot_date = CURRENT_DATE AND start_time >= CURRENT_TIME)
+       )
+     ORDER BY slot_date ASC, start_time ASC, created_at ASC`,
+    [patientId],
+  );
+  return rows;
+};
+
 export const listByDoctor = async (db, doctorId) => {
   const { rows } = await db.query(
     `SELECT * FROM appointments

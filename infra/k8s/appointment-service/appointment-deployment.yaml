@@ -14,6 +14,45 @@ spec:
       labels:
         app: appointment-service
     spec:
+      initContainers:
+        - name: init-appointments-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "appointments-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: appointment-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: appointment-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: appointment-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying appointments schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Appointments schema applied."
+          volumeMounts:
+            - name: appointment-db-init
+              mountPath: /db-init
       containers:
         - name: appointment-service
           image: docapp/appointment-service:local
@@ -53,6 +92,13 @@ spec:
               value: "http://doctor-management-service:4002"
             - name: NOTIFICATION_SERVICE_URL
               value: "http://notification-service:6000"
+      volumes:
+        - name: appointment-db-init
+          configMap:
+            name: appointment-db-init
+            items:
+              - key: init.sql
+                path: init.sql
 
 ---
 apiVersion: v1

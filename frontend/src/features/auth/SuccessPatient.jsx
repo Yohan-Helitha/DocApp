@@ -1,6 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import Api from '../../core/api';
 
+const parseUpcomingDateRange = (dateStr) => {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+  if (!m) return null;
+  const day = m[1];
+  const start = new Date(`${day}T${m[2]}:00`);
+  const end = new Date(`${day}T${m[3]}:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return { start, end };
+};
+
+const canJoinNowFromUpcoming = (a) => {
+  const range = parseUpcomingDateRange(a?.date);
+  if (!range) return false;
+  const now = new Date();
+  return now >= range.start && now <= range.end;
+};
+
 export default function PatientDashboard({ navigate }) {
   const [appointments, setAppointments] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
@@ -12,11 +31,21 @@ export default function PatientDashboard({ navigate }) {
     let mounted = true;
     (async () => {
       try {
+        const token = sessionStorage.getItem('accessToken') || '';
+
         const [a, p, r, n] = await Promise.all([
-          Api.get('/api/v1/appointments/upcoming').then((res) => res.data).catch(() => []),
-          Api.get('/api/v1/prescriptions/recent').then((res) => res.data).catch(() => []),
-          Api.get('/api/v1/reports/recent').then((res) => res.data).catch(() => []),
-          Api.get('/api/v1/notifications/latest').then((res) => res.data).catch(() => []),
+          Api.get('/api/v1/appointments/upcoming', token)
+            .then((res) => (Array.isArray(res?.body) ? res.body : []))
+            .catch(() => []),
+          Api.get('/api/v1/prescriptions/recent', token)
+            .then((res) => (Array.isArray(res?.body) ? res.body : []))
+            .catch(() => []),
+          Api.get('/api/v1/reports/recent', token)
+            .then((res) => (Array.isArray(res?.body) ? res.body : []))
+            .catch(() => []),
+          Api.get('/api/v1/notifications/latest', token)
+            .then((res) => (Array.isArray(res?.body) ? res.body : []))
+            .catch(() => []),
         ]);
         if (!mounted) return;
         setAppointments(a);
@@ -145,9 +174,29 @@ export default function PatientDashboard({ navigate }) {
                           <h5 className="font-bold text-lg">{a.doctorName || a.doctor}</h5>
                           <p className="text-xs text-slate-500">{a.date || a.time}</p>
                         </div>
-                        <button className="bg-primary text-on-primary px-6 py-2 rounded-lg font-bold text-sm" onClick={() => goTo(`/telemedicine/${a.id || a._id}`)}>
-                          {a.type === 'telemedicine' ? 'Join Session' : 'View Details'}
-                        </button>
+                        {(() => {
+                          const isTelemed = a.type === 'telemedicine';
+                          const locked = isTelemed && !canJoinNowFromUpcoming(a);
+                          return (
+                            <button
+                              className="bg-primary text-on-primary px-6 py-2 rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={locked}
+                              title={locked ? 'You can only join during the appointment time window.' : undefined}
+                              onClick={() => {
+                                if (locked) return;
+                                goTo(
+                                  `/telemedicine?appointmentId=${encodeURIComponent(
+                                    a.appointment_id || a.id || a._id,
+                                  )}`,
+                                );
+                              }}
+                            >
+                              {a.type === 'telemedicine'
+                                ? 'Join Session'
+                                : 'View Details'}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}

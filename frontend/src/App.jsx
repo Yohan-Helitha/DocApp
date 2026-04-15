@@ -73,11 +73,23 @@ export default function App() {
   else if (route.startsWith("/telemedicine"))
     Page = () => <Telemedicine navigate={navigate} />;
 
-  const isAdminRoute = route.startsWith("/success/admin");
+  const hidePublicChrome =
+    route.startsWith("/success/admin") ||
+    path === "/dashboard" ||
+    route.startsWith("/success/patient") ||
+    route.startsWith("/success/doctor") ||
+    path === "/appointments" ||
+    path === "/prescriptions" ||
+    path === "/symptom-checker" ||
+    path === "/telemedicine" ||
+    path === "/doctors" ||
+    path.startsWith("/doctors/") ||
+    path.startsWith("/book") ||
+    path.startsWith("/doctor/");
 
-  if (isAdminRoute) {
-    // Admin area uses its own top bar and sidebar layout (AdminLayout)
-    // so we intentionally do NOT render the public Header/Footer here.
+  if (hidePublicChrome) {
+    // These pages provide their own dashboards/layouts, so we intentionally do NOT
+    // render the public Header/Footer here.
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Page />

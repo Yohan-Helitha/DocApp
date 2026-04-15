@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: patient-management-service
-          image: docapp/patient-management-service:local
+          image: docapp/patient-management-service:v8
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6001
@@ -25,25 +25,32 @@ spec:
               value: "production"
             - name: PORT
               value: "6001"
-            - name: PGHOST
+            - name: DB_HOST
               value: "patient-postgres"
-            - name: PGPORT
+            - name: DB_PORT
               value: "5432"
-            - name: PGDATABASE
+            - name: DB_NAME
               valueFrom:
                 configMapKeyRef:
                   name: patient-db-config
                   key: PGDATABASE
-            - name: PGUSER
+            - name: DB_USER
               valueFrom:
                 configMapKeyRef:
                   name: patient-db-config
                   key: PGUSER
-            - name: PGPASSWORD
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: patient-db-secret
                   key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: patient-db-secret
+                  key: JWT_SECRET
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service:6000/api/v1/notifications"
 
 ---
 apiVersion: v1

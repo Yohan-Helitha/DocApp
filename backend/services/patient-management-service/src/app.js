@@ -8,22 +8,27 @@ import prescriptionRoutes from './routes/prescriptionRoutes.js';
 
 const app = express();
 
+// Health Check (Top level, no auth)
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'OK', service: 'Patient Management Service' });
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(morgan('dev'));
 
-// Routes
-app.use('/api/v1/patients', patientRoutes);
-app.use('/api/v1/patients', reportRoutes);
-app.use('/api/v1/patients', historyRoutes);
-app.use('/api/v1/patients', prescriptionRoutes);
+// Static files (uploads) - Served from the root for microservice alignment
+app.use(express.static('uploads'));
 
-// Health Check
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', service: 'Patient Management Service' });
-});
+// Routes - Internal microservice prefix
+const apiPrefix = '/api/v1/patients';
+app.use(apiPrefix, patientRoutes);
+app.use(apiPrefix, reportRoutes);
+app.use(apiPrefix, historyRoutes);
+app.use(apiPrefix, prescriptionRoutes);
+
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

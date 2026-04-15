@@ -6,6 +6,7 @@ import PrescriptionSnapshot from './PrescriptionSnapshot.js';
 // Relationships
 Patient.hasMany(MedicalReport, { foreignKey: 'patient_id', as: 'medicalReports' });
 MedicalReport.belongsTo(Patient, { foreignKey: 'patient_id', as: 'patient' });
+MedicalReport.belongsTo(Patient, { foreignKey: 'uploaded_by', as: 'uploader' });
 
 Patient.hasMany(MedicalHistoryEntry, { foreignKey: 'patient_id', as: 'medicalHistory' });
 MedicalHistoryEntry.belongsTo(Patient, { foreignKey: 'patient_id', as: 'patient' });

@@ -14,6 +14,33 @@ spec:
       labels:
         app: doctor-management-service
     spec:
+      initContainers:
+        - name: seed-verified-doctor
+          image: docapp/doctor-management-service:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PGHOST
+              value: "doctors-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: doctor-db-secret
+                  key: PGPASSWORD
+          command: ["node", "seed-verified-doctor.js"]
       containers:
         - name: doctor-management-service
           image: docapp/doctor-management-service:local
@@ -49,6 +76,19 @@ spec:
                 secretKeyRef:
                   name: doctor-db-secret
                   key: JWT_SECRET
+            - name: AUTH_PUBLIC_KEY_PATH
+              value: "/app/keys/auth-public.pem"
+          volumeMounts:
+            - name: auth-public-key
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: auth-public-key
+          secret:
+            secretName: auth-public-key
+            items:
+              - key: public.pem
+                path: auth-public.pem
 
 ---
 apiVersion: v1

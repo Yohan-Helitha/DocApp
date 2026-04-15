@@ -9,6 +9,11 @@ const authClient = axios.create({
   timeout: 10_000
 });
 
+const doctorClient = axios.create({
+  baseURL: (env.DOCTOR_SERVICE_BASE_URL || '').replace(/\/$/, ''),
+  timeout: 10_000
+});
+
 // NOTE: This service operates on the shared Postgres DB used by Auth,
 // using the auth schema's `users` table and the admin-specific tables
 // defined in db/init.sql.
@@ -51,6 +56,14 @@ export const updateUserStatus = async ({ userId, status, adminUserId }) => {
   }
 };
 
+export const createAuditLog = async ({ actionType, targetEntity, targetEntityId, actionNote, adminUserId }) => {
+  const { rows } = await db.query(
+    'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5) RETURNING action_id, admin_user_id, action_type, target_entity, target_entity_id, action_note, created_at',
+    [adminUserId || SYSTEM_ADMIN_USER_ID, actionType, targetEntity, targetEntityId, actionNote || null]
+  );
+  return rows?.[0] || null;
+};
+
 export const listPendingDoctors = async () => {
   if (!env.INTERNAL_API_KEY) {
     const err = new Error('internal_api_key_not_configured');
@@ -58,16 +71,14 @@ export const listPendingDoctors = async () => {
     throw err;
   }
 
-  const res = await authClient.get(
-    '/api/v1/internal/auth/doctors/pending-verification',
-    {
-      headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
-    }
-  );
+  const res = await authClient.get('/api/v1/internal/auth/doctors/pending-verification', {
+    headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
+  });
 
   const doctors = Array.isArray(res.data?.doctors) ? res.data.doctors : [];
   return doctors.map((d) => {
     const profile = d.profile_data || {};
+    const submittedAt = d.submitted_at || d.created_at || null;
     return {
       doctor_id: d.user_id,
       user_id: d.user_id,
@@ -75,11 +86,45 @@ export const listPendingDoctors = async () => {
       full_name: profile.full_name || null,
       specialization: profile.specialization || null,
       account_status: d.account_status,
-      created_at: d.created_at,
-      submitted_at: d.submitted_at,
-      verification_status: d.verification_status
+      created_at: submittedAt,
+      submitted_at: submittedAt,
+      verification_status: d.verification_status,
+      license_original_name: d.license_original_name || null,
+      license_mime_type: d.license_mime_type || null,
+      license_size_bytes: d.license_size_bytes || null
     };
   });
+};
+
+export const getDoctorLicense = async ({ doctorId }) => {
+  if (!env.INTERNAL_API_KEY) {
+    const err = new Error('internal_api_key_not_configured');
+    err.status = 503;
+    throw err;
+  }
+
+  try {
+    const res = await authClient.get(`/api/v1/internal/auth/doctors/${doctorId}/license`, {
+      headers: { 'x-internal-api-key': env.INTERNAL_API_KEY },
+      responseType: 'arraybuffer'
+    });
+
+    const mimeType = res.headers?.['content-type'] || 'application/pdf';
+    const disposition = res.headers?.['content-disposition'] || '';
+    const match = /filename\*?=([^;]+)/i.exec(disposition);
+    const rawFilename = match ? match[1] : 'license.pdf';
+    const filename = String(rawFilename).replace(/^UTF-8''/i, '').replace(/^"|"$/g, '').trim() || 'license.pdf';
+
+    return { filename, mimeType, data: Buffer.from(res.data) };
+  } catch (e) {
+    const status = e?.response?.status;
+    if (status === 404) {
+      const err = new Error('license_not_found');
+      err.status = 404;
+      throw err;
+    }
+    throw e;
+  }
 };
 
 export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) => {
@@ -101,6 +146,19 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) 
       { headers: { 'x-internal-api-key': env.INTERNAL_API_KEY } }
     );
 
+    // Keep doctor-management-service status in sync if profile exists.
+    try {
+      await doctorClient.put(
+        `/api/v1/internal/doctors/${doctorId}/verification-status`,
+        { status },
+        { headers: { 'x-internal-api-key': env.INTERNAL_API_KEY } }
+      );
+    } catch (e) {
+      // If doctor profile does not exist yet, doctor service may return 404.
+      // Don't fail the auth verification in that case.
+      if (!(e && e.response && e.response.status === 404)) throw e;
+    }
+
     await client.query(
       'INSERT INTO doctor_verification_reviews (doctor_id, reviewed_by_admin_id, review_status, reason) VALUES ($1, $2, $3, $4)',
       [doctorId, effectiveAdminUserId, approved ? 'approved' : 'rejected', reason || null]
@@ -112,7 +170,7 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) 
     );
 
     await client.query('COMMIT');
-    return authRes.data?.user || { user_id: doctorId, account_status: approved ? 'active' : 'rejected' };
+    return authRes.data?.user;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -139,38 +197,45 @@ export const listAuditLogs = async ({ limit = 100 }) => {
 };
 
 export const getDashboardMetrics = async () => {
-  const [userCountsRes, doctorReviewCountsRes, financialStatsRes] = await Promise.all([
-    db.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE role = 'patient') AS patients,
-         COUNT(*) FILTER (WHERE role = 'doctor') AS doctors,
-         COUNT(*) FILTER (WHERE role = 'admin') AS admins,
-         COUNT(*) AS total_users
-       FROM users`
-    ),
-    db.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE review_status = 'approved') AS doctors_approved,
-         COUNT(*) FILTER (WHERE review_status = 'rejected') AS doctors_rejected,
-         COUNT(*) AS total_reviews
-       FROM doctor_verification_reviews`
-    ),
-    db.query(
-      `SELECT
-         COALESCE(SUM(amount), 0) AS total_amount,
-         COUNT(*) AS total_records,
-         COUNT(*) FILTER (WHERE flagged) AS flagged_records
-       FROM financial_monitoring_records`
-    )
-  ]);
-
-  const userCounts = userCountsRes.rows[0] || {};
-  const doctorReviewCounts = doctorReviewCountsRes.rows[0] || {};
+  const financialStatsRes = await db.query(
+    `SELECT
+       COALESCE(SUM(amount), 0) AS total_amount,
+       COUNT(*) AS total_records,
+       COUNT(*) FILTER (WHERE flagged) AS flagged_records
+     FROM financial_monitoring_records`
+  );
   const financialStats = financialStatsRes.rows[0] || {};
 
+  let approvedCount = 0;
+  let rejectedCount = 0;
+  try {
+    const r = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE review_status = 'approved') AS approved,
+         COUNT(*) FILTER (WHERE review_status = 'rejected') AS rejected
+       FROM doctor_verification_reviews`,
+    );
+    approvedCount = Number(r.rows?.[0]?.approved || 0);
+    rejectedCount = Number(r.rows?.[0]?.rejected || 0);
+  } catch {
+    // If the admin DB hasn't been initialized yet, keep counts at 0.
+  }
+
+  let pendingCount = 0;
+  if (env.INTERNAL_API_KEY) {
+    const v = await authClient.get('/api/v1/internal/auth/doctors/pending-verification', {
+      headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
+    });
+    const doctors = Array.isArray(v.data?.doctors) ? v.data.doctors : [];
+    pendingCount = doctors.length;
+  }
+
   return {
-    users: userCounts,
-    doctorReviews: doctorReviewCounts,
+    doctorReviews: {
+      doctors_approved: approvedCount,
+      doctors_rejected: rejectedCount,
+      doctors_pending: pendingCount
+    },
     financials: financialStats
   };
 };

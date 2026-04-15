@@ -20,6 +20,15 @@ export default function DashboardLayout({ children, navigate, pageName }) {
   };
 
   const goTo = (path) => {
+    // Check if profile completion is required
+    const requiresCompletion = localStorage.getItem('requiresProfileCompletion') === 'true';
+    
+    // Block navigation away from profile page if profile completion is required
+    if (requiresCompletion && path !== '/patient/profile') {
+      alert('Please complete your profile information before navigating to other pages.');
+      return;
+    }
+    
     if (navigate) navigate(path);
     else window.location.hash = path;
   };
@@ -29,9 +38,10 @@ export default function DashboardLayout({ children, navigate, pageName }) {
       <div className="flex flex-col md:flex-row">
         {/* Side Navigation */}
         <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
-          <div className="mb-8 px-4 py-2">
-            <h1 className="text-lg font-extrabold text-[#0b9385]">Teal Obsidian</h1>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Clinical Curator</p>
+          <div className="mb-10 px-4 py-4">
+            <h1 className="text-2xl font-black text-[#0b9385] tracking-tighter uppercase">
+              DASHBOARD
+            </h1>
           </div>
           <nav className="flex-1 space-y-1">
             <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/success/patient'); }}>
@@ -80,9 +90,6 @@ export default function DashboardLayout({ children, navigate, pageName }) {
 
         {/* Main Content */}
         <main className="md:ml-64 min-h-screen w-full bg-gradient-to-br from-slate-50 to-slate-100">
-          <header className="sticky top-0 w-full flex justify-between items-center px-8 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
-            <h2 className="text-xl font-black text-[#0b9385] tracking-tight">Dashboard</h2>
-          </header>
           <div className="p-8">
             {children}
           </div>

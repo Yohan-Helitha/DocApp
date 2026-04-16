@@ -1,5 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import adminApi from './adminApi';
+import { publishAdminRefresh, subscribeAdminRefresh } from './adminRefresh';
+
+const normalize = (value, fallback = 'pending') => String(value || fallback).toLowerCase();
+
+const statusBadge = (status) => {
+  const s = normalize(status);
+  if (s === 'approved' || s === 'active') {
+    return 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[10px]';
+  }
+  if (s === 'rejected' || s === 'disabled') {
+    return 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-black uppercase tracking-widest text-[10px]';
+  }
+  if (s === 'not_created') {
+    return 'px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-black uppercase tracking-widest text-[10px]';
+  }
+  return 'px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[10px]';
+};
+
+const statusLabel = (status) => {
+  const s = normalize(status);
+  if (s === 'active') return 'Approved';
+  if (s === 'disabled') return 'Rejected';
+  if (s === 'not_created') return 'Not Created';
+  if (s === 'pending_verification') return 'Pending';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 export default function DoctorVerification() {
   const [doctors, setDoctors] = useState([]);
@@ -31,13 +57,44 @@ export default function DoctorVerification() {
   };
 
   useEffect(() => {
-    load();
-    loadStats();
+    const refresh = async () => {
+      await Promise.all([load(), loadStats()]);
+    };
+
+    refresh();
+
+    const unsubscribe = subscribeAdminRefresh(refresh);
+    return unsubscribe;
   }, []);
 
   const handleDecision = async (doctorId, approved) => {
-    await adminApi.put(`/api/v1/admin/doctors/${doctorId}/verify`, { approved, adminUserId: null });
+    await adminApi.put(`/api/v1/admin/doctors/${doctorId}/verify`, {
+      approved,
+      step: 'all',
+      adminUserId: null
+    });
     await Promise.all([load(), loadStats()]);
+    publishAdminRefresh();
+  };
+
+  const handleLoginDecision = async (doctorId, approved) => {
+    await adminApi.put(`/api/v1/admin/doctors/${doctorId}/verify`, {
+      approved,
+      step: 'login',
+      adminUserId: null
+    });
+    await Promise.all([load(), loadStats()]);
+    publishAdminRefresh();
+  };
+
+  const handleProfileDecision = async (doctorId, approved) => {
+    await adminApi.put(`/api/v1/admin/doctors/${doctorId}/verify`, {
+      approved,
+      step: 'profile',
+      adminUserId: null
+    });
+    await Promise.all([load(), loadStats()]);
+    publishAdminRefresh();
   };
 
   const handleViewRegistration = async (doctorId) => {
@@ -49,25 +106,23 @@ export default function DoctorVerification() {
     if (!win) window.location.assign(url);
   };
 
-  const getStatus = (doc) => {
-    if (doc.review_status) {
-      const s = String(doc.review_status).toLowerCase();
-      if (s === 'approved') return 'approved';
-      if (s === 'rejected') return 'rejected';
-    }
-    if (doc.account_status) {
-      const s = String(doc.account_status).toLowerCase();
-      if (s === 'pending_verification') return 'pending';
-      if (s === 'active') return 'approved';
-      if (s === 'disabled') return 'rejected';
-    }
+  const getLoginStatus = (doc) => normalize(doc.login_verification_status || doc.account_status, 'pending');
+
+  const getProfileStatus = (doc) => normalize(doc.profile_verification_status || doc.verification_status, 'not_created');
+
+  const getRowStatus = (doc) => {
+    const login = getLoginStatus(doc);
+    const profile = getProfileStatus(doc);
+
+    if (login === 'rejected' || profile === 'rejected') return 'rejected';
+    if (login === 'approved' && profile === 'approved') return 'approved';
     return 'pending';
   };
 
   const query = search.trim().toLowerCase();
 
   const filteredDoctors = doctors.filter((doc) => {
-    const status = getStatus(doc);
+    const status = getRowStatus(doc);
     if (statusFilter !== 'all' && status !== statusFilter) return false;
     if (!query) return true;
     const name = (doc.full_name || doc.name || '').toLowerCase();
@@ -76,7 +131,7 @@ export default function DoctorVerification() {
     return name.includes(query) || email.includes(query) || spec.includes(query);
   });
 
-  const pendingCount = doctors.filter((d) => getStatus(d) === 'pending').length;
+  const pendingCount = doctors.filter((d) => getRowStatus(d) === 'pending').length;
 
   return (
     <section className="bg-white rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
@@ -84,7 +139,7 @@ export default function DoctorVerification() {
         <div className="flex justify-between items-center gap-4">
           <div>
             <h4 className="text-lg font-bold text-slate-900">Doctor Verification</h4>
-            <p className="text-xs text-slate-500">Review and approve pending doctor registrations.</p>
+            <p className="text-xs text-slate-500">Review login and profile verification in two steps.</p>
           </div>
           <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
             {pendingCount} Pending
@@ -146,21 +201,22 @@ export default function DoctorVerification() {
               <th className="px-6 py-4">Specialization</th>
               <th className="px-6 py-4">Submitted</th>
               <th className="px-6 py-4">Documents</th>
-              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Login Verification</th>
+              <th className="px-6 py-4">Profile Verification</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading && (
               <tr>
-                <td className="px-6 py-4 text-sm text-slate-500" colSpan={5}>
-                  Loading pending doctors...
+                <td className="px-6 py-4 text-sm text-slate-500" colSpan={7}>
+                  Loading doctors...
                 </td>
               </tr>
             )}
             {!loading && filteredDoctors.length === 0 && (
               <tr>
-                <td className="px-6 py-4 text-sm text-slate-500" colSpan={5}>
+                <td className="px-6 py-4 text-sm text-slate-500" colSpan={7}>
                   No doctor matches the current filters.
                 </td>
               </tr>
@@ -181,54 +237,65 @@ export default function DoctorVerification() {
                   {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-6 py-4 text-xs text-primary font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => handleViewRegistration(doc.doctor_id || doc.user_id)}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80"
-                  >
-                    <span className="material-symbols-outlined text-sm">description</span>
-                    <span>View registration</span>
-                  </button>
+                  {getLoginStatus(doc) === 'pending' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleViewRegistration(doc.user_id)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80"
+                    >
+                      <span className="material-symbols-outlined text-sm">description</span>
+                      <span>View registration</span>
+                    </button>
+                  ) : (
+                    <span className="text-slate-400">-</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-xs">
-                  {(() => {
-                    const s = getStatus(doc);
-                    if (s === 'approved') {
-                      return (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[10px]">
-                          Approved
-                        </span>
-                      );
-                    }
-                    if (s === 'rejected') {
-                      return (
-                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-black uppercase tracking-widest text-[10px]">
-                          Rejected
-                        </span>
-                      );
-                    }
-                    return (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[10px]">
-                        Pending
-                      </span>
-                    );
-                  })()}
+                  <span className={statusBadge(getLoginStatus(doc))}>{statusLabel(getLoginStatus(doc))}</span>
                 </td>
-                <td className="px-6 py-4 text-right space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDecision(doc.doctor_id || doc.user_id, true)}
-                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                  >
-                    Approve All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDecision(doc.doctor_id || doc.user_id, false)}
-                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200"
-                  >
-                    Reject All
-                  </button>
+                <td className="px-6 py-4 text-xs">
+                  <span className={statusBadge(getProfileStatus(doc))}>{statusLabel(getProfileStatus(doc))}</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <div className="inline-flex flex-wrap justify-end gap-2">
+                    {(getLoginStatus(doc) === 'pending' || getLoginStatus(doc) === 'rejected') && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleLoginDecision(doc.user_id, true)}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                        >
+                          Approve Login
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLoginDecision(doc.user_id, false)}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200"
+                        >
+                          Reject Login
+                        </button>
+                      </>
+                    )}
+
+                    {(getLoginStatus(doc) === 'approved' && doc.doctor_id) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleProfileDecision(doc.user_id, true)}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                        >
+                          Approve Profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleProfileDecision(doc.user_id, false)}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200"
+                        >
+                          Reject Profile
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

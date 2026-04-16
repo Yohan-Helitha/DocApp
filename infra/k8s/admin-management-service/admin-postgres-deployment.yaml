@@ -36,9 +36,18 @@ spec:
                   name: admin-db-secret
                   key: PGPASSWORD
           volumeMounts:
+            - name: admin-db-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
       volumes:
+        - name: admin-db-init
+          configMap:
+            name: admin-db-init
+            items:
+              - key: init.sql
+                path: init.sql
         - name: postgres-data
           persistentVolumeClaim:
             claimName: admin-postgres-pvc

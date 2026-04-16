@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import adminApi from './adminApi';
+import { subscribeAdminRefresh } from './adminRefresh';
 
 const formatTimeAgo = (value) => {
   if (!value) return '-';
@@ -70,7 +71,11 @@ export default function AuditLogsPage() {
       }
       setLoading(false);
     };
+
     load();
+
+    const unsubscribe = subscribeAdminRefresh(load);
+    return unsubscribe;
   }, []);
 
   const filteredLogs = logs.filter((log) => {

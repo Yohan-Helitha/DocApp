@@ -161,6 +161,20 @@ export const setVerificationStatus = async (db, doctorId, status) => {
   return rows[0];
 };
 
+export const setVerificationStatusByUserId = async (db, userId, status) => {
+  const doctor = await getDoctorByUserId(db, userId);
+  return setVerificationStatus(db, doctor.doctor_id, status);
+};
+
+export const listDoctorVerificationStatuses = async (db) => {
+  const { rows } = await db.query(
+    `SELECT doctor_id, user_id, email, full_name, specialization, verification_status, created_at, updated_at
+     FROM doctors
+     ORDER BY created_at DESC`,
+  );
+  return rows;
+};
+
 // ─── Availability Slots ───────────────────────────────────────────────────────
 
 export const addSlot = async (

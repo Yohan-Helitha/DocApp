@@ -13,5 +13,6 @@ export default {
   PGDATABASE: getEnv("PGDATABASE", "doctorsdb"),
   JWT_SECRET: getEnv("JWT_SECRET", "change-me"),
   AUTH_PUBLIC_KEY_PATH: getEnv("AUTH_PUBLIC_KEY_PATH", ""),
+  INTERNAL_API_KEY: getEnv("INTERNAL_API_KEY", ""),
   LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
 };

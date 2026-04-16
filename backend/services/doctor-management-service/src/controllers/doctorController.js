@@ -100,6 +100,30 @@ export const setVerificationStatus = async (req, res) => {
   }
 };
 
+export const setVerificationStatusByUserIdInternal = async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!status) return res.status(400).json({ error: "status_required" });
+    const doctor = await doctorService.setVerificationStatusByUserId(
+      req.db,
+      req.params.userId,
+      status,
+    );
+    return res.json({ doctor });
+  } catch (err) {
+    return handleError(err, res, req, "setVerificationStatusByUserIdInternal");
+  }
+};
+
+export const listDoctorVerificationStatusesInternal = async (req, res) => {
+  try {
+    const doctors = await doctorService.listDoctorVerificationStatuses(req.db);
+    return res.json({ doctors });
+  } catch (err) {
+    return handleError(err, res, req, "listDoctorVerificationStatusesInternal");
+  }
+};
+
 // ─── Availability Slots ───────────────────────────────────────────────────────
 
 const assertSlotOwner = async (db, doctorId, user) => {

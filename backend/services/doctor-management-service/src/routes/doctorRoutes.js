@@ -1,6 +1,7 @@
 import express from "express";
 import authMiddleware from "../middleware/authMiddleware.js";
 import authAdminRs256 from "../middleware/authAdminRs256.js";
+import internalAuthMiddleware from "../middleware/internalAuthMiddleware.js";
 import {
   validateCreateDoctor,
   validateAddSlot,
@@ -36,6 +37,17 @@ router.put(
   "/api/v1/doctors/:doctorId/verification-status",
   authAdminRs256,
   doctorController.setVerificationStatus,
+);
+
+router.get(
+  "/api/v1/internal/doctors/verification-statuses",
+  internalAuthMiddleware,
+  doctorController.listDoctorVerificationStatusesInternal,
+);
+router.put(
+  "/api/v1/internal/doctors/:userId/verification-status",
+  internalAuthMiddleware,
+  doctorController.setVerificationStatusByUserIdInternal,
 );
 
 // ─── Availability slots ───────────────────────────────────────────────────────

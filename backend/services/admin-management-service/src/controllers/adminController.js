@@ -84,7 +84,7 @@ export const viewDoctorLicense = async (req, res) => {
 export const verifyDoctor = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const { approved, reason, adminUserId } = req.body || {};
+    const { approved, reason, adminUserId, step } = req.body || {};
 
     if (approved === undefined) {
       return res.status(400).json({ error: 'missing_approved_flag' });
@@ -94,9 +94,10 @@ export const verifyDoctor = async (req, res) => {
       doctorId,
       approved: Boolean(approved),
       reason,
-      adminUserId: adminUserId || null
+      adminUserId: adminUserId || null,
+      step: step || 'all'
     });
-    return res.json({ doctor: result });
+    return res.json(result);
   } catch (err) {
     return handleError(req, res, err, 'verifyDoctor error');
   }

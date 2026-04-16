@@ -18,5 +18,7 @@ export default {
   PAYHERE_RETURN_URL: getEnv('PAYHERE_RETURN_URL', 'http://localhost:8081/#/payments/return'),
   PAYHERE_CANCEL_URL: getEnv('PAYHERE_CANCEL_URL', 'http://localhost:8081/#/payments/cancel'),
   PAYHERE_NOTIFY_URL: getEnv('PAYHERE_NOTIFY_URL', 'http://localhost:4006/api/v1/payments/notify'),
+  APPOINTMENT_SERVICE_URL: getEnv('APPOINTMENT_SERVICE_URL', 'http://localhost:4003'),
+  INTERNAL_SECRET: getEnv('INTERNAL_SECRET', ''),
   CORS_ORIGIN: getEnv('CORS_ORIGIN', '')
 };

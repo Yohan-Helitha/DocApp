@@ -243,15 +243,15 @@ export default function MyAppointments({ navigate }) {
     setPayingNow(appointmentId);
     // Checkout must be submitted from the authorized ngrok domain, not localhost,
     // because PayHere rejects requests from unauthorized origins.
-    const checkoutUrl = new URL("https://docapp.ngrok.app/#/payments/checkout");
-    checkoutUrl.searchParams.set("appointmentId", appointmentId);
-    checkoutUrl.searchParams.set("patientId", userId);
-    checkoutUrl.searchParams.set(
-      "amount",
-      String(Number(consultationFee) || 0),
-    );
-    checkoutUrl.searchParams.set("currency", "LKR");
-    window.location.href = checkoutUrl.toString();
+    // Params go inside the hash fragment so PaymentCheckout.jsx can read them
+    // via window.location.hash — URL.searchParams would put them before the #.
+    const params = new URLSearchParams({
+      appointmentId,
+      patientId: userId,
+      amount: String(Number(consultationFee) || 0),
+      currency: "LKR",
+    });
+    window.location.href = `https://docapp.ngrok.app/#/payments/checkout?${params.toString()}`;
   };
 
   const filtered =

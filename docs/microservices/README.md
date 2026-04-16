@@ -12,6 +12,7 @@ Each document includes:
 - 04-appointment-service.md
 - 05-telemedicine-service.md
 - 06-payment-service.md
+- 10-payment-frontend-workflow.md
 - 07-notification-service.md
 - 08-admin-management-service.md
 - 09-ai-symptom-checker-service.md (optional)

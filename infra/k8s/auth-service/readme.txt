@@ -1,0 +1,334 @@
+auth-db-config.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-db-config
+data:
+  PGUSER: "postgres"
+  PGDATABASE: "authdb"
+
+auth-db-init-config.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-db-init
+data:
+  init.sql: |
+    -- Init SQL for auth service
+    -- Creates users, refresh_tokens, password_resets tables per spec
+    
+    -- Ensure telemedicine database exists (telemedicine service uses PGDATABASE=telemeddb)
+    SELECT 'CREATE DATABASE telemeddb'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'telemeddb')\gexec
+
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+    CREATE TABLE IF NOT EXISTS users (
+      user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL,
+      account_status TEXT DEFAULT 'pending_verification',
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now(),
+      last_login_at TIMESTAMPTZ
+    );
+
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      token_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ
+    );
+
+    CREATE TABLE IF NOT EXISTS password_resets (
+      reset_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+      reset_token_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ
+    );
+
+    -- Doctor registration verification workflow
+    -- Stores the uploaded license document and admin review status.
+    CREATE TABLE IF NOT EXISTS doctor_verification_requests (
+      request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending / approved / rejected
+      profile_data JSONB, -- e.g., { full_name, specialization, notes }
+      license_original_name TEXT,
+      license_mime_type TEXT,
+      license_size_bytes INTEGER,
+      license_data BYTEA,
+      submitted_at TIMESTAMPTZ DEFAULT now(),
+      reviewed_at TIMESTAMPTZ,
+      reviewed_by_admin_id UUID,
+      review_reason TEXT
+    );
+
+    -- Telemedicine DB initialization
+    -- Switch to telemeddb and create telemedicine tables.
+    \connect telemeddb
+
+    CREATE TABLE IF NOT EXISTS telemedicine_sessions (
+      session_id uuid PRIMARY KEY,
+      appointment_id uuid,
+      provider text,
+      external_room_id text,
+      session_status text,
+      started_at timestamptz,
+      ended_at timestamptz,
+      created_at timestamptz DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS session_participants (
+      participant_id uuid PRIMARY KEY,
+      session_id uuid REFERENCES telemedicine_sessions(session_id),
+      user_id uuid,
+      participant_role text,
+      join_time timestamptz,
+      leave_time timestamptz
+    );
+
+
+auth-db-secret.yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-db-secret
+type: Opaque
+stringData:
+  PGPASSWORD: "postgres"
+  JWT_SECRET: "change-me-for-project"
+
+auth-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      initContainers:
+        - name: init-auth-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "auth-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying auth schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Auth schema applied."
+          volumeMounts:
+            - name: auth-db-init
+              mountPath: /db-init
+        - name: seed-auth-demo-users
+          image: docapp/auth-service:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PGHOST
+              value: "auth-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: JWT_SECRET
+          command: ["node", "seed-doctor.js"]
+      containers:
+        - name: auth-service
+          image: docapp/auth-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4001
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PGHOST
+              value: "auth-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: JWT_SECRET
+      volumes:
+        - name: auth-db-init
+          configMap:
+            name: auth-db-init
+            items:
+              - key: init.sql
+                path: init.sql
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-postgres
+  labels:
+    app: auth-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-postgres
+  template:
+    metadata:
+      labels:
+        app: auth-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGUSER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-db-config
+                  key: PGDATABASE
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: PGPASSWORD
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: auth-db-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: auth-postgres-pvc
+        - name: auth-db-init
+          configMap:
+            name: auth-db-init
+            items:
+              - key: init.sql
+                path: init.sql
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-postgres
+spec:
+  selector:
+    app: auth-postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  
+  
+---
+
+postgres-deployment.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: auth-postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

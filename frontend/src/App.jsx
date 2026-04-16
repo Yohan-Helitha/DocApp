@@ -15,9 +15,16 @@ import MyAppointments from "./pages/MyAppointments";
 import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
+import Telemedicine from './features/telemedicine/Telemedicine'
+import PaymentCheckout from "./pages/PaymentCheckout";
+import PaymentReturn from "./pages/PaymentReturn";
+import PaymentCancel from "./pages/PaymentCancel";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
-import Telemedicine from "./features/telemedicine/Telemedicine";
 import SymptomCheckerChat from "./features/AI/pages/SymptomCheckerChat";
+import PatientProfile from './features/patient-management/PatientProfile'
+import PatientHistory from './features/patient-management/PatientHistory'
+import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
+import Notifications from './features/notifications/Notifications'
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -72,6 +79,25 @@ export default function App() {
     Page = () => <SymptomCheckerChat navigate={navigate} />;
   else if (route.startsWith("/telemedicine"))
     Page = () => <Telemedicine navigate={navigate} />;
+  else if (path.startsWith("/payments/checkout"))
+    Page = () => <PaymentCheckout navigate={navigate} />;
+  else if (path.startsWith("/payments/return"))
+    Page = () => <PaymentReturn navigate={navigate} />;
+  else if (path.startsWith("/payments/cancel"))
+    Page = () => <PaymentCancel navigate={navigate} />;
+  else if (path === "/prescriptions")
+    Page = () => <PatientPrescriptions navigate={navigate} />;
+  else if(route.startsWith('/patient/profile')) Page = ()=> <PatientProfile navigate={navigate} />
+  else if(route.startsWith('/patient/history')) Page = ()=> <PatientHistory navigate={navigate} />
+  else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />
+  else if(route.startsWith('/notifications')) Page = ()=> <Notifications navigate={navigate} />
+    
+  const isDashboard = route.startsWith('/patient/') || 
+                      route.startsWith('/success/') || 
+                      route.startsWith('/notifications') ||
+                      route.startsWith('/appointments') ||
+                      route.startsWith('/doctors') ||
+                      route.startsWith('/symptom-checker');
 
   const hidePublicChrome =
     route.startsWith("/success/admin") ||
@@ -99,11 +125,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header navigate={navigate} />
+      {!isDashboard && <Header navigate={navigate} />}
       <main className="flex-1">
         <Page />
       </main>
-      <Footer />
+      {!isDashboard && <Footer />}
     </div>
   );
 }

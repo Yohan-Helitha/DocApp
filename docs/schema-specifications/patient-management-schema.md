@@ -28,11 +28,13 @@
 
 4. `prescriptions_snapshot`
 - `prescription_id` (UUID, PK)
-- `patient_id` (UUID, FK -> patients)
-- `appointment_id` (UUID)
-- `doctor_id` (UUID)
-- `prescription_text`
-- `issued_at`
+- `doctor_id` (UUID, FK -> doctors)
+- `patient_id` (UUID) — user_id from auth JWT
+- `appointment_id` (UUID, nullable)
+- `diagnosis` (TEXT)
+- `medication` (TEXT, NOT NULL)
+- `dosage`, `frequency`, `duration`, `instructions` (TEXT)
+- `issued_at` (TIMESTAMPTZ)
 
 ## Relationships
 - One patient -> many medical reports.

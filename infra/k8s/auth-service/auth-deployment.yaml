@@ -93,6 +93,8 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            - name: PORT
+              value: "4001"
             - name: PGHOST
               value: "auth-postgres"
             - name: PGPORT
@@ -117,6 +119,13 @@ spec:
                 secretKeyRef:
                   name: auth-db-secret
                   key: JWT_SECRET
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_API_KEY
+            - name: ADMIN_SERVICE_URL
+              value: "http://admin-management-service:4008"
       volumes:
         - name: auth-db-init
           configMap:
@@ -126,13 +135,12 @@ spec:
                 path: init.sql
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
   name: auth-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: auth-service
   ports:

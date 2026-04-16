@@ -1,11 +1,14 @@
 // Seed demo users for local/k8s development.
 // Run with: node seed-doctor.js
 
+import { register } from './src/services/authService.js';
 import bcrypt from 'bcryptjs';
 import db from './src/config/db.js';
 import env from './src/config/environment.js';
 
 const SALT_ROUNDS = Number(env.BCRYPT_SALT_ROUNDS) || 10;
+
+const VERIFIED_DOCTOR_USER_ID = '3f9f7f64-7df5-4c1d-9b70-3a7fbbab3b2a';
 
 const demoUsers = [
   // Telemedicine demo doctor (must exist in BOTH authdb and doctorsdb)
@@ -27,6 +30,16 @@ const demoUsers = [
   { email: 'doctor1@example.com', password: 'Password123', role: 'doctor' },
   { email: 'patient2@example.com', password: 'Password123', role: 'patient' },
   { email: 'admin1@example.com', password: 'Password123', role: 'admin' },
+  { email: 'arani@gmail.com', password: 'Arani@123', role: 'admin' },
+
+  // Seeded doctor that is verified in auth-service AND doctor-management-service.
+  // doctor-management-service seed uses the same UUID.
+  {
+    user_id: VERIFIED_DOCTOR_USER_ID,
+    email: 'verified.doctor@example.com',
+    password: 'Password123',
+    role: 'doctor'
+  }
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -73,13 +86,13 @@ async function upsertUser({ user_id, email, password, role }) {
   return rows && rows[0];
 }
 
-async function ensureDoctorVerificationApproved(userId) {
+async function ensureDoctorVerificationApproved(userId, profileData = {}) {
   await db.query(
     `INSERT INTO doctor_verification_requests (user_id, status, profile_data, submitted_at, reviewed_at, review_reason)
-     VALUES ($1, 'approved', '{}'::jsonb, now(), now(), 'seeded')
+     VALUES ($1, 'approved', $2::jsonb, now(), now(), 'seeded')
      ON CONFLICT (user_id)
-     DO UPDATE SET status = 'approved', reviewed_at = now(), review_reason = 'seeded'`,
-    [userId],
+     DO UPDATE SET status = 'approved', reviewed_at = now(), review_reason = 'seeded', profile_data = EXCLUDED.profile_data`,
+    [userId, JSON.stringify(profileData || {})],
   );
 }
 
@@ -90,7 +103,11 @@ async function main() {
     for (const user of demoUsers) {
       const upserted = await upsertUser(user);
       if (user.role === 'doctor' && upserted && upserted.user_id) {
-        await ensureDoctorVerificationApproved(upserted.user_id);
+        await ensureDoctorVerificationApproved(upserted.user_id, {
+          full_name: user.email === 'verified.doctor@example.com' ? 'Dr. Verified Seed' : null,
+          specialization: user.email === 'verified.doctor@example.com' ? 'General Medicine' : null,
+          notes: user.email === 'verified.doctor@example.com' ? 'Seeded verified doctor' : null
+        });
       }
       // eslint-disable-next-line no-console
       console.log('Seeded demo user:', upserted);
@@ -99,6 +116,12 @@ async function main() {
     // eslint-disable-next-line no-console
     console.log('Demo user seeding complete.');
   } catch (err) {
+    // If the user already exists, treat seeding as successful.
+    if (err && (err.message === 'email_exists' || err.status === 409)) {
+      // eslint-disable-next-line no-console
+      console.log('Doctor user already seeded:', email);
+      return;
+    }
     // eslint-disable-next-line no-console
     console.error('Failed to seed demo users:', err && err.message ? err.message : err);
     process.exitCode = 1;

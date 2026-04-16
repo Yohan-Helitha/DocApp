@@ -19,26 +19,34 @@ export default function DoctorVerification() {
     setLoading(false);
   };
 
+  const loadStats = async () => {
+    const { status, body } = await adminApi.get('/api/v1/admin/dashboard/metrics');
+    if (status === 200 && body && body.doctorReviews) {
+      const { doctors_approved, doctors_rejected } = body.doctorReviews;
+      setDoctorStats({
+        approved: Number(doctors_approved || 0),
+        rejected: Number(doctors_rejected || 0)
+      });
+    }
+  };
+
   useEffect(() => {
     load();
-
-    const loadStats = async () => {
-      const { status, body } = await adminApi.get('/api/v1/admin/dashboard/metrics');
-      if (status === 200 && body && body.doctorReviews) {
-        const { doctors_approved, doctors_rejected } = body.doctorReviews;
-        setDoctorStats({
-          approved: Number(doctors_approved || 0),
-          rejected: Number(doctors_rejected || 0)
-        });
-      }
-    };
-
     loadStats();
   }, []);
 
   const handleDecision = async (doctorId, approved) => {
     await adminApi.put(`/api/v1/admin/doctors/${doctorId}/verify`, { approved, adminUserId: null });
-    load();
+    await Promise.all([load(), loadStats()]);
+  };
+
+  const handleViewRegistration = async (doctorId) => {
+    const { status, blob } = await adminApi.getBlob(`/api/v1/admin/doctors/${doctorId}/license`);
+    if (status !== 200 || !blob) return;
+
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win) window.location.assign(url);
   };
 
   const getStatus = (doc) => {
@@ -175,6 +183,7 @@ export default function DoctorVerification() {
                 <td className="px-6 py-4 text-xs text-primary font-semibold">
                   <button
                     type="button"
+                    onClick={() => handleViewRegistration(doc.doctor_id || doc.user_id)}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80"
                   >
                     <span className="material-symbols-outlined text-sm">description</span>
@@ -211,14 +220,14 @@ export default function DoctorVerification() {
                     onClick={() => handleDecision(doc.doctor_id || doc.user_id, true)}
                     className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                   >
-                    Approve
+                    Approve All
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDecision(doc.doctor_id || doc.user_id, false)}
                     className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200"
                   >
-                    Reject
+                    Reject All
                   </button>
                 </td>
               </tr>

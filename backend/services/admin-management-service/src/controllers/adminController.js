@@ -10,6 +10,27 @@ const handleError = (req, res, err, context) => {
   return res.status(500).json({ error: 'internal_error' });
 };
 
+export const createAuditLog = async (req, res) => {
+  try {
+    const { actionType, targetEntity, targetEntityId, actionNote, adminUserId } = req.body || {};
+    if (!actionType || !targetEntity || !targetEntityId) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    const created = await adminService.createAuditLog({
+      actionType,
+      targetEntity,
+      targetEntityId,
+      actionNote: actionNote || null,
+      adminUserId: adminUserId || null
+    });
+
+    return res.status(201).json({ log: created });
+  } catch (err) {
+    return handleError(req, res, err, 'createAuditLog error');
+  }
+};
+
 export const listUsers = async (req, res) => {
   try {
     const users = await adminService.listUsers();
@@ -41,6 +62,22 @@ export const listPendingDoctors = async (req, res) => {
     return res.json({ doctors });
   } catch (err) {
     return handleError(req, res, err, 'listPendingDoctors error');
+  }
+};
+
+export const viewDoctorLicense = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { filename, mimeType, data } = await adminService.getDoctorLicense({ doctorId });
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${String(filename).replace(/\"/g, '')}"`,
+    );
+    return res.send(data);
+  } catch (err) {
+    return handleError(req, res, err, 'viewDoctorLicense error');
   }
 };
 
@@ -87,7 +124,7 @@ export const listAuditLogs = async (req, res) => {
 export const getDashboardMetrics = async (req, res) => {
   try {
     const metrics = await adminService.getDashboardMetrics();
-    return res.json({ metrics });
+    return res.json(metrics);
   } catch (err) {
     return handleError(req, res, err, 'getDashboardMetrics error');
   }

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: docapp/admin-postgres:local
+          image: postgres:15
           ports:
             - containerPort: 5432
           env:

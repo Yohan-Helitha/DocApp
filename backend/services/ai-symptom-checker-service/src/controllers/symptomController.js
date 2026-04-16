@@ -2,6 +2,68 @@ import env from "../config/environment.js";
 import { analyzeSymptoms, GeminiError } from "../services/geminiService.js";
 import { fetchDoctorsBySpecialty } from "../services/doctorService.js";
 
+const NON_MEDICAL_PHRASES = [
+  "capital of",
+  "write code",
+  "javascript",
+  "python",
+  "sql",
+  "homework",
+  "math",
+  "trivia",
+];
+
+const MEDICAL_KEYWORDS = [
+  "symptom",
+  "pain",
+  "ache",
+  "hurt",
+  "hurts",
+  "fever",
+  "cough",
+  "cold",
+  "flu",
+  "headache",
+  "migraine",
+  "nausea",
+  "vomit",
+  "diarrhea",
+  "rash",
+  "dizzy",
+  "dizziness",
+  "swelling",
+  "infection",
+  "allergy",
+  "bleeding",
+  "shortness of breath",
+  "breathing",
+  "chest",
+  "stomach",
+  "abdomen",
+  "throat",
+  "skin",
+  "injury",
+  "wound",
+  "anxiety",
+  "depression",
+  "insomnia",
+  "pregnant",
+  "period",
+  "menstrual",
+  "diabetes",
+  "blood pressure",
+  "hypertension",
+  "asthma",
+  "covid",
+];
+
+const isLikelyMedicalMessage = (text) => {
+  const t = String(text || "").toLowerCase();
+  if (!t.trim()) return false;
+  if (NON_MEDICAL_PHRASES.some((p) => t.includes(p))) return false;
+  return MEDICAL_KEYWORDS.some((k) => t.includes(k));
+};
+
 const handleError = (err, res, req, context) => {
   req.log?.error?.(err, context);
   if (err?.status) return res.status(err.status).json({ error: err.message });
@@ -19,6 +81,15 @@ export const analyze = async (req, res) => {
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "message_required" });
+    }
+
+    // Strictly limit the feature to medical/symptom questions only.
+    if (!isLikelyMedicalMessage(message)) {
+      return res.json({
+        message:
+          "I can only help with health-related symptom questions. Describe what you’re feeling (symptoms, duration, severity). If this is an emergency, seek urgent medical care.",
+        assessment_complete: false,
+      });
     }
 
     const ai = await analyzeSymptoms({

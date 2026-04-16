@@ -33,7 +33,7 @@ export default function TransactionsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [stats, setStats] = useState({ totalVolume: 0, successful: 0, partial: 0, pending: 0 });
+  const [stats, setStats] = useState({ totalVolume: 0, successful: 0, pending: 0 });
 
   useEffect(() => {
     const load = async () => {
@@ -45,15 +45,6 @@ export default function TransactionsPage() {
           const s = (tx.status || '').toLowerCase();
           return s === 'completed' || s === 'complete';
         }).length;
-        const partialCount = body.transactions.filter((tx) => {
-          const s = (tx.status || '').toLowerCase();
-          return (
-            s === 'partial' ||
-            s === 'half' ||
-            s === 'half_paid' ||
-            s === 'partially_paid'
-          );
-        }).length;
         const pendingCount = body.transactions.filter((tx) => {
           const s = (tx.status || '').toLowerCase();
           return s === 'pending';
@@ -61,7 +52,6 @@ export default function TransactionsPage() {
         setStats((prev) => ({
           ...prev,
           successful: successCount,
-          partial: partialCount,
           pending: pendingCount
         }));
       } else {
@@ -86,13 +76,6 @@ export default function TransactionsPage() {
         return status === 'pending';
       case 'completed':
         return status === 'completed' || status === 'complete';
-      case 'half':
-        return (
-          status === 'partial' ||
-          status === 'half' ||
-          status === 'half_paid' ||
-          status === 'partially_paid'
-        );
       case 'failed':
         return status === 'failed';
       default:
@@ -117,13 +100,12 @@ export default function TransactionsPage() {
             <option value="all">All statuses</option>
             <option value="pending">Pending</option>
             <option value="completed">Completed</option>
-            <option value="half">Half (Partial)</option>
             <option value="failed">Failed</option>
           </select>
         </div>
       </div>
       <div className="px-6 pt-3 pb-4 border-b border-slate-100">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
           <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold text-sky-700 uppercase tracking-wide">Total Volume</p>
@@ -140,15 +122,6 @@ export default function TransactionsPage() {
             </div>
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-emerald-500 text-lg font-bold">
               ✓
-            </span>
-          </div>
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Partial</p>
-              <p className="text-2xl font-bold text-amber-900">{stats.partial}</p>
-            </div>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-amber-500 text-lg font-bold">
-              ≈
             </span>
           </div>
           <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 flex items-center justify-between">
@@ -204,18 +177,6 @@ export default function TransactionsPage() {
                       return (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[10px]">
                           Completed
-                        </span>
-                      );
-                    }
-                    if (
-                      status === 'partial' ||
-                      status === 'half' ||
-                      status === 'half_paid' ||
-                      status === 'partially_paid'
-                    ) {
-                      return (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[10px]">
-                          Half / Partial
                         </span>
                       );
                     }

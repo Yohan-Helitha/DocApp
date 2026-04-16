@@ -12,6 +12,7 @@ export default {
   // Gateway talks to telemedicine service on its internal port 4010
   TELEMEDICINE_SERVICE_URL: getEnv('TELEMEDICINE_SERVICE_URL', 'http://telemedicine:4010'),
   PAYMENT_SERVICE_URL: getEnv('PAYMENT_SERVICE_URL', 'http://payment-service:4006'),
+  ADMIN_SERVICE_URL: getEnv('ADMIN_SERVICE_URL', 'http://admin-management-service:4008'),
   DOCTOR_SERVICE_URL: getEnv(
     "DOCTOR_SERVICE_URL",
     "http://doctor-management-service:4002",

@@ -46,6 +46,25 @@ spec:
                 secretKeyRef:
                   name: admin-db-secret
                   key: PGPASSWORD
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_API_KEY
+            - name: AUTH_PUBLIC_KEY_PATH
+              value: "/app/keys/auth-public.pem"
+          volumeMounts:
+            - name: auth-public-key
+              mountPath: /app/keys/auth-public.pem
+              subPath: auth-public.pem
+              readOnly: true
+      volumes:
+        - name: auth-public-key
+          secret:
+            secretName: auth-public-key
+            items:
+              - key: public.pem
+                path: auth-public.pem
 ---
 apiVersion: v1
 kind: Service

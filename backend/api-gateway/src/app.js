@@ -203,6 +203,31 @@ app.use(
   }),
 );
 
+// Proxy admin routes to admin-management-service.
+app.use(
+  "/api/v1/admin",
+  createProxyMiddleware({
+    target: env.ADMIN_SERVICE_URL,
+    changeOrigin: false,
+    logProvider: () => logger,
+    onProxyReq(proxyReq, req) {
+      logger.info(
+        { method: req.method, path: req.originalUrl },
+        "Proxying request to admin-management-service",
+      );
+    },
+    onError(err, req, res) {
+      logger.error(
+        { err },
+        "Error proxying request to admin-management-service",
+      );
+      if (!res.headersSent) {
+        res.status(502).json({ error: "admin_service_unavailable" });
+      }
+    },
+  }),
+);
+
 // Proxy telemedicine routes to telemedicine-service.
 app.use(
   "/api/v1/telemedicine",

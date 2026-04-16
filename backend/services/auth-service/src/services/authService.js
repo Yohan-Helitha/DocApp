@@ -9,6 +9,31 @@ import path from "path";
 
 const SALT_ROUNDS = Number(env.BCRYPT_SALT_ROUNDS) || 10;
 
+const tryCreateAdminAuditLog = async ({ actionType, targetEntity, targetEntityId, actionNote }) => {
+  if (!env.INTERNAL_API_KEY) return;
+  if (!env.ADMIN_SERVICE_URL) return;
+
+  try {
+    const url = String(env.ADMIN_SERVICE_URL).replace(/\/$/, '') + '/api/v1/internal/admin/audit-logs';
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-api-key': env.INTERNAL_API_KEY
+      },
+      body: JSON.stringify({
+        actionType,
+        targetEntity,
+        targetEntityId,
+        actionNote: actionNote || null,
+        adminUserId: null
+      })
+    });
+  } catch {
+    // Best-effort; do not fail registration.
+  }
+};
+
 export const register = async (userData) => {
   const { email, password, role } = userData || {};
   if (!email || !password || !role) {
@@ -38,6 +63,14 @@ export const register = async (userData) => {
     const result = await client.query(insertText, values);
     await client.query("COMMIT");
     const user = result.rows[0];
+
+    await tryCreateAdminAuditLog({
+      actionType: 'user_registered',
+      targetEntity: 'user',
+      targetEntityId: user.user_id,
+      actionNote: `User registered: ${user.email} (${user.role})`
+    });
+
     return { user };
   } catch (err) {
     await client.query("ROLLBACK");
@@ -113,6 +146,14 @@ export const registerDoctor = async (doctorPayload, licenseFile) => {
     );
 
     await client.query("COMMIT");
+
+    await tryCreateAdminAuditLog({
+      actionType: 'doctor_verification_requested',
+      targetEntity: 'doctor',
+      targetEntityId: user.user_id,
+      actionNote: `Doctor registration pending verification: ${user.email}`
+    });
+
     return { user, verification: { status: "pending" } };
   } catch (err) {
     await client.query("ROLLBACK");

@@ -105,6 +105,58 @@ export const verifyDoctor = async (req, res) => {
   }
 };
 
+export const internalListPendingDoctorVerifications = async (req, res) => {
+  try {
+    const result = await authService.listPendingDoctorVerifications();
+    return res.json(result);
+  } catch (err) {
+    req.log &&
+      req.log.error &&
+      req.log.error(err, "internal list pending doctor verifications error");
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: "internal_error" });
+  }
+};
+
+export const internalDownloadDoctorLicense = async (req, res) => {
+  try {
+    const { filename, mimeType, data } = await authService.getDoctorLicense(
+      req.params.userId,
+    );
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${String(filename).replace(/\"/g, "")}"`,
+    );
+    return res.send(data);
+  } catch (err) {
+    req.log &&
+      req.log.error &&
+      req.log.error(err, "internal download doctor license error");
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: "internal_error" });
+  }
+};
+
+export const internalVerifyDoctor = async (req, res) => {
+  try {
+    const { status, reason, adminUserId } = req.body || {};
+    const result = await authService.verifyDoctor({
+      userId: req.params.userId,
+      status,
+      reason,
+      adminUserId: adminUserId || null,
+    });
+    return res.json(result);
+  } catch (err) {
+    req.log &&
+      req.log.error &&
+      req.log.error(err, "internal verify doctor error");
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: "internal_error" });
+  }
+};
+
 export const refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body || {};

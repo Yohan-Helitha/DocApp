@@ -11,8 +11,8 @@
 - **Outgoing**: Notification Service (payment success/failure), Appointment Service (payment confirmation), Admin Management Service (financial oversight data).
 
 ## 3) API endpoints for this microservice
-- `POST /api/v1/payments/checkout`
-- `POST /api/v1/payments/webhooks/provider-callback`
+- `POST /api/v1/payments/initiate` (alias: `POST /api/v1/payments/checkout`)
+- `POST /api/v1/payments/notify` (alias: `POST /api/v1/payments/webhooks/provider-callback`)
 - `GET /api/v1/payments/{paymentId}`
 - `GET /api/v1/payments/appointments/{appointmentId}`
 - `POST /api/v1/payments/{paymentId}/refund`

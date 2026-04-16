@@ -285,6 +285,56 @@ export const cancelAppointment = async (req, res) => {
   }
 };
 
+// ─── Upcoming (for current patient) ──────────────────────────────────────────
+
+export const listUpcomingForMe = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "forbidden" });
+    }
+
+    const appointments = await appointmentService.listUpcomingForPatient(
+      req.db,
+      req.user.id,
+    );
+
+    const toIsoDate = (d) => {
+      if (!d) return null;
+      if (typeof d === "string") return d.slice(0, 10);
+      try {
+        return new Date(d).toISOString().slice(0, 10);
+      } catch {
+        return null;
+      }
+    };
+
+    const toHm = (t) => {
+      if (!t) return null;
+      const s = String(t);
+      return s.length >= 5 ? s.slice(0, 5) : s;
+    };
+
+    const out = (appointments || []).map((a) => {
+      const day = toIsoDate(a.slot_date);
+      const start = toHm(a.start_time);
+      const end = toHm(a.end_time);
+      return {
+        id: a.appointment_id,
+        appointment_id: a.appointment_id,
+        doctorName: a.doctor_name || null,
+        date: day && start && end ? `${day} ${start}-${end}` : null,
+        type: "telemedicine",
+        status: a.appointment_status,
+      };
+    });
+
+    // Note: frontend expects an array in res.data for this endpoint.
+    return res.json(out);
+  } catch (err) {
+    return handleError(err, res, req, "listUpcomingForMe");
+  }
+};
+
 // ─── List by Patient ──────────────────────────────────────────────────────────
 
 export const listByPatient = async (req, res) => {

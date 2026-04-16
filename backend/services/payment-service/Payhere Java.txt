@@ -1,0 +1,788 @@
+PaymentController.java
+
+package com.edoc.paymentservice.controller;
+
+import com.edoc.paymentservice.config.PayHereProperties;
+import com.edoc.paymentservice.dto.CheckoutPayloadResponse;
+import com.edoc.paymentservice.dto.InitiatePaymentRequest;
+import com.edoc.paymentservice.dto.NotificationRequest;
+import com.edoc.paymentservice.dto.PaymentResponse;
+import com.edoc.paymentservice.mapper.PaymentMapper;
+import com.edoc.paymentservice.model.CustomerData;
+import com.edoc.paymentservice.model.Payment;
+import jakarta.validation.Valid;
+import com.edoc.paymentservice.service.IPaymentService;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/payments")
+@RequiredArgsConstructor
+public class PaymentController {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
+
+    private final IPaymentService paymentService;
+    private final PaymentMapper paymentMapper;
+    private final PayHereProperties payHereProperties;
+
+    @PostMapping("/initiate")
+    public ResponseEntity<CheckoutPayloadResponse> initiatePayment(@Valid @RequestBody InitiatePaymentRequest request) {
+        Payment payment = paymentService.createPayment(
+                request.getAppointmentId(),
+                request.getPatientId(),
+                request.getAmount(),
+                request.getCurrency()
+        );
+
+        CustomerData customerData = new CustomerData(
+                request.getFirstName(),
+                request.getLastName(),
+                request.getEmail(),
+                request.getPhone(),
+                request.getAddress(),
+                request.getCity(),
+                request.getCountry()
+        );
+
+        Map<String, String> fields = paymentService.initiatePayment(payment.getId(), customerData);
+        return ResponseEntity.ok(
+            CheckoutPayloadResponse.builder()
+                .actionUrl(payHereProperties.checkoutUrl())
+                .fields(fields)
+                .build()
+        );
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PaymentResponse> getPayment(@PathVariable UUID id) {
+        Payment payment = paymentService.getPaymentById(id);
+        return ResponseEntity.ok(paymentMapper.toStatusResponse(payment));
+    }
+
+    @PostMapping(value = "/notify", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<String> handleNotification(@Valid @ModelAttribute NotificationRequest request) {
+        Map<String, String> params = toNotificationParams(request);
+        log.info("Incoming notify callback orderId={} paymentId={} statusCode={}",
+            request.getOrderId(), request.getPaymentId(), request.getStatusCode());
+        log.debug("Incoming notify payload keys={}", params.keySet());
+        paymentService.handleNotification(params);
+        log.info("Notify callback processed orderId={} paymentId={} statusCode={}",
+            request.getOrderId(), request.getPaymentId(), request.getStatusCode());
+        return ResponseEntity.ok("OK");
+    }
+
+    private Map<String, String> toNotificationParams(NotificationRequest request) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("merchant_id", request.getMerchantId());
+        params.put("order_id", request.getOrderId());
+        params.put("payment_id", request.getPaymentId());
+        params.put("payhere_amount", request.getPayhereAmount());
+        params.put("payhere_currency", request.getPayhereCurrency());
+        params.put("status_code", request.getStatusCode());
+        params.put("md5sig", request.getMd5sig());
+        params.put("custom_1", request.getCustom1());
+        params.put("custom_2", request.getCustom2());
+        params.put("method", request.getMethod());
+        params.put("status_message", request.getStatusMessage());
+        return params;
+    }
+}
+
+
+PayHereProperties.java
+
+package com.edoc.paymentservice.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "payhere")
+public record PayHereProperties(
+        String merchantId,
+        String merchantSecret,
+        String checkoutUrl,
+        String returnUrl,
+        String cancelUrl,
+        String notifyUrl,
+        boolean sandbox
+) {
+}
+
+
+InitiatePaymentRequest.java
+
+package com.edoc.paymentservice.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.Map;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class InitiatePaymentRequest {
+
+    @NotNull(message = "Appointment ID is required")
+    private UUID appointmentId;
+
+    @NotNull(message = "Amount is required")
+    @DecimalMin(value = "0.01", message = "Amount must be greater than zero")
+    private BigDecimal amount;
+
+    @NotNull(message = "Currency is required")
+    @Pattern(regexp = "^[A-Za-z]{3}$", message = "Currency must be a 3-letter ISO code")
+    private String currency;
+
+    @NotNull(message = "Patient ID is required")
+    private UUID patientId;
+
+    private String firstName;
+
+    private String lastName;
+
+    @Email(message = "Email must be valid")
+    private String email;
+
+    private String phone;
+
+    private String address;
+
+    private String city;
+
+    private String country;
+
+    // Optional metadata can be passed through for tracing/custom fields.
+    private Map<String, String> metadata;
+}
+
+
+CheckoutPayloadResponse.java
+
+
+package com.edoc.paymentservice.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Map;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CheckoutPayloadResponse {
+
+    private String actionUrl;
+    private Map<String, String> fields;
+}
+
+
+NotificationRequest.java
+
+package com.edoc.paymentservice.dto;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class NotificationRequest {
+
+    @NotBlank(message = "Merchant ID is required")
+    @JsonProperty("merchant_id")
+    private String merchantId;
+
+    @NotBlank(message = "Order ID is required")
+    @JsonProperty("order_id")
+    private String orderId;
+
+    @NotBlank(message = "Payment ID is required")
+    @JsonProperty("payment_id")
+    private String paymentId;
+
+    @NotBlank(message = "PayHere amount is required")
+    @JsonProperty("payhere_amount")
+    private String payhereAmount;
+
+    @NotBlank(message = "PayHere currency is required")
+    @JsonProperty("payhere_currency")
+    private String payhereCurrency;
+
+    @NotBlank(message = "Status code is required")
+    @JsonProperty("status_code")
+    private String statusCode;
+
+    @NotBlank(message = "Signature is required")
+    @JsonProperty("md5sig")
+    private String md5sig;
+
+    @JsonProperty("custom_1")
+    private String custom1;
+
+    @JsonProperty("custom_2")
+    private String custom2;
+
+    @JsonProperty("method")
+    private String method;
+
+    @JsonProperty("status_message")
+    private String statusMessage;
+}
+
+
+PaymentResponse.java
+
+package com.edoc.paymentservice.dto;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class NotificationRequest {
+
+    @NotBlank(message = "Merchant ID is required")
+    @JsonProperty("merchant_id")
+    private String merchantId;
+
+    @NotBlank(message = "Order ID is required")
+    @JsonProperty("order_id")
+    private String orderId;
+
+    @NotBlank(message = "Payment ID is required")
+    @JsonProperty("payment_id")
+    private String paymentId;
+
+    @NotBlank(message = "PayHere amount is required")
+    @JsonProperty("payhere_amount")
+    private String payhereAmount;
+
+    @NotBlank(message = "PayHere currency is required")
+    @JsonProperty("payhere_currency")
+    private String payhereCurrency;
+
+    @NotBlank(message = "Status code is required")
+    @JsonProperty("status_code")
+    private String statusCode;
+
+    @NotBlank(message = "Signature is required")
+    @JsonProperty("md5sig")
+    private String md5sig;
+
+    @JsonProperty("custom_1")
+    private String custom1;
+
+    @JsonProperty("custom_2")
+    private String custom2;
+
+    @JsonProperty("method")
+    private String method;
+
+    @JsonProperty("status_message")
+    private String statusMessage;
+}
+
+
+
+
+PaymentRepository.java
+
+package com.edoc.paymentservice.repository;
+
+import com.edoc.paymentservice.model.Payment;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface PaymentRepository extends JpaRepository<Payment, UUID> {
+
+	Optional<Payment> findByPayhereOrderId(String payhereOrderId);
+}
+
+
+
+
+PaymentServiceImpl.java
+
+package com.edoc.paymentservice.service.impl;
+
+import com.edoc.paymentservice.config.PayHereProperties;
+import com.edoc.paymentservice.dto.CheckoutPayloadResponse;
+import com.edoc.paymentservice.exception.InvalidNotificationSignatureException;
+import com.edoc.paymentservice.exception.PaymentNotFoundException;
+import com.edoc.paymentservice.mapper.PaymentMapper;
+import com.edoc.paymentservice.model.CustomerData;
+import com.edoc.paymentservice.model.Payment;
+import com.edoc.paymentservice.model.PaymentLog;
+import com.edoc.paymentservice.model.enums.PaymentStatus;
+import com.edoc.paymentservice.repository.PaymentLogRepository;
+import com.edoc.paymentservice.repository.PaymentRepository;
+import com.edoc.paymentservice.service.IPaymentService;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.edoc.paymentservice.service.PayHereSignatureService;
+import com.edoc.paymentservice.util.HashUtils;
+import com.edoc.paymentservice.util.JsonUtils;
+import com.edoc.paymentservice.util.ValidationUtils;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.regex.Pattern;
+
+@Service
+@RequiredArgsConstructor
+public class PaymentServiceImpl implements IPaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentServiceImpl.class);
+    private static final Pattern CURRENCY_CODE_PATTERN = Pattern.compile("^[A-Za-z]{3}$");
+    private static final String MD5SIG_PARAM = "md5sig";
+
+    private final PaymentRepository paymentRepository;
+    private final PaymentLogRepository paymentLogRepository;
+    private final PaymentMapper paymentMapper;
+    private final PayHereProperties payHereProperties;
+    private final PayHereSignatureService payHereSignatureService;
+
+    @Override
+    @Transactional
+    public Payment createPayment(UUID appointmentId, UUID patientId, BigDecimal amount, String currency) {
+        validateCreatePaymentInput(appointmentId, patientId, amount, currency);
+
+        Payment payment = Payment.builder()
+            .appointmentId(appointmentId)
+            .patientId(patientId)
+            .amount(amount)
+            .currency(currency.trim().toUpperCase(Locale.ROOT))
+            .payhereOrderId(UUID.randomUUID().toString())
+            .status(PaymentStatus.PENDING)
+            .build();
+
+        return paymentRepository.save(payment);
+    }
+
+    @Override
+    public String generatePayHereHash(String orderId, BigDecimal amount, String currency) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount must be greater than zero");
+        }
+        if (currency == null || currency.isBlank()) {
+            throw new IllegalArgumentException("currency is required");
+        }
+
+        String normalizedCurrency = currency.trim().toUpperCase(Locale.ROOT);
+        String formattedAmount = amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        String hashedSecret = HashUtils.md5Upper(payHereProperties.merchantSecret());
+
+        return HashUtils.md5Upper(payHereProperties.merchantId() + orderId.trim() + formattedAmount + normalizedCurrency + hashedSecret);
+    }
+
+    @Override
+    public Map<String, String> initiatePayment(UUID paymentId, CustomerData customerData) {
+        Payment payment = getPaymentById(paymentId);
+
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending payments can be initiated");
+        }
+
+        String hash = generatePayHereHash(payment.getPayhereOrderId(), payment.getAmount(), payment.getCurrency());
+        CheckoutPayloadResponse checkoutPayloadResponse = paymentMapper.toCheckoutResponse(
+                payment,
+                customerData,
+                hash,
+                payHereProperties
+        );
+
+        log.info("Prepared checkout payload for paymentId={} orderId={}", payment.getId(), payment.getPayhereOrderId());
+
+        return new LinkedHashMap<>(checkoutPayloadResponse.getFields());
+    }
+
+    @Override
+    @Transactional
+    public void handleNotification(Map<String, String> params) {
+        Objects.requireNonNull(params, "params must not be null");
+        log.info("Received PayHere notify callback");
+        log.debug("PayHere notify payload={}", sanitizeNotifyParams(params));
+
+        String merchantId = ValidationUtils.requireParam(params, "merchant_id");
+        String orderId = ValidationUtils.requireParam(params, "order_id");
+        String payhereAmount = ValidationUtils.requireParam(params, "payhere_amount");
+        String payhereCurrency = ValidationUtils.requireParam(params, "payhere_currency");
+        String statusCode = ValidationUtils.requireParam(params, "status_code");
+        String md5sig = ValidationUtils.requireParam(params, MD5SIG_PARAM);
+
+        if (!payHereProperties.merchantId().equals(merchantId)) {
+            log.warn("Rejected notify callback due to merchant mismatch orderId={} receivedMerchantId={} configuredMerchantId={}",
+                    orderId, merchantId, payHereProperties.merchantId());
+            throw new InvalidNotificationSignatureException("merchant_id does not match configured merchant");
+        }
+
+        // PayHere spec: md5sig = MD5(merchant_id + order_id + payhere_amount + payhere_currency + status_code + UPPER(MD5(secret)))
+        String localSignature = payHereSignatureService.generate(orderId, payhereAmount, payhereCurrency, statusCode);
+        if (!localSignature.equalsIgnoreCase(md5sig)) {
+            log.warn("Rejected notify callback due to invalid signature orderId={} statusCode={}", orderId, statusCode);
+            log.debug("Signature mismatch details orderId={} localSignature={} remoteSignature={}",
+                    orderId, localSignature, md5sig);
+            throw new InvalidNotificationSignatureException("Invalid PayHere notification signature");
+        }
+        log.info("PayHere signature verification passed orderId={} statusCode={}", orderId, statusCode);
+
+        Payment payment = paymentRepository.findByPayhereOrderId(orderId)
+                .orElseThrow(() -> {
+                    log.warn("Payment not found for verified callback orderId={}", orderId);
+                    return new PaymentNotFoundException("Payment not found for order_id: " + orderId);
+                });
+
+        validateNotificationBusinessData(payment, payhereAmount, payhereCurrency, orderId);
+
+        PaymentStatus incomingStatus = PaymentStatus.fromPayHereCode(statusCode);
+        if (payment.getStatus().canTransitionTo(incomingStatus)) {
+            payment.setStatus(incomingStatus);
+            paymentRepository.save(payment);
+            log.info("Updated payment status paymentId={} orderId={} status={}", payment.getId(), orderId, incomingStatus);
+        } else {
+            log.info("Ignored out-of-order payment update paymentId={} orderId={} currentStatus={} incomingStatus={}",
+                    payment.getId(), orderId, payment.getStatus(), incomingStatus);
+        }
+
+        PaymentLog paymentLog = PaymentLog.builder()
+                .paymentId(payment.getId())
+                .eventType("WEBHOOK_RECEIVED")
+                .rawResponse(JsonUtils.toJson(params))
+                .build();
+        paymentLogRepository.save(paymentLog);
+        log.info("Stored callback payload for paymentId={} orderId={}", payment.getId(), orderId);
+    }
+
+    @Override
+    public Payment getPaymentById(UUID paymentId) {
+        if (paymentId == null) {
+            throw new IllegalArgumentException("paymentId is required");
+        }
+
+        return paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found for id: " + paymentId));
+    }
+
+    private void validateCreatePaymentInput(UUID appointmentId, UUID patientId, BigDecimal amount, String currency) {
+        if (appointmentId == null) {
+            throw new IllegalArgumentException("appointmentId is required");
+        }
+        if (patientId == null) {
+            throw new IllegalArgumentException("patientId is required");
+        }
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount must be greater than zero");
+        }
+        if (currency == null || currency.isBlank()) {
+            throw new IllegalArgumentException("currency is required");
+        }
+        if (!CURRENCY_CODE_PATTERN.matcher(currency.trim()).matches()) {
+            throw new IllegalArgumentException("currency must be a valid 3-letter ISO code");
+        }
+    }
+
+    private void validateNotificationBusinessData(Payment payment, String payhereAmount, String payhereCurrency, String orderId) {
+        String expectedCurrency = payment.getCurrency() == null ? "" : payment.getCurrency().trim().toUpperCase(Locale.ROOT);
+        String incomingCurrency = payhereCurrency.trim().toUpperCase(Locale.ROOT);
+        if (!expectedCurrency.equals(incomingCurrency)) {
+            log.warn("Rejected notify callback due to currency mismatch paymentId={} orderId={} expectedCurrency={} incomingCurrency={}",
+                    payment.getId(), orderId, expectedCurrency, incomingCurrency);
+            throw new IllegalArgumentException("Payment currency does not match callback currency");
+        }
+
+        BigDecimal incomingAmount;
+        try {
+            incomingAmount = new BigDecimal(payhereAmount);
+        } catch (NumberFormatException ex) {
+            log.warn("Rejected notify callback due to invalid amount format paymentId={} orderId={} amount={}",
+                    payment.getId(), orderId, payhereAmount);
+            throw new IllegalArgumentException("Invalid payhere_amount format");
+        }
+
+        if (payment.getAmount() == null || incomingAmount.compareTo(payment.getAmount()) != 0) {
+            log.warn("Rejected notify callback due to amount mismatch paymentId={} orderId={} expectedAmount={} incomingAmount={}",
+                    payment.getId(), orderId, payment.getAmount(), incomingAmount);
+            throw new IllegalArgumentException("Payment amount does not match callback amount");
+        }
+    }
+
+    private Map<String, String> sanitizeNotifyParams(Map<String, String> params) {
+        Map<String, String> sanitized = new HashMap<>(params);
+        sanitized.computeIfPresent(MD5SIG_PARAM, (key, value) -> "[REDACTED]");
+        return sanitized;
+    }
+
+    
+}
+
+
+IPayment.java
+
+package com.edoc.paymentservice.service;
+
+import com.edoc.paymentservice.model.CustomerData;
+import com.edoc.paymentservice.model.Payment;
+
+import java.math.BigDecimal;
+import java.util.Map;
+import java.util.UUID;
+
+public interface IPaymentService {
+
+    Payment createPayment(UUID appointmentId, UUID patientId, BigDecimal amount, String currency);
+
+    String generatePayHereHash(String orderId, BigDecimal amount, String currency);
+
+    Map<String, String> initiatePayment(UUID paymentId, CustomerData customerData);
+
+    void handleNotification(Map<String, String> params);
+
+    Payment getPaymentById(UUID paymentId);
+}
+
+
+PayHereSignatureService.java
+
+
+package com.edoc.paymentservice.service;
+
+import com.edoc.paymentservice.config.PayHereProperties;
+import com.edoc.paymentservice.util.HashUtils;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class PayHereSignatureService {
+
+    private final PayHereProperties payHereProperties;
+
+    public String generate(String orderId, String amount, String currency, String statusCode) {
+        String hashedSecret = HashUtils.md5Upper(payHereProperties.merchantSecret());
+        return HashUtils.md5Upper(payHereProperties.merchantId() + orderId + amount + currency + statusCode + hashedSecret);
+    }
+}
+
+HashUtils.java
+
+package com.edoc.paymentservice.util;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+public final class HashUtils {
+
+    private HashUtils() {}
+
+    public static String md5Upper(String value) {
+        if (value == null) {
+            return "";
+        }
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            byte[] digest = messageDigest.digest(value.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder builder = new StringBuilder();
+            for (byte b : digest) {
+                builder.append(String.format("%02X", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("MD5 algorithm is not available", ex);
+        }
+    }
+}
+
+
+JsonUtils.java
+
+package com.edoc.paymentservice.util;
+
+import java.util.Map;
+
+public final class JsonUtils {
+
+    private JsonUtils() {}
+
+    public static String toJson(Map<String, String> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+
+        StringBuilder builder = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            if (!first) {
+                builder.append(',');
+            }
+            builder.append('"')
+                    .append(escape(entry.getKey()))
+                    .append('"')
+                    .append(':')
+                    .append('"')
+                    .append(escape(entry.getValue()))
+                    .append('"');
+            first = false;
+        }
+        builder.append('}');
+        return builder.toString();
+    }
+
+    private static String escape(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+}
+
+ValidationUtils.java
+
+package com.edoc.paymentservice.util;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Map;
+
+public final class ValidationUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(ValidationUtils.class);
+
+    private ValidationUtils() {}
+
+    public static String requireParam(Map<String, String> params, String key) {
+        String value = params.get(key);
+        if (value == null || value.isBlank()) {
+            log.warn("Missing required notify parameter: {}", key);
+            throw new IllegalArgumentException("Missing required notify parameter: " + key);
+        }
+        return value.trim();
+    }
+}
+
+CorsConfig.java
+
+package com.edoc.paymentservice.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class CorsConfig implements WebMvcConfigurer {
+
+    private final String apiGatewayOrigin;
+
+    public CorsConfig(@Value("${app.api-gateway-origin}") String apiGatewayOrigin) {
+        this.apiGatewayOrigin = apiGatewayOrigin;
+    }
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/payments/**")
+                .allowedOrigins(apiGatewayOrigin)
+                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
+}
+
+applicatons.yml
+
+spring:
+  application:
+    name: payment-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5437}/${DB_NAME:payment_db}
+    username: ${DB_USER:user}
+    password: ${DB_PASSWORD:password}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+payhere:
+  merchant-id: ${PAYHERE_MERCHANT_ID:your_merchant_id}
+  merchant-secret: ${PAYHERE_MERCHANT_SECRET:your_merchant_secret}
+  checkout-url: ${PAYHERE_CHECKOUT_URL:https://sandbox.payhere.lk/pay/checkout}
+  return-url: ${PAYHERE_RETURN_URL:https://app.example.com/payment/success}
+  cancel-url: ${PAYHERE_CANCEL_URL:https://app.example.com/payment/cancel}
+  notify-url: ${PAYHERE_NOTIFY_URL:https://api.example.com/payments/notify}
+  sandbox: ${PAYHERE_SANDBOX:true}
+
+services:
+  appointment-base-url: ${APPOINTMENT_SERVICE_BASE_URL:http://appointment-service:8081}
+  notification-base-url: ${NOTIFICATION_SERVICE_BASE_URL:http://notification-service:8083}
+
+app:
+  api-gateway-origin: ${API_GATEWAY_ORIGIN:http://localhost:8080}
+
+server:
+  port: ${SERVER_PORT:8085}

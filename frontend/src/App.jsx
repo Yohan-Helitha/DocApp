@@ -15,8 +15,16 @@ import MyAppointments from "./pages/MyAppointments";
 import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
+import Telemedicine from './features/telemedicine/Telemedicine'
+import PaymentCheckout from "./pages/PaymentCheckout";
+import PaymentReturn from "./pages/PaymentReturn";
+import PaymentCancel from "./pages/PaymentCancel";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
-import Telemedicine from "./features/telemedicine/Telemedicine";
+import SymptomCheckerChat from "./features/AI/pages/SymptomCheckerChat";
+import PatientProfile from './features/patient-management/PatientProfile'
+import PatientHistory from './features/patient-management/PatientHistory'
+import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
+import Notifications from './features/notifications/Notifications'
 import TelemedicineGuard from "./features/auth/TelemedicineGuard";
 
 export default function App() {
@@ -46,6 +54,8 @@ export default function App() {
     Page = () => <Login navigate={navigate} />;
   else if (path.startsWith("/success/patient"))
     Page = () => <SuccessPatient navigate={navigate} />;
+  else if (path === "/dashboard")
+    Page = () => <SuccessPatient navigate={navigate} />;
   else if (path.startsWith("/success/doctor"))
     Page = () => <SuccessDoctor navigate={navigate} />;
   else if (path.startsWith("/success/admin"))
@@ -66,14 +76,45 @@ export default function App() {
     Page = () => <PrescriptionEditor navigate={navigate} />;
   else if (path === "/prescriptions")
     Page = () => <PatientPrescriptions navigate={navigate} />;
+  else if (path === "/symptom-checker")
+    Page = () => <SymptomCheckerChat navigate={navigate} />;
   else if (route.startsWith("/telemedicine"))
     Page = () => <TelemedicineGuard navigate={navigate} />;
+  else if (path.startsWith("/payments/checkout"))
+    Page = () => <PaymentCheckout navigate={navigate} />;
+  else if (path.startsWith("/payments/return"))
+    Page = () => <PaymentReturn navigate={navigate} />;
+  else if (path.startsWith("/payments/cancel"))
+    Page = () => <PaymentCancel navigate={navigate} />;
+  else if(route.startsWith('/patient/profile')) Page = ()=> <PatientProfile navigate={navigate} />
+  else if(route.startsWith('/patient/history')) Page = ()=> <PatientHistory navigate={navigate} />
+  else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />
+  else if(route.startsWith('/notifications')) Page = ()=> <Notifications navigate={navigate} />
+    
+  const isDashboard = route.startsWith('/patient/') || 
+                      route.startsWith('/success/') || 
+                      route.startsWith('/notifications') ||
+                      route.startsWith('/appointments') ||
+                      route.startsWith('/doctors') ||
+                      route.startsWith('/symptom-checker');
 
-  const isAdminRoute = route.startsWith("/success/admin");
+  const hidePublicChrome =
+    route.startsWith("/success/admin") ||
+    path === "/dashboard" ||
+    route.startsWith("/success/patient") ||
+    route.startsWith("/success/doctor") ||
+    path === "/appointments" ||
+    path === "/prescriptions" ||
+    path === "/symptom-checker" ||
+    path === "/telemedicine" ||
+    path === "/doctors" ||
+    path.startsWith("/doctors/") ||
+    path.startsWith("/book") ||
+    path.startsWith("/doctor/");
 
-  if (isAdminRoute) {
-    // Admin area uses its own top bar and sidebar layout (AdminLayout)
-    // so we intentionally do NOT render the public Header/Footer here.
+  if (hidePublicChrome) {
+    // These pages provide their own dashboards/layouts, so we intentionally do NOT
+    // render the public Header/Footer here.
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Page />
@@ -83,11 +124,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header navigate={navigate} />
+      {!isDashboard && <Header navigate={navigate} />}
       <main className="flex-1">
         <Page />
       </main>
-      <Footer />
+      {!isDashboard && <Footer />}
     </div>
   );
 }

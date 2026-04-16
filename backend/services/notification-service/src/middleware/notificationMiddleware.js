@@ -37,6 +37,16 @@ export const verifyIdentity = (req, res, next) => {
   const userId = req.headers['x-user-id'];
   const userRole = req.headers['x-user-role'];
 
+  // For GET notifications by user, we can trust the userId from path if it matches the header
+  // or if it's a system request.
+  if (req.method === 'GET' && req.path.includes('/user/')) {
+    const pathUserId = req.params.userId;
+    if (pathUserId && pathUserId === userId) {
+      req.user = { id: userId, role: userRole || 'user' };
+      return next();
+    }
+  }
+
   if (!userId) {
     logger.warn('Identity verification failed: No X-User-ID header found');
     return res.status(401).json({ error: 'unauthorized_access' });

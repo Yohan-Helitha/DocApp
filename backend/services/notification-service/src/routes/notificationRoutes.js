@@ -12,6 +12,7 @@ router.post('/send-bulk', verifyIdentity, restrictToAdmin, controller.sendBulk);
 // Enhanced CRUD (secured with identity and access control)
 router.get('/user/:userId', verifyIdentity, controller.getNotifications);
 router.get('/:id', verifyIdentity, controller.getNotificationById);
+router.patch('/:id/read', verifyIdentity, controller.markAsRead);
 router.put('/:id', verifyIdentity, restrictToAdmin, controller.updateNotification);
 router.delete('/:id', verifyIdentity, restrictToAdmin, controller.deleteNotification);
 

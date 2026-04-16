@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: symptom-checker-db-config
+data:
+  PGUSER: "postgres"
+  PGDATABASE: "symptom_checker_db"

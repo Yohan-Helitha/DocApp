@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: doctor-db-seed
+data:
+  seed.sql: |
+    -- Schema + seed for doctor-management-service (idempotent)
+
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+    CREATE TABLE IF NOT EXISTS doctors (
+      doctor_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id             UUID        UNIQUE NOT NULL,
+      email               TEXT        NOT NULL,
+      full_name           TEXT        NOT NULL,
+      specialization      TEXT        NOT NULL,
+      license_number      TEXT        UNIQUE NOT NULL,
+      experience_years    INTEGER     DEFAULT 0,
+      consultation_fee    NUMERIC(10,2) DEFAULT 0,
+      bio                 TEXT,
+      verification_status TEXT        DEFAULT 'pending',
+      created_at          TIMESTAMPTZ DEFAULT now(),
+      updated_at          TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS doctor_availability_slots (
+      slot_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id   UUID        NOT NULL REFERENCES doctors(doctor_id) ON DELETE CASCADE,
+      slot_date   DATE        NOT NULL,
+      start_time  TIME        NOT NULL,
+      end_time    TIME        NOT NULL,
+      slot_status TEXT        DEFAULT 'available',
+      created_at  TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS doctor_documents (
+      document_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id     UUID        NOT NULL REFERENCES doctors(doctor_id) ON DELETE CASCADE,
+      document_type TEXT        NOT NULL,
+      file_url      TEXT        NOT NULL,
+      uploaded_at   TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS prescriptions (
+      prescription_id UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id       UUID        NOT NULL REFERENCES doctors(doctor_id) ON DELETE CASCADE,
+      patient_id      UUID        NOT NULL,
+      appointment_id  UUID,
+      diagnosis       TEXT,
+      medication      TEXT        NOT NULL,
+      dosage          TEXT,
+      frequency       TEXT,
+      duration        TEXT,
+      instructions    TEXT,
+      issued_at       TIMESTAMPTZ DEFAULT now()
+    );
+
+    -- Seed doctors for demo/testing (visible to patients because verification_status='approved').
+    -- IMPORTANT: This first doctor is also seeded in authdb with the SAME user_id.
+    -- This makes doctor login + doctor portal matching work (JWT sub == doctors.user_id).
+
+    WITH telemed_doctor AS (
+      INSERT INTO doctors (
+        user_id,
+        email,
+        full_name,
+        specialization,
+        license_number,
+        experience_years,
+        consultation_fee,
+        bio,
+        verification_status
+      )
+      VALUES (
+        '1300a38c-bbc4-46f3-8732-c789bf9f807d',
+        'dr.nimal.perera@docapp.local',
+        'Dr. Nimal Perera',
+        'Rheumatology',
+        'SLMC-RHE-1001',
+        16,
+        3500,
+        'Specializes in inflammatory arthritis and autoimmune joint conditions. Focuses on early diagnosis and long-term management.',
+        'approved'
+      )
+      ON CONFLICT (license_number) DO UPDATE
+        SET user_id = EXCLUDED.user_id,
+            email = EXCLUDED.email,
+            full_name = EXCLUDED.full_name,
+            specialization = EXCLUDED.specialization,
+            experience_years = EXCLUDED.experience_years,
+            consultation_fee = EXCLUDED.consultation_fee,
+            bio = EXCLUDED.bio,
+            verification_status = 'approved',
+            updated_at = now()
+      RETURNING doctor_id
+    )
+    INSERT INTO doctor_availability_slots (
+      slot_id,
+      doctor_id,
+      slot_date,
+      start_time,
+      end_time,
+      slot_status
+    )
+    SELECT
+      'aa225ff6-1bf0-4e87-bd74-b747045a303c',
+      doctor_id,
+      (current_date + 1),
+      '09:00',
+      '09:30',
+      'available'
+    FROM telemed_doctor
+    ON CONFLICT (slot_id) DO UPDATE
+      SET doctor_id = EXCLUDED.doctor_id,
+          slot_date = EXCLUDED.slot_date,
+          start_time = EXCLUDED.start_time,
+          end_time = EXCLUDED.end_time,
+          slot_status = EXCLUDED.slot_status;
+
+    INSERT INTO doctors (
+      user_id,
+      email,
+      full_name,
+      specialization,
+      license_number,
+      experience_years,
+      consultation_fee,
+      bio,
+      verification_status
+    )
+    VALUES
+      (
+        'b4f9e3a6-5c2f-4cbb-a79f-9a2d9c2b6b03',
+        'dr.anjali.fernando@docapp.local',
+        'Dr. Anjali Fernando',
+        'Orthopedics',
+        'SLMC-ORT-2001',
+        12,
+        4000,
+        'Orthopedic surgeon with experience in knee pain, sports injuries, and degenerative joint disease. Emphasizes conservative care where possible.',
+        'approved'
+      ),
+      (
+        'c6d2f9d1-19a4-4f2b-9b9e-79a1e2a5e7c9',
+        'dr.kavindi.silva@docapp.local',
+        'Dr. Kavindi Silva',
+        'General Practice',
+        'SLMC-GP-3001',
+        9,
+        2500,
+        'General practitioner for first-line assessment, chronic disease management, and referrals to specialists when needed.',
+        'approved'
+      )
+    ON CONFLICT (license_number) DO NOTHING;

@@ -1,5 +1,6 @@
 import express from "express";
 import authMiddleware from "../middleware/authMiddleware.js";
+import authAdminRs256 from "../middleware/authAdminRs256.js";
 import {
   validateCreateDoctor,
   validateAddSlot,
@@ -33,7 +34,7 @@ router.put(
 );
 router.put(
   "/api/v1/doctors/:doctorId/verification-status",
-  authMiddleware,
+  authAdminRs256,
   doctorController.setVerificationStatus,
 );
 

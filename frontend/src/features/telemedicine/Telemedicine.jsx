@@ -1,15 +1,60 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Api from '../../core/api';
 
 export default function Telemedicine({ navigate }) {
-  const [appointmentId, setAppointmentId] = useState('');
-  const [sessionId, setSessionId] = useState('');
-  const [role, setRole] = useState('patient');
-  const [joinUrl, setJoinUrl] = useState('');
-  const [result, setResult] = useState(null);
+  const [activeTab, setActiveTab] = useState('pending');
+  const [sessions, setSessions] = useState([]);
+  const [appointmentCache, setAppointmentCache] = useState({});
   const [loading, setLoading] = useState(false);
+  const [actionSessionId, setActionSessionId] = useState('');
+  const [error, setError] = useState('');
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinUrl, setJoinUrl] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joinStarted, setJoinStarted] = useState(false);
 
   const accessToken = useMemo(() => sessionStorage.getItem('accessToken') || '', []);
+
+  const getAppointmentIdFromHash = () => {
+    try {
+      const hash = window.location.hash || '';
+      const query = hash.includes('?') ? hash.split('?')[1] : '';
+      const params = new URLSearchParams(query || '');
+      return params.get('appointmentId') || params.get('appointment_id') || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const [appointmentId, setAppointmentId] = useState(() => getAppointmentIdFromHash());
+
+  useEffect(() => {
+    const onHashChange = () => setAppointmentId(getAppointmentIdFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const decodeJwtPayload = (token) => {
+    try {
+      const parts = String(token || '').split('.');
+      if (parts.length < 2) return null;
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      const json = atob(padded);
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
+
+  const getRoleFromToken = () => {
+    const token = getAccessToken();
+    const payload = decodeJwtPayload(token);
+    const role = String(payload?.role || '').toLowerCase();
+    return role === 'doctor' || role === 'admin' ? 'doctor' : 'patient';
+  };
 
   const logout = async () => {
     const refreshToken = sessionStorage.getItem('refreshToken');
@@ -29,9 +74,12 @@ export default function Telemedicine({ navigate }) {
     else window.location.hash = path;
   };
 
+  const getAccessToken = () => sessionStorage.getItem('accessToken') || '';
+
   const authedFetch = async (path, method, body) => {
     const headers = { 'Content-Type': 'application/json' };
-    if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
+    const token = getAccessToken();
+    if (token) headers.Authorization = 'Bearer ' + token;
 
     const res = await fetch(Api.base + path, {
       method,
@@ -43,69 +91,328 @@ export default function Telemedicine({ navigate }) {
     return { status: res.status, body: json };
   };
 
-  const run = async (fn) => {
-    setLoading(true);
+  const fmtShort = (value) => {
+    if (!value) return '—';
+    const s = String(value);
+    return s.length > 10 ? `${s.slice(0, 8)}…` : s;
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return '—';
     try {
-      const output = await fn();
-      setResult(output);
-      return output;
-    } catch (err) {
-      setResult({ status: 0, body: { error: err?.message || 'unexpected_error' } });
-      return null;
+      return new Date(iso).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  const parseTimeToHms = (time) => {
+    if (!time) return null;
+    const t = String(time).trim();
+    const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const ss = Number(m[3] || 0);
+    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return null;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+    return { hh, mm, ss };
+  };
+
+  const buildLocalDateTime = (slotDate, time) => {
+    if (!slotDate || !time) return null;
+    const dateStr = String(slotDate).slice(0, 10);
+    const hms = parseTimeToHms(time);
+    if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(dateStr) || !hms) return null;
+    const hh = String(hms.hh).padStart(2, '0');
+    const mm = String(hms.mm).padStart(2, '0');
+    const ss = String(hms.ss).padStart(2, '0');
+    const d = new Date(`${dateStr}T${hh}:${mm}:${ss}`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const fmtSlotDate = (slotDate) => {
+    if (!slotDate) return '—';
+    try {
+      const dateStr = String(slotDate).slice(0, 10);
+      return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  const fmtTime = (time) => {
+    const hms = parseTimeToHms(time);
+    if (!hms) return '—';
+    try {
+      const d = new Date();
+      d.setHours(hms.hh, hms.mm, 0, 0);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '—';
+    }
+  };
+
+  const isWithinSlotWindow = (appt) => {
+    const start = buildLocalDateTime(appt?.slot_date, appt?.start_time);
+    const end = buildLocalDateTime(appt?.slot_date, appt?.end_time);
+    if (!start || !end) return false;
+    const now = new Date();
+    return now >= start && now <= end;
+  };
+
+  const getAppointment = async (appointmentId) => {
+    if (!appointmentId) return null;
+    if (appointmentCache[appointmentId]) return appointmentCache[appointmentId];
+
+    const res = await authedFetch(`/api/v1/appointments/${appointmentId}`, 'GET');
+    if (res.status >= 200 && res.status < 300 && res.body && res.body.appointment) {
+      const appointment = res.body.appointment;
+      setAppointmentCache((prev) => ({ ...prev, [appointmentId]: appointment }));
+      return appointment;
+    }
+    return null;
+  };
+
+  const loadSessions = async (tab) => {
+    if (!getAccessToken()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await authedFetch(`/api/v1/telemedicine/sessions?status=${encodeURIComponent(tab)}`, 'GET');
+      if (res.status >= 200 && res.status < 300 && res.body && Array.isArray(res.body.sessions)) {
+        const list = res.body.sessions;
+        setSessions(list);
+
+        // Best-effort appointment enrichment for patient + slot/date display
+        const uniqueAppointmentIds = Array.from(
+          new Set(list.map((s) => s && s.appointment_id).filter(Boolean)),
+        );
+        uniqueAppointmentIds.forEach((id) => {
+          if (!appointmentCache[id]) getAppointment(id);
+        });
+        return;
+      }
+      setSessions([]);
+      setError((res.body && res.body.error) || 'failed_to_load_sessions');
+    } catch (e) {
+      setSessions([]);
+      setError(e?.message || 'failed_to_load_sessions');
     } finally {
       setLoading(false);
     }
   };
 
-  const createSession = async () => {
-    const appt = appointmentId.trim() || crypto.randomUUID();
-    setAppointmentId(appt);
+  useEffect(() => {
+    if (appointmentId) return;
+    loadSessions(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, appointmentId]);
 
-    const output = await run(() =>
-      authedFetch('/api/v1/telemedicine/sessions', 'POST', {
-        appointment_id: appt,
-        provider: 'jitsi'
-      })
-    );
+  useEffect(() => {
+    const run = async () => {
+      if (!appointmentId) return;
+      if (!getAccessToken()) return;
+      if (joinStarted) return;
 
-    const id = output && output.body && output.body.session && output.body.session.session_id;
-    if (id) setSessionId(id);
-  };
+      setJoinStarted(true);
+      setJoinLoading(true);
+      setJoinError('');
+      setJoinUrl('');
 
-  const getSession = async () => {
-    if (!sessionId.trim()) return;
-    await run(() => authedFetch('/api/v1/telemedicine/sessions/' + sessionId.trim(), 'GET'));
-  };
+      try {
+        // create or return existing session for this appointment
+        const createRes = await authedFetch('/api/v1/telemedicine/sessions', 'POST', {
+          appointment_id: appointmentId,
+          provider: 'jitsi'
+        });
 
-  const createJoinToken = async () => {
-    if (!sessionId.trim()) return;
-    const output = await run(() =>
-      authedFetch('/api/v1/telemedicine/sessions/' + sessionId.trim() + '/join-token', 'POST', {
+        const sessionId = createRes?.body?.session?.session_id;
+        if (!(createRes.status >= 200 && createRes.status < 300) || !sessionId) {
+          setJoinError((createRes.body && createRes.body.error) || 'failed_to_create_session');
+          return;
+        }
+
+        const role = getRoleFromToken();
+        if (role === 'doctor') {
+          // Doctor: only create the session record; do NOT auto-start/open video.
+          goTo('/telemedicine');
+          return;
+        }
+
+        // Patient: join existing session (only allowed during the appointment window).
+        const joinRes = await authedFetch(`/api/v1/telemedicine/sessions/${sessionId}/join-token`, 'POST', {
+          role
+        });
+
+        const url = joinRes?.body?.joinUrl;
+        if (!(joinRes.status >= 200 && joinRes.status < 300) || !url) {
+          setJoinError((joinRes.body && joinRes.body.error) || 'failed_to_get_link');
+          return;
+        }
+
+        setJoinUrl(url);
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          setJoinError('popup_blocked_open_link_below');
+        }
+      } catch (e) {
+        setJoinError(e?.message || 'failed_to_join_session');
+      } finally {
+        setJoinLoading(false);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId, joinStarted]);
+
+  const getLink = async (session) => {
+    if (!session || !session.session_id) return;
+    setActionSessionId(session.session_id);
+    setError('');
+    try {
+      const role = getRoleFromToken();
+      const res = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/join-token`, 'POST', {
         role
-      })
-    );
-
-    const url = output && output.body && output.body.joinUrl;
-    if (url) setJoinUrl(url);
+      });
+      const url = res && res.body && res.body.joinUrl;
+      if (res.status >= 200 && res.status < 300 && url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        setError((res.body && res.body.error) || 'failed_to_get_link');
+      }
+    } catch (e) {
+      setError(e?.message || 'failed_to_get_link');
+    } finally {
+      setActionSessionId('');
+    }
   };
 
-  const openMeeting = () => {
-    if (!joinUrl) return;
-    window.open(joinUrl, '_blank', 'noopener,noreferrer');
+  const start = async (session) => {
+    if (!session || !session.session_id) return;
+    setActionSessionId(session.session_id);
+    setError('');
+    try {
+      const startRes = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/start`, 'PUT');
+      if (startRes.status < 200 || startRes.status >= 300) {
+        setError((startRes.body && startRes.body.error) || 'failed_to_start');
+        await loadSessions(activeTab);
+        return;
+      }
+
+      const role = getRoleFromToken();
+      const joinRes = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/join-token`, 'POST', {
+        role
+      });
+
+      const url = joinRes?.body?.joinUrl;
+      if (joinRes.status >= 200 && joinRes.status < 300 && url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        setError((joinRes.body && joinRes.body.error) || 'failed_to_get_link');
+      }
+
+      await loadSessions(activeTab);
+    } catch (e) {
+      setError(e?.message || 'failed_to_start');
+    } finally {
+      setActionSessionId('');
+    }
   };
 
-  const startSession = async () => {
-    if (!sessionId.trim()) return;
-    await run(() => authedFetch('/api/v1/telemedicine/sessions/' + sessionId.trim() + '/start', 'PUT'));
+  const end = async (session) => {
+    if (!session || !session.session_id) return;
+    setActionSessionId(session.session_id);
+    setError('');
+    try {
+      const res = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/end`, 'PUT');
+      if (res.status < 200 || res.status >= 300) {
+        setError((res.body && res.body.error) || 'failed_to_end');
+      }
+      await loadSessions(activeTab);
+    } catch (e) {
+      setError(e?.message || 'failed_to_end');
+    } finally {
+      setActionSessionId('');
+    }
   };
 
-  const endSession = async () => {
-    if (!sessionId.trim()) return;
-    await run(() => authedFetch('/api/v1/telemedicine/sessions/' + sessionId.trim() + '/end', 'PUT'));
+  const remove = async (session) => {
+    if (!session || !session.session_id) return;
+    setActionSessionId(session.session_id);
+    setError('');
+    try {
+      const res = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}`, 'DELETE');
+      if (res.status < 200 || res.status >= 300) {
+        setError((res.body && res.body.error) || 'failed_to_delete');
+      }
+      await loadSessions(activeTab);
+    } catch (e) {
+      setError(e?.message || 'failed_to_delete');
+    } finally {
+      setActionSessionId('');
+    }
   };
 
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
+      {appointmentId && (
+        <main className="p-8 min-h-screen">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-extrabold">Telemedicine</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Appointment: <span className="font-mono">{fmtShort(appointmentId)}</span>
+            </p>
+
+            {!getAccessToken() && (
+              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm font-medium">
+                No access token in session. Please login first.
+              </div>
+            )}
+
+            {getAccessToken() && (
+              <div className="mt-6 rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
+                <div className="text-sm font-semibold text-slate-800">
+                  {joinLoading ? 'Preparing your video session…' : joinUrl ? 'Session ready.' : 'Waiting…'}
+                </div>
+
+                {joinError && (
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900 text-sm font-semibold">
+                    {joinError}
+                  </div>
+                )}
+
+                {joinUrl && (
+                  <div className="mt-4">
+                    <a
+                      href={joinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#0b9385] text-white font-semibold text-sm hover:opacity-95"
+                    >
+                      Open Session
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+
+      {!appointmentId && (
+      <>
       <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
         <div className="mb-10 px-4">
           <div className="flex items-center gap-3">
@@ -186,88 +493,138 @@ export default function Telemedicine({ navigate }) {
           </div>
         )}
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#0b9385]">video_chat</span>
-              Session Setup
-            </h2>
-
-            <label className="block text-sm font-semibold mb-1">Appointment ID</label>
-            <input
-              value={appointmentId}
-              onChange={(e) => setAppointmentId(e.target.value)}
-              placeholder="Auto-generated if empty"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-4 text-sm"
-            />
-
-            <label className="block text-sm font-semibold mb-1">Provider</label>
-            <div className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-4 text-sm bg-slate-100 text-slate-700 font-semibold">
-              Jitsi Meet (configured)
+        <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('pending')}
+                className={
+                  activeTab === 'pending'
+                    ? 'px-4 py-2 rounded-lg bg-[#0b9385]/10 text-[#0b9385] font-bold text-sm'
+                    : 'px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-semibold text-sm'
+                }
+              >
+                Pending
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('ended')}
+                className={
+                  activeTab === 'ended'
+                    ? 'px-4 py-2 rounded-lg bg-[#0b9385]/10 text-[#0b9385] font-bold text-sm'
+                    : 'px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-semibold text-sm'
+                }
+              >
+                End
+              </button>
             </div>
 
             <button
               type="button"
-              onClick={createSession}
-              disabled={loading || !accessToken}
-              className="w-full bg-[#0b9385] text-white rounded-lg py-2.5 font-bold disabled:opacity-50"
+              disabled={loading || !getAccessToken()}
+              onClick={() => loadSessions(activeTab)}
+              className="px-4 py-2 rounded-lg border border-slate-200 bg-white font-semibold text-sm hover:bg-slate-100 disabled:opacity-50"
             >
-              {loading ? 'Processing...' : 'Create Session'}
+              {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
 
-          <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-bold mb-4">Session Actions</h2>
-
-            <label className="block text-sm font-semibold mb-1">Session ID</label>
-            <input
-              value={sessionId}
-              onChange={(e) => setSessionId(e.target.value)}
-              placeholder="Paste or create a session first"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-4 text-sm"
-            />
-
-            <label className="block text-sm font-semibold mb-1">Join Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-4 text-sm"
-            >
-              <option value="patient">Patient</option>
-              <option value="doctor">Doctor</option>
-            </select>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={getSession} disabled={loading || !sessionId || !accessToken} className="rounded-lg border border-slate-300 py-2 text-sm font-semibold bg-white disabled:opacity-50">Get</button>
-              <button type="button" onClick={createJoinToken} disabled={loading || !sessionId || !accessToken} className="rounded-lg border border-slate-300 py-2 text-sm font-semibold bg-white disabled:opacity-50">Get Link</button>
-              <button type="button" onClick={startSession} disabled={loading || !sessionId || !accessToken} className="rounded-lg border border-slate-300 py-2 text-sm font-semibold bg-white disabled:opacity-50">Start</button>
-              <button type="button" onClick={endSession} disabled={loading || !sessionId || !accessToken} className="rounded-lg border border-slate-300 py-2 text-sm font-semibold bg-white disabled:opacity-50">End</button>
+          {error && (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900 text-sm font-semibold">
+              {error}
             </div>
+          )}
 
-            <div className="mt-4 space-y-2">
-              <button
-                type="button"
-                onClick={openMeeting}
-                disabled={!joinUrl}
-                className="w-full rounded-lg bg-[#0b9385] py-2.5 text-sm font-bold text-white disabled:opacity-50"
-              >
-                Join Meeting
-              </button>
-              {joinUrl && (
-                <p className="text-xs text-slate-500 break-all">
-                  Meeting URL: {joinUrl}
-                </p>
-              )}
-            </div>
+          <div className="mt-5 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500 border-b border-slate-200">
+                  <th className="py-3 pr-4 font-bold">Patient Name</th>
+                  <th className="py-3 pr-4 font-bold">Time slot</th>
+                  <th className="py-3 pr-4 font-bold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(!sessions || sessions.length === 0) && (
+                  <tr>
+                    <td colSpan={3} className="py-6 text-slate-500">
+                      {loading ? 'Loading sessions...' : 'No sessions found.'}
+                    </td>
+                  </tr>
+                )}
+
+                {sessions.map((s) => {
+                  const appt = appointmentCache[s.appointment_id];
+                  const patientLabel = appt ? (appt.patient_name || appt.patient_email || fmtShort(appt.patient_id)) : '—';
+
+                  const timeSlotLabel = appt && appt.slot_date && appt.start_time && appt.end_time
+                    ? `${fmtSlotDate(appt.slot_date)} • ${fmtTime(appt.start_time)} - ${fmtTime(appt.end_time)}`
+                    : fmtDate(s.created_at);
+
+                  const isBusy = actionSessionId === s.session_id;
+                  const isEnded = String(s.session_status || '').toLowerCase() === 'ended';
+
+                  const canJoinNow = appt ? isWithinSlotWindow(appt) : false;
+                  const timeLocked = !canJoinNow;
+                  const timeLockedTitle = timeLocked ? 'Locked until the appointment time window.' : undefined;
+
+                  return (
+                    <tr key={s.session_id} className="border-b border-slate-100 last:border-b-0">
+                      <td className="py-4 pr-4">
+                        <div className="font-semibold text-slate-800">{patientLabel}</div>
+                        <div className="text-xs text-slate-500 font-mono">Appt: {fmtShort(s.appointment_id)}</div>
+                      </td>
+                      <td className="py-4 pr-4 text-slate-700">{timeSlotLabel}</td>
+                      <td className="py-4 pr-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => getLink(s)}
+                            disabled={loading || isBusy || !getAccessToken() || timeLocked}
+                            title={timeLockedTitle}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold bg-white hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Get Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => start(s)}
+                            disabled={loading || isBusy || isEnded || !getAccessToken() || timeLocked}
+                            title={timeLockedTitle}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold bg-white hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Start
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => end(s)}
+                            disabled={loading || isBusy || isEnded || !getAccessToken()}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold bg-white hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            End
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => remove(s)}
+                            disabled={loading || isBusy || !getAccessToken()}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold bg-white hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="rounded-2xl bg-slate-900 text-slate-100 p-6 mt-6 shadow-lg">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-3">Last API Result</h3>
-          <pre className="text-xs overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(result, null, 2)}</pre>
         </div>
       </div>
       </main>
+      </>
+      )}
     </div>
   );
 }

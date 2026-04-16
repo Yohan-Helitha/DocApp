@@ -1,42 +1,42 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: appointment-service
+  name: ai-symptom-checker-service
   labels:
-    app: appointment-service
+    app: ai-symptom-checker-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: appointment-service
+      app: ai-symptom-checker-service
   template:
     metadata:
       labels:
-        app: appointment-service
+        app: ai-symptom-checker-service
     spec:
       initContainers:
-        - name: init-appointments-db
+        - name: init-symptom-checker-db
           image: postgres:15
           imagePullPolicy: IfNotPresent
           env:
             - name: PGHOST
-              value: "appointments-postgres"
+              value: "symptom-checker-postgres"
             - name: PGPORT
               value: "5432"
             - name: PGDATABASE
               valueFrom:
                 configMapKeyRef:
-                  name: appointment-db-config
+                  name: symptom-checker-db-config
                   key: PGDATABASE
             - name: PGUSER
               valueFrom:
                 configMapKeyRef:
-                  name: appointment-db-config
+                  name: symptom-checker-db-config
                   key: PGUSER
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: appointment-db-secret
+                  name: symptom-checker-db-secret
                   key: PGPASSWORD
           command: ["sh", "-c"]
           args:
@@ -47,69 +47,87 @@ spec:
                 echo "Postgres not ready yet; retrying..."
                 sleep 2
               done
-              echo "Applying appointments schema..."
+              echo "Applying symptom-checker schema..."
               psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
-              echo "Appointments schema applied."
+              echo "Schema applied."
           volumeMounts:
-            - name: appointment-db-init
+            - name: symptom-checker-db-init
               mountPath: /db-init
       containers:
-        - name: appointment-service
-          image: docapp/appointment-service:local
+        - name: ai-symptom-checker-service
+          image: docapp/ai-symptom-checker-service:local
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 4003
+            - containerPort: 4009
+          volumeMounts:
+            - name: auth-public-key
+              mountPath: /keys
+              readOnly: true
           env:
             - name: NODE_ENV
               value: "production"
             - name: PORT
-              value: "4003"
+              value: "4009"
             - name: PGHOST
-              value: "appointments-postgres"
+              value: "symptom-checker-postgres"
             - name: PGPORT
               value: "5432"
             - name: PGDATABASE
               valueFrom:
                 configMapKeyRef:
-                  name: appointment-db-config
+                  name: symptom-checker-db-config
                   key: PGDATABASE
             - name: PGUSER
               valueFrom:
                 configMapKeyRef:
-                  name: appointment-db-config
+                  name: symptom-checker-db-config
                   key: PGUSER
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: appointment-db-secret
+                  name: symptom-checker-db-secret
                   key: PGPASSWORD
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: appointment-db-secret
+                  name: symptom-checker-db-secret
                   key: JWT_SECRET
+            - name: AUTH_PUBLIC_KEY_PATH
+              value: "/keys/public.pem"
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: symptom-checker-db-secret
+                  key: GEMINI_API_KEY
+            - name: GEMINI_MODEL
+              value: "gemini-2.5-flash"
             - name: DOCTOR_SERVICE_URL
               value: "http://doctor-management-service:4002"
-            - name: NOTIFICATION_SERVICE_URL
-              value: "http://notification-service:6000"
       volumes:
-        - name: appointment-db-init
+        - name: symptom-checker-db-init
           configMap:
-            name: appointment-db-init
+            name: symptom-checker-db-init
             items:
               - key: init.sql
                 path: init.sql
+        - name: auth-public-key
+          secret:
+            secretName: auth-public-key
+            items:
+              - key: public.pem
+                path: public.pem
 
 ---
+
 apiVersion: v1
 kind: Service
 metadata:
-  name: appointment-service
+  name: ai-symptom-checker-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
-    app: appointment-service
+    app: ai-symptom-checker-service
   ports:
     - protocol: TCP
-      port: 4003
-      targetPort: 4003
+      port: 4009
+      targetPort: 4009

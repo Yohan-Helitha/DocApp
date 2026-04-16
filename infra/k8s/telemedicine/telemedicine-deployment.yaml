@@ -16,28 +16,49 @@ spec:
     spec:
       containers:
       - name: telemedicine
-        image: telemedicine-service:latest
+        image: docapp/telemedicine-service:local
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 4010
         env:
+        - name: NODE_ENV
+          value: "production"
+        - name: APP_TIMEZONE
+          value: "Asia/Colombo"
         - name: PORT
           value: "4010"
         - name: PGHOST
           value: "auth-postgres"
         - name: PGPORT
           value: "5432"
-        - name: PGUSER
-          value: "postgres"
-        - name: PGPASSWORD
-          value: "postgres"
         - name: PGDATABASE
           value: "telemeddb"
+        - name: PGUSER
+          valueFrom:
+            configMapKeyRef:
+              name: auth-db-config
+              key: PGUSER
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: auth-db-secret
+              key: PGPASSWORD
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: auth-db-secret
               key: JWT_SECRET
+        - name: AUTH_PUBLIC_KEY_PATH
+          value: "/keys/public.pem"
+        volumeMounts:
+        - name: auth-public-key
+          mountPath: /keys
+          readOnly: true
+
+      volumes:
+      - name: auth-public-key
+        secret:
+          secretName: auth-public-key
 
 ---
 apiVersion: v1

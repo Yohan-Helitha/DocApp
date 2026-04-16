@@ -11,6 +11,14 @@ export default {
   PGPASSWORD: getEnv('PGPASSWORD', 'postgres'),
   PGDATABASE: getEnv('PGDATABASE', 'telemeddb'),
   JITSI_BASE_URL: getEnv('JITSI_BASE_URL', 'https://meet.jit.si'),
+  // Used to validate appointment status before session creation.
+  // In k8s, api-gateway is reachable via service DNS.
+  API_GATEWAY_URL: getEnv(
+    'API_GATEWAY_URL',
+    getEnv('NODE_ENV', 'development') === 'development'
+      ? 'http://localhost:4000'
+      : 'http://api-gateway:4000',
+  ),
   // Optional shared secret for HS256 verification (must match auth-service JWT_SECRET)
   JWT_SECRET: getEnv('JWT_SECRET', ''),
   // Path to auth-service public key for RS256 verification

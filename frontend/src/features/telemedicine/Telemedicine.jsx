@@ -8,8 +8,53 @@ export default function Telemedicine({ navigate }) {
   const [loading, setLoading] = useState(false);
   const [actionSessionId, setActionSessionId] = useState('');
   const [error, setError] = useState('');
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinUrl, setJoinUrl] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joinStarted, setJoinStarted] = useState(false);
 
   const accessToken = useMemo(() => sessionStorage.getItem('accessToken') || '', []);
+
+  const getAppointmentIdFromHash = () => {
+    try {
+      const hash = window.location.hash || '';
+      const query = hash.includes('?') ? hash.split('?')[1] : '';
+      const params = new URLSearchParams(query || '');
+      return params.get('appointmentId') || params.get('appointment_id') || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const [appointmentId, setAppointmentId] = useState(() => getAppointmentIdFromHash());
+
+  useEffect(() => {
+    const onHashChange = () => setAppointmentId(getAppointmentIdFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const decodeJwtPayload = (token) => {
+    try {
+      const parts = String(token || '').split('.');
+      if (parts.length < 2) return null;
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      const json = atob(padded);
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
+
+  const getRoleFromToken = () => {
+    const token = getAccessToken();
+    const payload = decodeJwtPayload(token);
+    const role = String(payload?.role || '').toLowerCase();
+    return role === 'doctor' || role === 'admin' ? 'doctor' : 'patient';
+  };
 
   const logout = async () => {
     const refreshToken = sessionStorage.getItem('refreshToken');
@@ -67,6 +112,65 @@ export default function Telemedicine({ navigate }) {
     }
   };
 
+  const parseTimeToHms = (time) => {
+    if (!time) return null;
+    const t = String(time).trim();
+    const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const ss = Number(m[3] || 0);
+    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return null;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+    return { hh, mm, ss };
+  };
+
+  const buildLocalDateTime = (slotDate, time) => {
+    if (!slotDate || !time) return null;
+    const dateStr = String(slotDate).slice(0, 10);
+    const hms = parseTimeToHms(time);
+    if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(dateStr) || !hms) return null;
+    const hh = String(hms.hh).padStart(2, '0');
+    const mm = String(hms.mm).padStart(2, '0');
+    const ss = String(hms.ss).padStart(2, '0');
+    const d = new Date(`${dateStr}T${hh}:${mm}:${ss}`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const fmtSlotDate = (slotDate) => {
+    if (!slotDate) return '—';
+    try {
+      const dateStr = String(slotDate).slice(0, 10);
+      return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  const fmtTime = (time) => {
+    const hms = parseTimeToHms(time);
+    if (!hms) return '—';
+    try {
+      const d = new Date();
+      d.setHours(hms.hh, hms.mm, 0, 0);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '—';
+    }
+  };
+
+  const isWithinSlotWindow = (appt) => {
+    const start = buildLocalDateTime(appt?.slot_date, appt?.start_time);
+    const end = buildLocalDateTime(appt?.slot_date, appt?.end_time);
+    if (!start || !end) return false;
+    const now = new Date();
+    return now >= start && now <= end;
+  };
+
   const getAppointment = async (appointmentId) => {
     if (!appointmentId) return null;
     if (appointmentCache[appointmentId]) return appointmentCache[appointmentId];
@@ -110,17 +214,77 @@ export default function Telemedicine({ navigate }) {
   };
 
   useEffect(() => {
+    if (appointmentId) return;
     loadSessions(activeTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, appointmentId]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!appointmentId) return;
+      if (!getAccessToken()) return;
+      if (joinStarted) return;
+
+      setJoinStarted(true);
+      setJoinLoading(true);
+      setJoinError('');
+      setJoinUrl('');
+
+      try {
+        // create or return existing session for this appointment
+        const createRes = await authedFetch('/api/v1/telemedicine/sessions', 'POST', {
+          appointment_id: appointmentId,
+          provider: 'jitsi'
+        });
+
+        const sessionId = createRes?.body?.session?.session_id;
+        if (!(createRes.status >= 200 && createRes.status < 300) || !sessionId) {
+          setJoinError((createRes.body && createRes.body.error) || 'failed_to_create_session');
+          return;
+        }
+
+        const role = getRoleFromToken();
+        if (role === 'doctor') {
+          // Doctor: only create the session record; do NOT auto-start/open video.
+          goTo('/telemedicine');
+          return;
+        }
+
+        // Patient: join existing session (only allowed during the appointment window).
+        const joinRes = await authedFetch(`/api/v1/telemedicine/sessions/${sessionId}/join-token`, 'POST', {
+          role
+        });
+
+        const url = joinRes?.body?.joinUrl;
+        if (!(joinRes.status >= 200 && joinRes.status < 300) || !url) {
+          setJoinError((joinRes.body && joinRes.body.error) || 'failed_to_get_link');
+          return;
+        }
+
+        setJoinUrl(url);
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          setJoinError('popup_blocked_open_link_below');
+        }
+      } catch (e) {
+        setJoinError(e?.message || 'failed_to_join_session');
+      } finally {
+        setJoinLoading(false);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId, joinStarted]);
 
   const getLink = async (session) => {
     if (!session || !session.session_id) return;
     setActionSessionId(session.session_id);
     setError('');
     try {
+      const role = getRoleFromToken();
       const res = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/join-token`, 'POST', {
-        role: 'doctor'
+        role
       });
       const url = res && res.body && res.body.joinUrl;
       if (res.status >= 200 && res.status < 300 && url) {
@@ -140,10 +304,25 @@ export default function Telemedicine({ navigate }) {
     setActionSessionId(session.session_id);
     setError('');
     try {
-      const res = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/start`, 'PUT');
-      if (res.status < 200 || res.status >= 300) {
-        setError((res.body && res.body.error) || 'failed_to_start');
+      const startRes = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/start`, 'PUT');
+      if (startRes.status < 200 || startRes.status >= 300) {
+        setError((startRes.body && startRes.body.error) || 'failed_to_start');
+        await loadSessions(activeTab);
+        return;
       }
+
+      const role = getRoleFromToken();
+      const joinRes = await authedFetch(`/api/v1/telemedicine/sessions/${session.session_id}/join-token`, 'POST', {
+        role
+      });
+
+      const url = joinRes?.body?.joinUrl;
+      if (joinRes.status >= 200 && joinRes.status < 300 && url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        setError((joinRes.body && joinRes.body.error) || 'failed_to_get_link');
+      }
+
       await loadSessions(activeTab);
     } catch (e) {
       setError(e?.message || 'failed_to_start');
@@ -188,6 +367,52 @@ export default function Telemedicine({ navigate }) {
 
   return (
     <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
+      {appointmentId && (
+        <main className="p-8 min-h-screen">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-extrabold">Telemedicine</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Appointment: <span className="font-mono">{fmtShort(appointmentId)}</span>
+            </p>
+
+            {!getAccessToken() && (
+              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm font-medium">
+                No access token in session. Please login first.
+              </div>
+            )}
+
+            {getAccessToken() && (
+              <div className="mt-6 rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
+                <div className="text-sm font-semibold text-slate-800">
+                  {joinLoading ? 'Preparing your video session…' : joinUrl ? 'Session ready.' : 'Waiting…'}
+                </div>
+
+                {joinError && (
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900 text-sm font-semibold">
+                    {joinError}
+                  </div>
+                )}
+
+                {joinUrl && (
+                  <div className="mt-4">
+                    <a
+                      href={joinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#0b9385] text-white font-semibold text-sm hover:opacity-95"
+                    >
+                      Open Session
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+
+      {!appointmentId && (
+      <>
       <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
         <div className="mb-10 px-4">
           <div className="flex items-center gap-3">
@@ -331,13 +556,18 @@ export default function Telemedicine({ navigate }) {
 
                 {sessions.map((s) => {
                   const appt = appointmentCache[s.appointment_id];
-                  const patientLabel = appt ? fmtShort(appt.patient_id) : '—';
-                  const timeSlotLabel = appt
-                    ? `${fmtDate(appt.created_at)}${appt.slot_id ? ` • Slot ${fmtShort(appt.slot_id)}` : ''}`
+                  const patientLabel = appt ? (appt.patient_name || appt.patient_email || fmtShort(appt.patient_id)) : '—';
+
+                  const timeSlotLabel = appt && appt.slot_date && appt.start_time && appt.end_time
+                    ? `${fmtSlotDate(appt.slot_date)} • ${fmtTime(appt.start_time)} - ${fmtTime(appt.end_time)}`
                     : fmtDate(s.created_at);
 
                   const isBusy = actionSessionId === s.session_id;
                   const isEnded = String(s.session_status || '').toLowerCase() === 'ended';
+
+                  const canJoinNow = appt ? isWithinSlotWindow(appt) : false;
+                  const timeLocked = !canJoinNow;
+                  const timeLockedTitle = timeLocked ? 'Locked until the appointment time window.' : undefined;
 
                   return (
                     <tr key={s.session_id} className="border-b border-slate-100 last:border-b-0">
@@ -351,7 +581,8 @@ export default function Telemedicine({ navigate }) {
                           <button
                             type="button"
                             onClick={() => getLink(s)}
-                            disabled={loading || isBusy || !getAccessToken()}
+                            disabled={loading || isBusy || !getAccessToken() || timeLocked}
+                            title={timeLockedTitle}
                             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold bg-white hover:bg-slate-50 disabled:opacity-50"
                           >
                             Get Link
@@ -359,7 +590,8 @@ export default function Telemedicine({ navigate }) {
                           <button
                             type="button"
                             onClick={() => start(s)}
-                            disabled={loading || isBusy || isEnded || !getAccessToken()}
+                            disabled={loading || isBusy || isEnded || !getAccessToken() || timeLocked}
+                            title={timeLockedTitle}
                             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold bg-white hover:bg-slate-50 disabled:opacity-50"
                           >
                             Start
@@ -391,6 +623,8 @@ export default function Telemedicine({ navigate }) {
         </div>
       </div>
       </main>
+      </>
+      )}
     </div>
   );
 }

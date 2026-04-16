@@ -20,6 +20,7 @@ import PaymentCheckout from "./pages/PaymentCheckout";
 import PaymentReturn from "./pages/PaymentReturn";
 import PaymentCancel from "./pages/PaymentCancel";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
+import SymptomCheckerChat from "./features/AI/pages/SymptomCheckerChat";
 import PatientProfile from './features/patient-management/PatientProfile'
 import PatientHistory from './features/patient-management/PatientHistory'
 import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
@@ -52,6 +53,8 @@ export default function App() {
     Page = () => <Login navigate={navigate} />;
   else if (path.startsWith("/success/patient"))
     Page = () => <SuccessPatient navigate={navigate} />;
+  else if (path === "/dashboard")
+    Page = () => <SuccessPatient navigate={navigate} />;
   else if (path.startsWith("/success/doctor"))
     Page = () => <SuccessDoctor navigate={navigate} />;
   else if (path.startsWith("/success/admin"))
@@ -70,6 +73,10 @@ export default function App() {
     Page = () => <DoctorAppointments navigate={navigate} />;
   else if (path.startsWith("/doctor/prescriptions"))
     Page = () => <PrescriptionEditor navigate={navigate} />;
+  else if (path === "/prescriptions")
+    Page = () => <PatientPrescriptions navigate={navigate} />;
+  else if (path === "/symptom-checker")
+    Page = () => <SymptomCheckerChat navigate={navigate} />;
   else if (route.startsWith("/telemedicine"))
     Page = () => <Telemedicine navigate={navigate} />;
   else if (path.startsWith("/payments/checkout"))
@@ -92,11 +99,23 @@ export default function App() {
                       route.startsWith('/doctors') ||
                       route.startsWith('/symptom-checker');
 
-  const isAdminRoute = route.startsWith("/success/admin");
+  const hidePublicChrome =
+    route.startsWith("/success/admin") ||
+    path === "/dashboard" ||
+    route.startsWith("/success/patient") ||
+    route.startsWith("/success/doctor") ||
+    path === "/appointments" ||
+    path === "/prescriptions" ||
+    path === "/symptom-checker" ||
+    path === "/telemedicine" ||
+    path === "/doctors" ||
+    path.startsWith("/doctors/") ||
+    path.startsWith("/book") ||
+    path.startsWith("/doctor/");
 
-  if (isAdminRoute) {
-    // Admin area uses its own top bar and sidebar layout (AdminLayout)
-    // so we intentionally do NOT render the public Header/Footer here.
+  if (hidePublicChrome) {
+    // These pages provide their own dashboards/layouts, so we intentionally do NOT
+    // render the public Header/Footer here.
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Page />

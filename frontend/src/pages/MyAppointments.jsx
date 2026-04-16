@@ -36,6 +36,39 @@ const formatTime = (t) => {
   return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
 };
 
+const parseTimeToHms = (time) => {
+  if (!time) return null;
+  const t = String(time).trim();
+  const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ss = Number(m[3] || 0);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+  return { hh, mm, ss };
+};
+
+const buildLocalDateTime = (slotDate, time) => {
+  if (!slotDate || !time) return null;
+  const dateStr = String(slotDate).slice(0, 10);
+  const hms = parseTimeToHms(time);
+  if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(dateStr) || !hms) return null;
+  const hh = String(hms.hh).padStart(2, '0');
+  const mm = String(hms.mm).padStart(2, '0');
+  const ss = String(hms.ss).padStart(2, '0');
+  const d = new Date(`${dateStr}T${hh}:${mm}:${ss}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const isWithinSlotWindow = (appt) => {
+  const start = buildLocalDateTime(appt?.slot_date, appt?.start_time);
+  const end = buildLocalDateTime(appt?.slot_date, appt?.end_time);
+  if (!start || !end) return false;
+  const now = new Date();
+  return now >= start && now <= end;
+};
+
 export default function MyAppointments({ navigate }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -464,21 +497,26 @@ export default function MyAppointments({ navigate }) {
                           Cancel
                         </button>
                       ))}
-                    {a.appointment_status === "confirmed" && (
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/telemedicine?appointmentId=${a.appointment_id}`,
-                          )
-                        }
-                        className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          video_call
-                        </span>
-                        Join Session
-                      </button>
-                    )}
+                    {a.appointment_status === "confirmed" && (() => {
+                      const canJoinNow = isWithinSlotWindow(a);
+                      const locked = !canJoinNow;
+                      return (
+                        <button
+                          onClick={() => {
+                            if (locked) return;
+                            navigate(`/telemedicine?appointmentId=${a.appointment_id}`);
+                          }}
+                          disabled={locked}
+                          title={locked ? "You can only join during the appointment time window." : undefined}
+                          className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-sm">
+                            video_call
+                          </span>
+                          Join Session
+                        </button>
+                      );
+                    })()}
                     {a.appointment_status === "completed" && (
                       <button
                         onClick={() =>

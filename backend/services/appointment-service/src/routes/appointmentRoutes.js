@@ -16,6 +16,13 @@ router.get(
   appointmentController.searchDoctors,
 );
 
+// List upcoming appointments for the currently logged-in patient
+router.get(
+  "/api/v1/appointments/upcoming",
+  authMiddleware,
+  appointmentController.listUpcomingForMe,
+);
+
 // List appointments by patient
 router.get(
   "/api/v1/appointments/patients/:patientId",

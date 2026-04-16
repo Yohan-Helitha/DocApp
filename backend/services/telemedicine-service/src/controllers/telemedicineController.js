@@ -3,7 +3,7 @@ import * as service from '../services/telemedicineService.js';
 export const createSession = async (req, res) => {
   try {
     const payload = req.body || {};
-    const result = await service.createSession(payload, req.user);
+    const result = await service.createSession(payload, req.user, { authorization: req.headers.authorization });
     return res.status(201).json(result);
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'createSession error');
@@ -40,7 +40,7 @@ export const createJoinToken = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { role } = req.body || {};
-    const details = await service.createJoinToken(sessionId, req.user, role);
+    const details = await service.createJoinToken(sessionId, req.user, role, { authorization: req.headers.authorization });
     return res.json(details);
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'createJoinToken error');
@@ -52,7 +52,7 @@ export const createJoinToken = async (req, res) => {
 export const startSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    await service.startSession(sessionId, req.user);
+    await service.startSession(sessionId, req.user, { authorization: req.headers.authorization });
     return res.json({ ok: true });
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'startSession error');

@@ -39,6 +39,8 @@ spec:
               value: "http://payment-service:4006"
             - name: TELEMEDICINE_SERVICE_URL
               value: "http://telemedicine:4010"
+            - name: SYMPTOM_CHECKER_SERVICE_URL
+              value: "http://ai-symptom-checker-service:4009"
             # After PayHere returns to the public ngrok domain, bounce the browser back to
             # your local "main" app. If your local app is actually on 8081, change these to
             # http://localhost:8081/#/payments/return and http://localhost:8081/#/payments/cancel

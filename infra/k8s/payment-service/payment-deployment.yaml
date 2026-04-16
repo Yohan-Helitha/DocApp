@@ -66,6 +66,10 @@ spec:
               value: "https://docapp.ngrok.app/payhere/cancel"
             - name: PAYHERE_NOTIFY_URL
               value: "https://docapp.ngrok.app/api/v1/payments/notify"
+            - name: APPOINTMENT_SERVICE_URL
+              value: "http://appointment-service:4003"
+            - name: INTERNAL_SECRET
+              value: "change-me-internal"
             - name: CORS_ORIGIN
               value: "http://localhost:8081"
 ---

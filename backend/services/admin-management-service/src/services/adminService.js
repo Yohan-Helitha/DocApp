@@ -71,27 +71,69 @@ export const listPendingDoctors = async () => {
     throw err;
   }
 
-  const res = await authClient.get('/api/v1/internal/auth/doctors/pending-verification', {
+  const allDoctorsRes = await authClient.get('/api/v1/internal/auth/doctors/verification-records', {
     headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
   });
+  const authDoctors = Array.isArray(allDoctorsRes.data?.doctors) ? allDoctorsRes.data.doctors : [];
 
-  const doctors = Array.isArray(res.data?.doctors) ? res.data.doctors : [];
-  return doctors.map((d) => {
-    const profile = d.profile_data || {};
-    const submittedAt = d.submitted_at || d.created_at || null;
+  const doctorStatusesRes = await doctorClient.get('/api/v1/internal/doctors/verification-statuses', {
+    headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
+  });
+  const profileDoctors = Array.isArray(doctorStatusesRes.data?.doctors)
+    ? doctorStatusesRes.data.doctors
+    : [];
+
+  const pendingByUserId = new Map(
+    authDoctors
+      .filter((d) => d && d.user_id)
+      .map((d) => [d.user_id, d])
+  );
+
+  const profileByUserId = new Map(
+    profileDoctors
+      .filter((d) => d && d.user_id)
+      .map((d) => [d.user_id, d])
+  );
+
+  const userIds = new Set();
+  for (const d of authDoctors) {
+    if (d?.user_id) userIds.add(d.user_id);
+  }
+  for (const d of profileDoctors) {
+    if (d?.user_id) userIds.add(d.user_id);
+  }
+
+  return Array.from(userIds).map((userId) => {
+    const authRow = pendingByUserId.get(userId) || null;
+    const profileRow = profileByUserId.get(userId) || null;
+
+    const authProfile = authRow?.profile_data || {};
+    const submittedAt = authRow?.submitted_at || authRow?.created_at || profileRow?.created_at || null;
+
+    const accountStatus = String(authRow?.account_status || 'pending_verification').toLowerCase();
+    const loginVerificationStatus = accountStatus === 'pending_verification'
+      ? 'pending'
+      : (accountStatus === 'active' ? 'approved' : (accountStatus === 'rejected' ? 'rejected' : accountStatus));
+
+    const profileVerificationStatus = profileRow
+      ? String(profileRow.verification_status || 'pending').toLowerCase()
+      : 'not_created';
+
     return {
-      doctor_id: d.user_id,
-      user_id: d.user_id,
-      email: d.email,
-      full_name: profile.full_name || null,
-      specialization: profile.specialization || null,
-      account_status: d.account_status,
+      doctor_id: profileRow?.doctor_id || null,
+      user_id: userId,
+      email: authRow?.email || profileRow?.email || null,
+      full_name: profileRow?.full_name || authProfile.full_name || null,
+      specialization: profileRow?.specialization || authProfile.specialization || null,
+      account_status: accountStatus,
       created_at: submittedAt,
       submitted_at: submittedAt,
-      verification_status: d.verification_status,
-      license_original_name: d.license_original_name || null,
-      license_mime_type: d.license_mime_type || null,
-      license_size_bytes: d.license_size_bytes || null
+      verification_status: profileVerificationStatus,
+      login_verification_status: loginVerificationStatus,
+      profile_verification_status: profileVerificationStatus,
+      license_original_name: authRow?.license_original_name || null,
+      license_mime_type: authRow?.license_mime_type || null,
+      license_size_bytes: authRow?.license_size_bytes || null
     };
   });
 };
@@ -127,7 +169,7 @@ export const getDoctorLicense = async ({ doctorId }) => {
   }
 };
 
-export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) => {
+export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId, step = 'all' }) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -140,37 +182,72 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId }) 
 
     const effectiveAdminUserId = adminUserId || SYSTEM_ADMIN_USER_ID;
     const status = approved ? 'approved' : 'rejected';
-    const authRes = await authClient.put(
-      `/api/v1/internal/auth/doctors/${doctorId}/verify`,
-      { status, reason, adminUserId: adminUserId || null },
-      { headers: { 'x-internal-api-key': env.INTERNAL_API_KEY } }
-    );
+    const normalizedStep = String(step || 'all').toLowerCase();
+    const applyLoginStep = normalizedStep === 'all' || normalizedStep === 'login';
+    const applyProfileStep = normalizedStep === 'all' || normalizedStep === 'profile';
 
-    // Keep doctor-management-service status in sync if profile exists.
-    try {
-      await doctorClient.put(
-        `/api/v1/internal/doctors/${doctorId}/verification-status`,
-        { status },
+    let authUser = null;
+    let profileDoctor = null;
+
+    if (applyLoginStep) {
+      const authRes = await authClient.put(
+        `/api/v1/internal/auth/doctors/${doctorId}/verify`,
+        { status, reason, adminUserId: adminUserId || null },
         { headers: { 'x-internal-api-key': env.INTERNAL_API_KEY } }
       );
-    } catch (e) {
-      // If doctor profile does not exist yet, doctor service may return 404.
-      // Don't fail the auth verification in that case.
-      if (!(e && e.response && e.response.status === 404)) throw e;
+      authUser = authRes.data?.user || null;
     }
 
-    await client.query(
-      'INSERT INTO doctor_verification_reviews (doctor_id, reviewed_by_admin_id, review_status, reason) VALUES ($1, $2, $3, $4)',
-      [doctorId, effectiveAdminUserId, approved ? 'approved' : 'rejected', reason || null]
-    );
+    if (applyProfileStep) {
+      try {
+        const doctorRes = await doctorClient.put(
+          `/api/v1/internal/doctors/${doctorId}/verification-status`,
+          { status },
+          { headers: { 'x-internal-api-key': env.INTERNAL_API_KEY } }
+        );
+        profileDoctor = doctorRes.data?.doctor || null;
+      } catch (e) {
+        // In "approve all", allow login approval even if profile is not created yet.
+        if (!(applyLoginStep && e?.response?.status === 404)) {
+          throw e;
+        }
+      }
+
+      if (profileDoctor?.doctor_id) {
+        await client.query(
+          'INSERT INTO doctor_verification_reviews (doctor_id, reviewed_by_admin_id, review_status, reason) VALUES ($1, $2, $3, $4)',
+          [profileDoctor.doctor_id, effectiveAdminUserId, status, reason || null]
+        );
+      }
+    }
+
+    let resolvedDoctorEmail = authUser?.email || profileDoctor?.email || null;
+    if (!resolvedDoctorEmail) {
+      const emailRes = await client.query(
+        'SELECT email FROM users WHERE user_id = $1 LIMIT 1',
+        [doctorId]
+      );
+      resolvedDoctorEmail = emailRes.rows?.[0]?.email || null;
+    }
+
+    const emailSuffix = resolvedDoctorEmail ? `: ${resolvedDoctorEmail}` : '';
+
+    const actionType = applyLoginStep && applyProfileStep
+      ? 'verify_doctor_all'
+      : (applyLoginStep ? 'verify_doctor_login' : 'verify_doctor_profile');
+    const actionNote = applyLoginStep && applyProfileStep
+      ? (approved ? `Doctor login and profile approved${emailSuffix}` : `Doctor login and profile rejected${emailSuffix}`)
+      : (applyLoginStep
+        ? (approved ? `Doctor login approved${emailSuffix}` : `Doctor login rejected${emailSuffix}`)
+        : (approved ? `Doctor profile approved${emailSuffix}` : `Doctor profile rejected${emailSuffix}`));
 
     await client.query(
       'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5)',
-      [effectiveAdminUserId, 'verify_doctor', 'doctor', doctorId, approved ? 'Doctor approved' : 'Doctor rejected']
+      [effectiveAdminUserId, actionType, 'doctor', doctorId, actionNote]
     );
 
     await client.query('COMMIT');
-    return authRes.data?.user;
+    return { user: authUser, doctor: profileDoctor };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -223,11 +300,13 @@ export const getDashboardMetrics = async () => {
 
   let pendingCount = 0;
   if (env.INTERNAL_API_KEY) {
-    const v = await authClient.get('/api/v1/internal/auth/doctors/pending-verification', {
-      headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
-    });
-    const doctors = Array.isArray(v.data?.doctors) ? v.data.doctors : [];
-    pendingCount = doctors.length;
+    const doctors = await listPendingDoctors();
+    pendingCount = doctors.filter((d) => {
+      const login = String(d.login_verification_status || '').toLowerCase();
+      const profile = String(d.profile_verification_status || '').toLowerCase();
+      if (login === 'rejected' || profile === 'rejected') return false;
+      return !(login === 'approved' && profile === 'approved');
+    }).length;
   }
 
   return {

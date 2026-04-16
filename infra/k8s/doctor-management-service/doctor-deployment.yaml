@@ -116,6 +116,11 @@ spec:
                   key: JWT_SECRET
             - name: AUTH_PUBLIC_KEY_PATH
               value: "/app/keys/auth-public.pem"
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_API_KEY
           volumeMounts:
             - name: auth-public-key
               mountPath: /app/keys

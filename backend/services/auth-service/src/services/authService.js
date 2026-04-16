@@ -258,6 +258,23 @@ export const listPendingDoctorVerifications = async () => {
   return { doctors: rows };
 };
 
+export const listDoctorVerifications = async () => {
+  const { rows } = await db.query(
+    `SELECT u.user_id, u.email, u.account_status, u.created_at,
+            r.status AS verification_status,
+            r.profile_data,
+            r.license_original_name,
+            r.license_mime_type,
+            r.license_size_bytes,
+            r.submitted_at
+     FROM users u
+     LEFT JOIN doctor_verification_requests r ON r.user_id = u.user_id
+     WHERE u.role = 'doctor'
+     ORDER BY u.created_at DESC`,
+  );
+  return { doctors: rows };
+};
+
 export const getDoctorLicense = async (userId) => {
   const { rows } = await db.query(
     `SELECT license_original_name, license_mime_type, license_data

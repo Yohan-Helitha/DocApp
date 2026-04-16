@@ -239,58 +239,19 @@ export default function MyAppointments({ navigate }) {
     return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
   };
 
-
-  const initiatePayment = async (appointmentId, consultationFee) => {
+  const initiatePayment = (appointmentId, consultationFee) => {
     setPayingNow(appointmentId);
-    try {
-      let email = "";
-      let firstName = "";
-      try {
-        const decoded = JSON.parse(atob(token.split(".")[1]));
-        email = decoded.email || "";
-        firstName = email.split("@")[0];
-      } catch {}
-      const r = await Api.post(
-        "/api/v1/payments/initiate",
-        {
-          appointmentId,
-          patientId: userId,
-          amount: Number(consultationFee) || 0,
-          currency: "LKR",
-          items: "Consultation fee",
-          firstName,
-          lastName: "",
-          email,
-          returnTo: `${window.location.origin}/#/payments/return?appointmentId=${appointmentId}`,
-          cancelTo: `${window.location.origin}/#/payments/cancel?appointmentId=${appointmentId}`,
-        },
-        token,
-      );
-      if (r.status !== 200 && r.status !== 201) {
-        setError(
-          r.body?.error || r.body?.message || "Failed to initiate payment.",
-        );
-        setPayingNow(null);
-        return;
-      }
-      const { checkout } = r.body;
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = checkout.actionUrl;
-      Object.entries(checkout.fields).forEach(([k, v]) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = k;
-        input.value = v;
-        form.appendChild(input);
-      });
-      document.body.appendChild(form);
-      form.submit();
-      // Don't reset payingNow — browser navigates away via form submit
-    } catch {
-      setError("Network error. Please try again.");
-      setPayingNow(null);
-    }
+    // Checkout must be submitted from the authorized ngrok domain, not localhost,
+    // because PayHere rejects requests from unauthorized origins.
+    const checkoutUrl = new URL("https://docapp.ngrok.app/#/payments/checkout");
+    checkoutUrl.searchParams.set("appointmentId", appointmentId);
+    checkoutUrl.searchParams.set("patientId", userId);
+    checkoutUrl.searchParams.set(
+      "amount",
+      String(Number(consultationFee) || 0),
+    );
+    checkoutUrl.searchParams.set("currency", "LKR");
+    window.location.href = checkoutUrl.toString();
   };
 
   const filtered =
@@ -322,278 +283,278 @@ export default function MyAppointments({ navigate }) {
 
   return (
     <DashboardLayout navigate={navigate} pageName="Appointments">
-        <header className="sticky top-0 w-full flex justify-between items-center px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
-          <h2 className="text-xl font-black text-[#0b9385] tracking-tight">
-            My Appointments
-          </h2>
-          <button
-            onClick={() => navigate("/doctors")}
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            Book New
-          </button>
-        </header>
+      <header className="sticky top-0 w-full flex justify-between items-center px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
+        <h2 className="text-xl font-black text-[#0b9385] tracking-tight">
+          My Appointments
+        </h2>
+        <button
+          onClick={() => navigate("/doctors")}
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-colors"
+        >
+          <span className="material-symbols-outlined text-sm">add</span>
+          Book New
+        </button>
+      </header>
 
-        <div className="max-w-5xl mx-auto">
-          {/* Filter tabs */}
-          <div className="flex gap-2 mb-8 flex-wrap">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setFilter(tab)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
-                  filter === tab
-                    ? "bg-primary text-white shadow-sm"
-                    : "bg-white text-slate-500 border border-slate-100 hover:border-primary/30"
-                }`}
-              >
-                {tab}
-                {tab !== "all" && (
-                  <span className="ml-1.5 text-[10px] opacity-70">
-                    (
-                    {
-                      appointments.filter((a) => a.appointment_status === tab)
-                        .length
-                    }
-                    )
-                  </span>
-                )}
-              </button>
-            ))}
+      <div className="max-w-5xl mx-auto">
+        {/* Filter tabs */}
+        <div className="flex gap-2 mb-8 flex-wrap">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
+                filter === tab
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-white text-slate-500 border border-slate-100 hover:border-primary/30"
+              }`}
+            >
+              {tab}
+              {tab !== "all" && (
+                <span className="ml-1.5 text-[10px] opacity-70">
+                  (
+                  {
+                    appointments.filter((a) => a.appointment_status === tab)
+                      .length
+                  }
+                  )
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {loading && (
+          <div className="flex justify-center py-24">
+            <span className="material-symbols-outlined text-primary text-5xl animate-spin">
+              progress_activity
+            </span>
           </div>
+        )}
 
-          {loading && (
-            <div className="flex justify-center py-24">
-              <span className="material-symbols-outlined text-primary text-5xl animate-spin">
-                progress_activity
-              </span>
-            </div>
-          )}
+        {!loading && error && (
+          <div className="text-center py-20">
+            <span className="material-symbols-outlined text-red-400 text-5xl block mb-3">
+              error
+            </span>
+            <p className="text-red-500 font-medium">{error}</p>
+            <button
+              onClick={fetchAppointments}
+              className="mt-4 px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
-          {!loading && error && (
-            <div className="text-center py-20">
-              <span className="material-symbols-outlined text-red-400 text-5xl block mb-3">
-                error
-              </span>
-              <p className="text-red-500 font-medium">{error}</p>
-              <button
-                onClick={fetchAppointments}
-                className="mt-4 px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl"
+        {!loading && !error && filtered.length === 0 && (
+          <div className="text-center py-24 text-slate-400">
+            <span className="material-symbols-outlined text-6xl block mb-4">
+              event_busy
+            </span>
+            <p className="text-lg font-medium">
+              No {filter !== "all" ? filter : ""} appointments found.
+            </p>
+            <button
+              onClick={() => navigate("/doctors")}
+              className="mt-5 px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl"
+            >
+              Browse Doctors
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && filtered.length > 0 && (
+          <div className="space-y-4">
+            {filtered.map((a) => (
+              <div
+                key={a.appointment_id}
+                className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-between gap-4 flex-wrap"
               >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && filtered.length === 0 && (
-            <div className="text-center py-24 text-slate-400">
-              <span className="material-symbols-outlined text-6xl block mb-4">
-                event_busy
-              </span>
-              <p className="text-lg font-medium">
-                No {filter !== "all" ? filter : ""} appointments found.
-              </p>
-              <button
-                onClick={() => navigate("/doctors")}
-                className="mt-5 px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl"
-              >
-                Browse Doctors
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && filtered.length > 0 && (
-            <div className="space-y-4">
-              {filtered.map((a) => (
-                <div
-                  key={a.appointment_id}
-                  className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-between gap-4 flex-wrap"
-                >
-                  <div className="flex items-center gap-5">
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                        STATUS_COLORS[a.appointment_status]?.split(" ")[0] ||
-                        "bg-slate-100"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-xl">
-                        event
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-0.5">
-                        Appointment
-                      </p>
-                      {/* Bug 7 fix: show doctor name instead of raw ID */}
-                      <p className="font-bold text-slate-900 text-sm">
-                        {a.doctor_name
-                          ? `Dr. ${a.doctor_name}`
-                          : `#${a.appointment_id.slice(0, 8).toUpperCase()}`}
-                      </p>
-                      {/* Bug 11 fix: show slot date and time */}
-                      {a.slot_date && (
-                        <p className="text-xs font-semibold text-primary mt-0.5">
-                          {formatDate(a.slot_date)}
-                          {a.start_time && (
-                            <span className="text-slate-500 font-normal">
-                              {" "}
-                              &bull; {formatTime(a.start_time)}
-                              {a.end_time && ` – ${formatTime(a.end_time)}`}
-                            </span>
-                          )}
-                        </p>
-                      )}
-                      {a.reason_for_visit && (
-                        <p className="text-sm text-slate-500 mt-0.5 max-w-xs">
-                          {a.reason_for_visit}
-                        </p>
-                      )}
-                      <p className="text-xs text-slate-400 mt-1">
-                        Booked{" "}
-                        {new Date(a.created_at).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span
-                      className={`text-[11px] font-bold uppercase px-3 py-1 rounded-full ${
-                        STATUS_COLORS[a.appointment_status] ||
-                        "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {a.appointment_status}
+                <div className="flex items-center gap-5">
+                  <div
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      STATUS_COLORS[a.appointment_status]?.split(" ")[0] ||
+                      "bg-slate-100"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xl">
+                      event
                     </span>
-                    {a.appointment_status === "pending" && (
-                      <button
-                        onClick={() => openReschedule(a)}
-                        className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          schedule
-                        </span>
-                        Reschedule
-                      </button>
-                    )}
-                    {(a.appointment_status === "pending" ||
-                      (a.appointment_status === "confirmed" &&
-                        a.payment_status !== "paid")) &&
-                      (confirmingCancel === a.appointment_id ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs text-slate-500">
-                            Cancel this appointment?
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-0.5">
+                      Appointment
+                    </p>
+                    {/* Bug 7 fix: show doctor name instead of raw ID */}
+                    <p className="font-bold text-slate-900 text-sm">
+                      {a.doctor_name
+                        ? `Dr. ${a.doctor_name}`
+                        : `#${a.appointment_id.slice(0, 8).toUpperCase()}`}
+                    </p>
+                    {/* Bug 11 fix: show slot date and time */}
+                    {a.slot_date && (
+                      <p className="text-xs font-semibold text-primary mt-0.5">
+                        {formatDate(a.slot_date)}
+                        {a.start_time && (
+                          <span className="text-slate-500 font-normal">
+                            {" "}
+                            &bull; {formatTime(a.start_time)}
+                            {a.end_time && ` – ${formatTime(a.end_time)}`}
                           </span>
-                          <button
-                            onClick={() => cancel(a.appointment_id)}
-                            disabled={cancelling === a.appointment_id}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
-                          >
-                            {cancelling === a.appointment_id
-                              ? "Cancelling..."
-                              : "Yes, Cancel"}
-                          </button>
-                          <button
-                            onClick={() => setConfirmingCancel(null)}
-                            className="px-3 py-1.5 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
-                          >
-                            Keep
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmingCancel(a.appointment_id)}
-                          disabled={cancelling === a.appointment_id}
-                          className="px-4 py-2 text-xs font-bold text-red-500 border border-red-100 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      ))}
-                    {a.appointment_status === "confirmed" &&
-                      a.payment_status !== "paid" && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {a.payment_deadline &&
-                            formatDeadline(a.payment_deadline) && (
-                              <span className="text-xs text-amber-600 font-semibold">
-                                {formatDeadline(a.payment_deadline)}
-                              </span>
-                            )}
-                          <button
-                            onClick={() =>
-                              initiatePayment(
-                                a.appointment_id,
-                                a.consultation_fee,
-                              )
-                            }
-                            disabled={payingNow === a.appointment_id}
-                            className="px-4 py-2 text-xs font-bold text-white bg-amber-500 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                          >
-                            {payingNow === a.appointment_id ? (
-                              <span className="material-symbols-outlined text-sm animate-spin">
-                                progress_activity
-                              </span>
-                            ) : (
-                              <span className="material-symbols-outlined text-sm">
-                                payments
-                              </span>
-                            )}
-                            Pay Now
-                          </button>
-                        </div>
-                      )}
-                    {a.appointment_status === "confirmed" &&
-                      a.payment_status === "paid" &&
-                      (() => {
-                        const canJoinNow = isWithinSlotWindow(a);
-                        const locked = !canJoinNow;
-                        return (
-                          <button
-                            onClick={() => {
-                              if (locked) return;
-                              navigate(
-                                `/telemedicine?appointmentId=${a.appointment_id}`,
-                              );
-                            }}
-                            disabled={locked}
-                            title={
-                              locked
-                                ? "You can only join during the appointment time window."
-                                : undefined
-                            }
-                            className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <span className="material-symbols-outlined text-sm">
-                              video_call
-                            </span>
-                            Join Session
-                          </button>
-                        );
-                      })()}
-                    {a.appointment_status === "completed" && (
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/prescriptions?patientId=${userId}&appointmentId=${a.appointment_id}`,
-                          )
-                        }
-                        className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          description
-                        </span>
-                        View Prescriptions
-                      </button>
+                        )}
+                      </p>
                     )}
+                    {a.reason_for_visit && (
+                      <p className="text-sm text-slate-500 mt-0.5 max-w-xs">
+                        {a.reason_for_visit}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">
+                      Booked{" "}
+                      {new Date(a.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span
+                    className={`text-[11px] font-bold uppercase px-3 py-1 rounded-full ${
+                      STATUS_COLORS[a.appointment_status] ||
+                      "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {a.appointment_status}
+                  </span>
+                  {a.appointment_status === "pending" && (
+                    <button
+                      onClick={() => openReschedule(a)}
+                      className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        schedule
+                      </span>
+                      Reschedule
+                    </button>
+                  )}
+                  {(a.appointment_status === "pending" ||
+                    (a.appointment_status === "confirmed" &&
+                      a.payment_status !== "paid")) &&
+                    (confirmingCancel === a.appointment_id ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-slate-500">
+                          Cancel this appointment?
+                        </span>
+                        <button
+                          onClick={() => cancel(a.appointment_id)}
+                          disabled={cancelling === a.appointment_id}
+                          className="px-3 py-1.5 text-xs font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
+                        >
+                          {cancelling === a.appointment_id
+                            ? "Cancelling..."
+                            : "Yes, Cancel"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmingCancel(null)}
+                          className="px-3 py-1.5 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                        >
+                          Keep
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingCancel(a.appointment_id)}
+                        disabled={cancelling === a.appointment_id}
+                        className="px-4 py-2 text-xs font-bold text-red-500 border border-red-100 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    ))}
+                  {a.appointment_status === "confirmed" &&
+                    a.payment_status !== "paid" && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {a.payment_deadline &&
+                          formatDeadline(a.payment_deadline) && (
+                            <span className="text-xs text-amber-600 font-semibold">
+                              {formatDeadline(a.payment_deadline)}
+                            </span>
+                          )}
+                        <button
+                          onClick={() =>
+                            initiatePayment(
+                              a.appointment_id,
+                              a.consultation_fee,
+                            )
+                          }
+                          disabled={payingNow === a.appointment_id}
+                          className="px-4 py-2 text-xs font-bold text-white bg-amber-500 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {payingNow === a.appointment_id ? (
+                            <span className="material-symbols-outlined text-sm animate-spin">
+                              progress_activity
+                            </span>
+                          ) : (
+                            <span className="material-symbols-outlined text-sm">
+                              payments
+                            </span>
+                          )}
+                          Pay Now
+                        </button>
+                      </div>
+                    )}
+                  {a.appointment_status === "confirmed" &&
+                    a.payment_status === "paid" &&
+                    (() => {
+                      const canJoinNow = isWithinSlotWindow(a);
+                      const locked = !canJoinNow;
+                      return (
+                        <button
+                          onClick={() => {
+                            if (locked) return;
+                            navigate(
+                              `/telemedicine?appointmentId=${a.appointment_id}`,
+                            );
+                          }}
+                          disabled={locked}
+                          title={
+                            locked
+                              ? "You can only join during the appointment time window."
+                              : undefined
+                          }
+                          className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-sm">
+                            video_call
+                          </span>
+                          Join Session
+                        </button>
+                      );
+                    })()}
+                  {a.appointment_status === "completed" && (
+                    <button
+                      onClick={() =>
+                        navigate(
+                          `/prescriptions?patientId=${userId}&appointmentId=${a.appointment_id}`,
+                        )
+                      }
+                      className="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        description
+                      </span>
+                      View Prescriptions
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Reschedule Modal */}
       {rescheduleTarget && (

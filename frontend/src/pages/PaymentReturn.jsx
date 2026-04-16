@@ -11,7 +11,11 @@ export default function PaymentReturn({ navigate }) {
       qIndex !== -1
         ? new URLSearchParams(hash.slice(qIndex + 1))
         : new URLSearchParams();
-    const appointmentId = params.get("appointmentId");
+
+    // PayHere echoes custom_2 back to the return URL — that's where we stored
+    // appointmentId when building the checkout fields. Fall back to an explicit
+    // appointmentId param (e.g., manual navigation / direct link testing).
+    const appointmentId = params.get("custom_2") || params.get("appointmentId");
 
     if (!appointmentId) {
       setStatus("error");

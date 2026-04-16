@@ -17,7 +17,7 @@ spec:
       containers:
         - name: notification-service
           image: docapp/notification-service:local
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6000
           env:

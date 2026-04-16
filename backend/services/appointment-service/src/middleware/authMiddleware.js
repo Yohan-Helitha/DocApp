@@ -1,10 +1,28 @@
 // Auth middleware for appointment-service.
 // Verifies Bearer JWT from Authorization header and attaches req.user.
-// Same pattern as doctor-management-service — no DB lookup needed.
+// Tries RS256 with AUTH_PUBLIC_KEY_PATH first; falls back to HS256 (JWT_SECRET).
 // JWT payload carries all required identity claims (sub, email, role).
 
+import fs from "fs";
+import path from "path";
 import jwt from "jsonwebtoken";
 import env from "../config/environment.js";
+
+let cachedPublicKey = null;
+
+const getPublicKey = () => {
+  if (cachedPublicKey) return cachedPublicKey;
+  const configuredPath = env.AUTH_PUBLIC_KEY_PATH;
+  if (!configuredPath) return null;
+
+  const absPath = path.isAbsolute(configuredPath)
+    ? configuredPath
+    : path.resolve(process.cwd(), configuredPath);
+
+  if (!fs.existsSync(absPath)) return null;
+  cachedPublicKey = fs.readFileSync(absPath, "utf8");
+  return cachedPublicKey;
+};
 
 export default (req, res, next) => {
   const auth = req.headers.authorization || "";
@@ -14,7 +32,21 @@ export default (req, res, next) => {
 
   const token = auth.split(" ")[1];
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET || "");
+    let payload;
+
+    const publicKey = getPublicKey();
+    if (publicKey) {
+      try {
+        payload = jwt.verify(token, publicKey, { algorithms: ["RS256"] });
+      } catch {
+        // Fall back to HS256 for local/dev environments without key files.
+      }
+    }
+
+    if (!payload) {
+      payload = jwt.verify(token, env.JWT_SECRET || "");
+    }
+
     if (!payload || !payload.sub) {
       return res.status(401).json({ error: "invalid_token" });
     }

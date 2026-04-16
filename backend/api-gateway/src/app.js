@@ -20,24 +20,26 @@ app.use((req, res, next) => {
 
   // Extract Identity from JWT if present
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     try {
-      const token = authHeader.split(' ')[1];
-      const payloadBase64 = token.split('.')[1];
+      const token = authHeader.split(" ")[1];
+      const payloadBase64 = token.split(".")[1];
       if (payloadBase64) {
         // Use 'base64url' decoding (Node 14+) for robust JWT support
-        const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString());
+        const payload = JSON.parse(
+          Buffer.from(payloadBase64, "base64url").toString(),
+        );
         // Standard JWT properties: 'sub' (User ID) and 'role'
         const userId = payload.sub || payload.userId;
         const userRole = payload.role;
 
         if (userId) {
-          req.headers['x-user-id'] = userId;
-          if (userRole) req.headers['x-user-role'] = userRole;
+          req.headers["x-user-id"] = userId;
+          if (userRole) req.headers["x-user-role"] = userRole;
         }
       }
     } catch (e) {
-      logger.warn('Failed to decode JWT in gateway identity extractor');
+      logger.warn("Failed to decode JWT in gateway identity extractor");
     }
   }
 
@@ -54,16 +56,17 @@ app.get("/health", (req, res) => {
 const isAllowedRedirectTarget = (targetUrl) => {
   try {
     const url = new URL(targetUrl);
-    const protocolAllowed = url.protocol === 'http:' || url.protocol === 'https:';
+    const protocolAllowed =
+      url.protocol === "http:" || url.protocol === "https:";
     if (!protocolAllowed) return false;
 
-    const allowedHosts = String(env.PAYHERE_RETURN_TO_ALLOWLIST || '')
-      .split(',')
+    const allowedHosts = String(env.PAYHERE_RETURN_TO_ALLOWLIST || "")
+      .split(",")
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean);
     if (allowedHosts.length === 0) return false;
 
-    return allowedHosts.includes(String(url.hostname || '').toLowerCase());
+    return allowedHosts.includes(String(url.hostname || "").toLowerCase());
   } catch {
     return false;
   }
@@ -72,31 +75,41 @@ const isAllowedRedirectTarget = (targetUrl) => {
 const buildRedirectWithQuery = (baseUrl, query) => {
   const params = new URLSearchParams();
   Object.entries(query || {}).forEach(([key, value]) => {
-    if (!key || key === 'to') return;
+    if (!key || key === "to") return;
     if (value == null) return;
     params.append(key, String(value));
   });
 
   const qs = params.toString();
   if (!qs) return baseUrl;
-  const separator = baseUrl.includes('?') ? '&' : '?';
+  const separator = baseUrl.includes("?") ? "&" : "?";
   return baseUrl + separator + qs;
 };
 
-app.get('/payhere/return', (req, res) => {
-  const to = String(req.query?.to || '').trim() || String(env.PAYHERE_DEFAULT_RETURN_TO || '').trim();
+app.get("/payhere/return", (req, res) => {
+  const to =
+    String(req.query?.to || "").trim() ||
+    String(env.PAYHERE_DEFAULT_RETURN_TO || "").trim();
   if (to && isAllowedRedirectTarget(to)) {
     return res.redirect(302, buildRedirectWithQuery(to, req.query));
   }
-  return res.redirect(302, buildRedirectWithQuery('/#/payments/return', req.query));
+  return res.redirect(
+    302,
+    buildRedirectWithQuery("/#/payments/return", req.query),
+  );
 });
 
-app.get('/payhere/cancel', (req, res) => {
-  const to = String(req.query?.to || '').trim() || String(env.PAYHERE_DEFAULT_CANCEL_TO || '').trim();
+app.get("/payhere/cancel", (req, res) => {
+  const to =
+    String(req.query?.to || "").trim() ||
+    String(env.PAYHERE_DEFAULT_CANCEL_TO || "").trim();
   if (to && isAllowedRedirectTarget(to)) {
     return res.redirect(302, buildRedirectWithQuery(to, req.query));
   }
-  return res.redirect(302, buildRedirectWithQuery('/#/payments/cancel', req.query));
+  return res.redirect(
+    302,
+    buildRedirectWithQuery("/#/payments/cancel", req.query),
+  );
 });
 
 // Proxy all auth routes to the auth-service.
@@ -111,8 +124,10 @@ app.use(
     // routes match exactly as defined.
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
-      if (req.headers['x-user-id']) proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
-      if (req.headers['x-user-role']) proxyReq.setHeader('x-user-role', req.headers['x-user-role']);
+      if (req.headers["x-user-id"])
+        proxyReq.setHeader("x-user-id", req.headers["x-user-id"]);
+      if (req.headers["x-user-role"])
+        proxyReq.setHeader("x-user-role", req.headers["x-user-role"]);
 
       logger.info(
         {
@@ -279,10 +294,11 @@ app.use(
       }
     },
   }),
+);
 // Proxy payment routes to payment-service.
 // In your gateway app.js, update the payment proxy:
 app.use(
-  '/api/v1/payments',
+  "/api/v1/payments",
   createProxyMiddleware({
     target: env.PAYMENT_SERVICE_URL,
     changeOrigin: false,
@@ -291,55 +307,59 @@ app.use(
       // Fix body forwarding for urlencoded POST requests
       if (req.body && Object.keys(req.body).length > 0) {
         const bodyData = new URLSearchParams(req.body).toString();
-        proxyReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+        proxyReq.setHeader("Content-Type", "application/x-www-form-urlencoded");
+        proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
         proxyReq.write(bodyData);
       }
       logger.info(
         { method: req.method, path: req.originalUrl },
-        'Proxying request to payment-service'
+        "Proxying request to payment-service",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to payment-service');
+      logger.error({ err }, "Error proxying request to payment-service");
       if (!res.headersSent) {
-        res.status(502).json({ error: 'payment_service_unavailable' });
+        res.status(502).json({ error: "payment_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
 
 // Proxy patient management routes to the patient-management-service
 app.use(
-  createProxyMiddleware('/api/v1/patients', {
+  createProxyMiddleware("/api/v1/patients", {
     target: env.PATIENT_SERVICE_URL,
     changeOrigin: false,
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
-      if (req.headers['x-user-id']) proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
-      if (req.headers['x-user-role']) proxyReq.setHeader('x-user-role', req.headers['x-user-role']);
+      if (req.headers["x-user-id"])
+        proxyReq.setHeader("x-user-id", req.headers["x-user-id"]);
+      if (req.headers["x-user-role"])
+        proxyReq.setHeader("x-user-role", req.headers["x-user-role"]);
 
       logger.info(
         {
           method: req.method,
-          path: req.originalUrl
+          path: req.originalUrl,
         },
-        'Proxying request to patient-management-service'
+        "Proxying request to patient-management-service",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to patient-management-service');
+      logger.error(
+        { err },
+        "Error proxying request to patient-management-service",
+      );
       if (!res.headersSent) {
-        res.status(502).json({ error: 'patient_service_unavailable' });
+        res.status(502).json({ error: "patient_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
-
 
 // Proxy appointment routes to the patient-management-service (or appointment-service if separate)
 app.use(
-  createProxyMiddleware('/api/v1/appointments', {
+  createProxyMiddleware("/api/v1/appointments", {
     target: env.PATIENT_SERVICE_URL,
     changeOrigin: false,
     logProvider: () => logger,
@@ -347,93 +367,98 @@ app.use(
       logger.info(
         {
           method: req.method,
-          path: req.originalUrl
+          path: req.originalUrl,
         },
-        'Proxying request to appointments'
+        "Proxying request to appointments",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to appointments');
+      logger.error({ err }, "Error proxying request to appointments");
       if (!res.headersSent) {
-        res.status(502).json({ error: 'appointment_service_unavailable' });
+        res.status(502).json({ error: "appointment_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
-
 
 // Proxy reports routes to the patient-management-service
 app.use(
-  createProxyMiddleware('/api/v1/reports', {
+  createProxyMiddleware("/api/v1/reports", {
     target: env.PATIENT_SERVICE_URL,
     changeOrigin: false,
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
-      if (req.headers['x-user-id']) proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
-      if (req.headers['x-user-role']) proxyReq.setHeader('x-user-role', req.headers['x-user-role']);
+      if (req.headers["x-user-id"])
+        proxyReq.setHeader("x-user-id", req.headers["x-user-id"]);
+      if (req.headers["x-user-role"])
+        proxyReq.setHeader("x-user-role", req.headers["x-user-role"]);
 
       logger.info(
         {
           method: req.method,
-          path: req.originalUrl
+          path: req.originalUrl,
         },
-        'Proxying request to reports'
+        "Proxying request to reports",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to reports');
+      logger.error({ err }, "Error proxying request to reports");
       if (!res.headersSent) {
-        res.status(502).json({ error: 'reports_service_unavailable' });
+        res.status(502).json({ error: "reports_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
-
 
 // Proxy notifications routes to the notification-service
 app.use(
-  '/api/v1/notifications',
+  "/api/v1/notifications",
   createProxyMiddleware({
     target: env.NOTIFICATION_SERVICE_URL,
     changeOrigin: false,
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
-      if (req.headers['x-user-id']) proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
-      if (req.headers['x-user-role']) proxyReq.setHeader('x-user-role', req.headers['x-user-role']);
+      if (req.headers["x-user-id"])
+        proxyReq.setHeader("x-user-id", req.headers["x-user-id"]);
+      if (req.headers["x-user-role"])
+        proxyReq.setHeader("x-user-role", req.headers["x-user-role"]);
 
       logger.info(
         {
           method: req.method,
-          path: req.originalUrl
+          path: req.originalUrl,
         },
-        'Proxying request to notification-service'
+        "Proxying request to notification-service",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, 'Error proxying request to notification-service');
+      logger.error({ err }, "Error proxying request to notification-service");
       if (!res.headersSent) {
-        res.status(502).json({ error: 'notification_service_unavailable' });
+        res.status(502).json({ error: "notification_service_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
 
 // Proxy uploads to the patient-management-service
 app.use(
-  '/uploads',
+  "/uploads",
   createProxyMiddleware({
     target: env.PATIENT_SERVICE_URL,
     changeOrigin: false,
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
-      logger.info({ path: req.originalUrl }, 'Proxying static file request to patient-service');
+      logger.info(
+        { path: req.originalUrl },
+        "Proxying static file request to patient-service",
+      );
     },
     onError(err, req, res) {
       if (!res.headersSent) {
-        res.status(502).json({ error: 'file_storage_unavailable' });
+        res.status(502).json({ error: "file_storage_unavailable" });
       }
-    }
-  })
+    },
+  }),
 );
 
 export default app;

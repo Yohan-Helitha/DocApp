@@ -20,6 +20,10 @@ import PaymentCheckout from "./pages/PaymentCheckout";
 import PaymentReturn from "./pages/PaymentReturn";
 import PaymentCancel from "./pages/PaymentCancel";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
+import PatientProfile from './features/patient-management/PatientProfile'
+import PatientHistory from './features/patient-management/PatientHistory'
+import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
+import Notifications from './features/notifications/Notifications'
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -76,6 +80,17 @@ export default function App() {
     Page = () => <PaymentCancel navigate={navigate} />;
   else if (path === "/prescriptions")
     Page = () => <PatientPrescriptions navigate={navigate} />;
+  else if(route.startsWith('/patient/profile')) Page = ()=> <PatientProfile navigate={navigate} />
+  else if(route.startsWith('/patient/history')) Page = ()=> <PatientHistory navigate={navigate} />
+  else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />
+  else if(route.startsWith('/notifications')) Page = ()=> <Notifications navigate={navigate} />
+    
+  const isDashboard = route.startsWith('/patient/') || 
+                      route.startsWith('/success/') || 
+                      route.startsWith('/notifications') ||
+                      route.startsWith('/appointments') ||
+                      route.startsWith('/doctors') ||
+                      route.startsWith('/symptom-checker');
 
   const isAdminRoute = route.startsWith("/success/admin");
 
@@ -91,11 +106,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header navigate={navigate} />
+      {!isDashboard && <Header navigate={navigate} />}
       <main className="flex-1">
         <Page />
       </main>
-      <Footer />
+      {!isDashboard && <Footer />}
     </div>
   );
 }

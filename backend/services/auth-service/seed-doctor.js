@@ -1,6 +1,7 @@
 // Seed demo users for local/k8s development.
 // Run with: node seed-doctor.js
 
+import { register } from './src/services/authService.js';
 import bcrypt from 'bcryptjs';
 import db from './src/config/db.js';
 import env from './src/config/environment.js';
@@ -71,6 +72,12 @@ async function main() {
     // eslint-disable-next-line no-console
     console.log('Demo user seeding complete.');
   } catch (err) {
+    // If the user already exists, treat seeding as successful.
+    if (err && (err.message === 'email_exists' || err.status === 409)) {
+      // eslint-disable-next-line no-console
+      console.log('Doctor user already seeded:', email);
+      return;
+    }
     // eslint-disable-next-line no-console
     console.error('Failed to seed demo users:', err && err.message ? err.message : err);
     process.exitCode = 1;

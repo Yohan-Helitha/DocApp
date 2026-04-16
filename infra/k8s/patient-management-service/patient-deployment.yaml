@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-management-service
+  labels:
+    app: patient-management-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: patient-management-service
+  template:
+    metadata:
+      labels:
+        app: patient-management-service
+    spec:
+      containers:
+        - name: patient-management-service
+          image: docapp/patient-management-service:v8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6001
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "6001"
+            - name: DB_HOST
+              value: "patient-postgres"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: patient-db-config
+                  key: PGDATABASE
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: patient-db-config
+                  key: PGUSER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: patient-db-secret
+                  key: PGPASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: patient-db-secret
+                  key: JWT_SECRET
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service:6000/api/v1/notifications"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-management-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: patient-management-service
+  ports:
+    - protocol: TCP
+      port: 6001
+      targetPort: 6001

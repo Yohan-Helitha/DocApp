@@ -25,6 +25,7 @@ import PatientProfile from './features/patient-management/PatientProfile'
 import PatientHistory from './features/patient-management/PatientHistory'
 import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
 import Notifications from './features/notifications/Notifications'
+import TelemedicineGuard from "./features/auth/TelemedicineGuard";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -78,15 +79,13 @@ export default function App() {
   else if (path === "/symptom-checker")
     Page = () => <SymptomCheckerChat navigate={navigate} />;
   else if (route.startsWith("/telemedicine"))
-    Page = () => <Telemedicine navigate={navigate} />;
+    Page = () => <TelemedicineGuard navigate={navigate} />;
   else if (path.startsWith("/payments/checkout"))
     Page = () => <PaymentCheckout navigate={navigate} />;
   else if (path.startsWith("/payments/return"))
     Page = () => <PaymentReturn navigate={navigate} />;
   else if (path.startsWith("/payments/cancel"))
     Page = () => <PaymentCancel navigate={navigate} />;
-  else if (path === "/prescriptions")
-    Page = () => <PatientPrescriptions navigate={navigate} />;
   else if(route.startsWith('/patient/profile')) Page = ()=> <PatientProfile navigate={navigate} />
   else if(route.startsWith('/patient/history')) Page = ()=> <PatientHistory navigate={navigate} />
   else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />

@@ -7,6 +7,7 @@ export default function SuccessDoctor({ navigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createMode, setCreateMode] = useState(false);
+  const [pendingMode, setPendingMode] = useState(false);
   const [createForm, setCreateForm] = useState({
     full_name: "",
     specialization: "",
@@ -71,6 +72,16 @@ export default function SuccessDoctor({ navigate }) {
 
         const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
         if (!me) {
+          // Profile not in public list — check own profile (any verification status)
+          const ownRes = await Api.get("/api/v1/doctors/me", token);
+          if (ownRes.status === 200 && ownRes.body?.doctor) {
+            // Profile exists but is pending or rejected — show status screen
+            setDoctor(ownRes.body.doctor);
+            setPendingMode(true);
+            setLoading(false);
+            return;
+          }
+          // No profile at all — allow creation; pre-fill from registration data
           try {
             const meRes = await Api.get("/api/v1/auth/me", token);
             if (meRes.status === 200 && meRes.body?.registrationData) {
@@ -162,13 +173,20 @@ export default function SuccessDoctor({ navigate }) {
         const newDoctor = res.body?.doctor;
         setDoctor(newDoctor);
         setCreateMode(false);
-        setLoading(true);
-        const aRes = await Api.get(
-          `/api/v1/appointments/doctors/${newDoctor.doctor_id}`,
-          token,
-        );
-        if (aRes.status === 200) setAppointments(aRes.body?.appointments || []);
-        setLoading(false);
+        if (newDoctor?.verification_status !== "approved") {
+          // New profiles are always pending — show the verification screen immediately
+          // without trying to load the dashboard (which requires an approved profile).
+          setPendingMode(true);
+        } else {
+          setLoading(true);
+          const aRes = await Api.get(
+            `/api/v1/appointments/doctors/${newDoctor.doctor_id}`,
+            token,
+          );
+          if (aRes.status === 200)
+            setAppointments(aRes.body?.appointments || []);
+          setLoading(false);
+        }
       } else {
         setCreateError(
           res.body?.message ||
@@ -379,6 +397,81 @@ export default function SuccessDoctor({ navigate }) {
             <span className="material-symbols-outlined text-primary text-5xl animate-spin">
               progress_activity
             </span>
+          </div>
+        ) : pendingMode ? (
+          <div className="max-w-lg mx-auto mt-8">
+            <div className="bg-white rounded-2xl p-10 shadow-sm text-center">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{
+                  background:
+                    doctor?.verification_status === "rejected"
+                      ? "rgb(254 226 226)"
+                      : "rgb(254 249 195)",
+                }}
+              >
+                <span
+                  className="material-symbols-outlined text-3xl"
+                  style={{
+                    color:
+                      doctor?.verification_status === "rejected"
+                        ? "#dc2626"
+                        : "#ca8a04",
+                  }}
+                >
+                  {doctor?.verification_status === "rejected"
+                    ? "cancel"
+                    : "schedule"}
+                </span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-900 mb-2">
+                {doctor?.verification_status === "rejected"
+                  ? "Profile Not Approved"
+                  : "Verification Pending"}
+              </h3>
+              <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                {doctor?.verification_status === "rejected"
+                  ? "Your doctor profile application was not approved. Please contact platform support for further assistance."
+                  : "Your profile has been submitted and is awaiting admin verification. You will have full access to the portal once approved."}
+              </p>
+              {doctor?.full_name && (
+                <div className="bg-slate-50 rounded-xl px-5 py-4 text-left text-sm space-y-2 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-medium">Name</span>
+                    <span className="font-semibold text-slate-800">
+                      Dr. {doctor.full_name}
+                    </span>
+                  </div>
+                  {doctor.specialization && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-medium">
+                        Specialization
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {doctor.specialization}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-medium">Status</span>
+                    <span
+                      className={`font-bold capitalize ${doctor?.verification_status === "rejected" ? "text-red-600" : "text-yellow-600"}`}
+                    >
+                      {doctor?.verification_status}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={logout}
+                className="w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-lg">
+                  logout
+                </span>
+                Sign Out
+              </button>
+            </div>
           </div>
         ) : createMode ? (
           <div className="max-w-lg mx-auto mt-8">

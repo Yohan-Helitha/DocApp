@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: patient-management-service
-          image: docapp/patient-management-service:v8
-          imagePullPolicy: IfNotPresent
+          image: docapp/patient-management-service:local
+          imagePullPolicy: Never
           ports:
             - containerPort: 6001
           env:
@@ -49,8 +49,19 @@ spec:
                 secretKeyRef:
                   name: patient-db-secret
                   key: JWT_SECRET
+            - name: AUTH_PUBLIC_KEY_PATH
+              value: "/keys/public.pem"
             - name: NOTIFICATION_SERVICE_URL
               value: "http://notification-service:6000/api/v1/notifications"
+          volumeMounts:
+            - name: auth-public-key
+              mountPath: /keys
+              readOnly: true
+
+      volumes:
+        - name: auth-public-key
+          secret:
+            secretName: auth-public-key
 
 ---
 apiVersion: v1

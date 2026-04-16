@@ -1,5 +1,38 @@
+import fs from 'fs';
+import path from 'path';
 import jwt from 'jsonwebtoken';
 import { Patient } from '../models/index.js';
+
+let cachedPublicKey = null;
+
+const getPublicKey = () => {
+    if (cachedPublicKey) return cachedPublicKey;
+
+    const configuredPath = process.env.AUTH_PUBLIC_KEY_PATH;
+    if (!configuredPath) return null;
+
+    const absPath = path.isAbsolute(configuredPath)
+        ? configuredPath
+        : path.resolve(process.cwd(), configuredPath);
+
+    if (!fs.existsSync(absPath)) return null;
+
+    cachedPublicKey = fs.readFileSync(absPath, 'utf8');
+    return cachedPublicKey;
+};
+
+const verifyAccessToken = (token) => {
+    const publicKey = getPublicKey();
+    if (publicKey) {
+        try {
+            return jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+        } catch {
+            // Fall back to HS256 verification below.
+        }
+    }
+
+    return jwt.verify(token, process.env.JWT_SECRET);
+};
 
 const historyMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -11,7 +44,7 @@ const historyMiddleware = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || '8f3d2c1b9e7a6c5b4d3f2a1e0b9c8d7f6a5e4d3c2b1a0f9e8d7c6b5a4e3f2d1');
+        const decoded = verifyAccessToken(token);
         req.user = decoded;
 
         // If a patientId is in the URL, verify the user owns this record or is an admin/doctor

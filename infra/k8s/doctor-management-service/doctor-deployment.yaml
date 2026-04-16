@@ -15,6 +15,44 @@ spec:
         app: doctor-management-service
     spec:
       initContainers:
+        - name: init-doctor-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "doctors-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: doctor-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying doctor schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Doctor schema applied."
+          volumeMounts:
+            - name: doctor-db-init
+              mountPath: /db-init
         - name: seed-verified-doctor
           image: docapp/doctor-management-service:local
           imagePullPolicy: IfNotPresent
@@ -83,6 +121,12 @@ spec:
               mountPath: /app/keys
               readOnly: true
       volumes:
+        - name: doctor-db-init
+          configMap:
+            name: doctor-db-init
+            items:
+              - key: init.sql
+                path: init.sql
         - name: auth-public-key
           secret:
             secretName: auth-public-key

@@ -30,6 +30,7 @@ yarn-error.log*
 .env.production.local
 
 # Kubernetes secrets (use .template.yaml for reference)
+infra/k8s/notification-service/notification-db-secret.yaml
 infra/k8s/*/notification-db-secret.yaml
 infra/k8s/*/*secret.yaml
 
@@ -73,6 +74,3 @@ Desktop.ini
 .vscode/settings.json
 .idea/
 
-# Kubernetes secrets (use .template.yaml for reference)
-infra/k8s/*/notification-db-secret.yaml
-infra/k8s/*/*secret.yaml

@@ -34,27 +34,56 @@ export default function PatientDashboard({ navigate }) {
       try {
         const token = sessionStorage.getItem("accessToken") || "";
 
-        const [a, p, r, n] = await Promise.all([
-          Api.get("/api/v1/appointments/upcoming", token)
+        const decodeJwtPayload = (jwtToken) => {
+          try {
+            const payloadPart = String(jwtToken || '').split('.')[1];
+            if (!payloadPart) return null;
+
+            let b64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4;
+            if (pad) b64 += '='.repeat(4 - pad);
+
+            return JSON.parse(atob(b64));
+          } catch {
+            return null;
+          }
+        };
+
+        // patientId is the JWT sub (UUID) – store it for other pages to reuse.
+        let patientId = localStorage.getItem('patientId');
+        if (!patientId && token) {
+          const payload = decodeJwtPayload(token);
+          patientId = payload?.sub || payload?.userId;
+          if (patientId) localStorage.setItem('patientId', patientId);
+        }
+
+        const [upcoming, recentReports, latestNotifications, profileRes] = await Promise.all([
+          Api.get('/api/v1/appointments/upcoming', token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
-          Api.get("/api/v1/prescriptions/recent", token)
-            .then((res) => (Array.isArray(res?.body) ? res.body : []))
-            .catch(() => []),
-          Api.get("/api/v1/reports/recent", token)
+          Api.get('/api/v1/reports/recent', token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
           Api.get("/api/v1/notifications/latest", token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
+          patientId ? Api.get(`/api/v1/patients/${patientId}`, token) : Promise.resolve({ status: 404, body: null }),
         ]);
 
         if (!mounted) return;
 
-        setAppointments(a);
-        setReports(r);
-        setNotifications(n);
-        setProfile(p);
+        setAppointments(upcoming);
+        setReports(recentReports);
+        setNotifications(latestNotifications);
+
+        if (profileRes?.status === 200) {
+          setProfile(profileRes.body);
+          localStorage.setItem('requiresProfileCompletion', 'false');
+        } else if (profileRes?.status === 404) {
+          setProfile(null);
+          localStorage.setItem('requiresProfileCompletion', 'true');
+          goTo('/patient/profile');
+        }
       } catch (e) {
         console.error("Error fetching dashboard data:", e);
       } finally {

@@ -48,6 +48,8 @@ services:
       - PAYMENT_PGPASSWORD=postgres
       - PAYMENT_PGDATABASE=paymentdb
       - PAYMENT_DATABASE_URL=postgresql://postgres:postgres@payment-postgres:5432/paymentdb
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:4003
+      - INTERNAL_SECRET=change-me-internal
       # IMPORTANT: PayHere notify_url must be publicly reachable; override with your tunnel URL.
       # Example: https://<your-ngrok-subdomain>.ngrok-free.app/api/v1/payments/notify
     ports:

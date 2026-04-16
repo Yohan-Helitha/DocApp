@@ -313,6 +313,46 @@ export const handlePayHereNotify = async (req, res) => {
       }
 
       await client.query('COMMIT');
+
+      // GAP-8: Notify appointment-service so it can unlock clinical actions.
+      // Best-effort — do not fail the PayHere webhook response if this call fails.
+      if (incomingStatus === 'success') {
+        const appointmentServiceUrl = String(env.APPOINTMENT_SERVICE_URL || '').trim();
+        const internalSecret = String(env.INTERNAL_SECRET || '').trim();
+        if (appointmentServiceUrl && internalSecret && payment.appointment_id) {
+          try {
+            fetch(
+              `${appointmentServiceUrl}/api/v1/appointments/${encodeURIComponent(
+                String(payment.appointment_id)
+              )}/payment-status`,
+              {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-internal-secret': internalSecret
+                },
+                body: JSON.stringify({ payment_status: 'paid' })
+              }
+            ).catch((err) =>
+              req.log?.warn(
+                { err, appointmentId: payment.appointment_id },
+                'Failed to notify appointment-service of payment'
+              )
+            );
+          } catch (err) {
+            req.log?.warn(
+              { err, appointmentId: payment.appointment_id },
+              'Failed to notify appointment-service of payment'
+            );
+          }
+        } else {
+          req.log?.warn(
+            { appointmentServiceUrl: !!appointmentServiceUrl, internalSecret: !!internalSecret },
+            'APPOINTMENT_SERVICE_URL or INTERNAL_SECRET not configured — skipping appointment-service callback'
+          );
+        }
+      }
+
       return res.status(200).send('OK');
     } catch (err) {
       await client.query('ROLLBACK');

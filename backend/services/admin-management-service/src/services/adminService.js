@@ -221,14 +221,25 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId, st
       }
     }
 
+    let resolvedDoctorEmail = authUser?.email || profileDoctor?.email || null;
+    if (!resolvedDoctorEmail) {
+      const emailRes = await client.query(
+        'SELECT email FROM users WHERE user_id = $1 LIMIT 1',
+        [doctorId]
+      );
+      resolvedDoctorEmail = emailRes.rows?.[0]?.email || null;
+    }
+
+    const emailSuffix = resolvedDoctorEmail ? `: ${resolvedDoctorEmail}` : '';
+
     const actionType = applyLoginStep && applyProfileStep
       ? 'verify_doctor_all'
       : (applyLoginStep ? 'verify_doctor_login' : 'verify_doctor_profile');
     const actionNote = applyLoginStep && applyProfileStep
-      ? (approved ? 'Doctor login and profile approved' : 'Doctor login and profile rejected')
+      ? (approved ? `Doctor login and profile approved${emailSuffix}` : `Doctor login and profile rejected${emailSuffix}`)
       : (applyLoginStep
-        ? (approved ? 'Doctor login approved' : 'Doctor login rejected')
-        : (approved ? 'Doctor profile approved' : 'Doctor profile rejected'));
+        ? (approved ? `Doctor login approved${emailSuffix}` : `Doctor login rejected${emailSuffix}`)
+        : (approved ? `Doctor profile approved${emailSuffix}` : `Doctor profile rejected${emailSuffix}`));
 
     await client.query(
       'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5)',

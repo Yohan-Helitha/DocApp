@@ -10,9 +10,10 @@ CREATE TABLE IF NOT EXISTS notifications (
     -- 'queued', 'sent', 'delivered', 'failed'
     priority VARCHAR(10) DEFAULT 'normal',
     -- 'low', 'normal', 'high'
-    sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    sent_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE IF NOT EXISTS notification_attempts (
     id SERIAL PRIMARY KEY,
@@ -20,5 +21,5 @@ CREATE TABLE IF NOT EXISTS notification_attempts (
     provider VARCHAR(50),
     provider_response TEXT,
     status VARCHAR(20),
-    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    attempted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

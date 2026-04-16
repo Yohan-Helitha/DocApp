@@ -28,6 +28,39 @@ const tryParseJsonFromText = (rawText) => {
   }
 };
 
+const DISCLAIMER_TEXT =
+  "This is a preliminary AI assessment and is NOT a medical diagnosis. Please consult a qualified doctor for proper evaluation.";
+
+// We do not allow medication/prescription advice (including OTC) in responses.
+const MEDICATION_OR_DOSING_PATTERN =
+  /\b(otc|over-the-counter|prescription|prescribe|medication|medicine|drug|analgesic|antihistamine|decongestant|antibiotic|antibiotics|antiviral|steroid|nsaid|pain\s*relief|pain\s*reliever|painkiller|dose|dosage|mg|ml|tablet|tablets|capsule|capsules|ibuprofen|paracetamol|acetaminophen|naproxen|aspirin|diclofenac|amoxicillin|azithromycin|metformin|insulin)\b/i;
+
+const sanitizeAiMessage = (text) => {
+  const msg = String(text || "").trim();
+  if (!msg) return DISCLAIMER_TEXT;
+
+  // Enforce: no medication suggestions.
+  if (MEDICATION_OR_DOSING_PATTERN.test(msg)) {
+    return (
+      "I can’t provide medication or prescription advice.\n" +
+      "- Rest and avoid strenuous activity.\n" +
+      "- Stay hydrated and monitor your symptoms.\n" +
+      "- If symptoms are severe, worsening, or you’re worried, seek urgent medical care.\n\n" +
+      DISCLAIMER_TEXT
+    );
+  }
+
+  // Enforce brevity while keeping a disclaimer.
+  const maxLen = 1200;
+  let out = msg.length > maxLen ? msg.slice(0, maxLen).trimEnd() + "…" : msg;
+
+  if (!/not a medical diagnosis/i.test(out)) {
+    out = `${out}\n\n${DISCLAIMER_TEXT}`;
+  }
+
+  return out;
+};
+
 export class GeminiError extends Error {
   constructor(message, { status = 500, code = "ai_error", cause } = {}) {
     super(message);
@@ -57,12 +90,11 @@ export async function analyzeSymptoms({
   // Fallback for AI Studio / projects that don't have access to gemini-2.5-flash.
   const fallbackModels = ["gemini-1.5-flash"].filter((m) => m !== preferredModel);
 
-  const firstUserMessage =
-    conversationHistory.length === 0
-      ? `${SYSTEM_PROMPT}\n\nPatient says: ${message}`
-      : message;
-
-  const history = conversationHistory.length === 0 ? [] : conversationHistory;
+  const history = [
+    // Persist safety rules across all turns.
+    { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+    ...(conversationHistory.length ? conversationHistory : []),
+  ];
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -70,7 +102,7 @@ export async function analyzeSymptoms({
     const model = genAI.getGenerativeModel({ model: modelName });
     const chat = model.startChat({ history });
 
-    const parts = [{ text: firstUserMessage }];
+    const parts = [{ text: message }];
     if (reportBase64) {
       parts.push({
         inlineData: { data: reportBase64, mimeType: reportMimeType },
@@ -81,8 +113,16 @@ export async function analyzeSymptoms({
     const rawText = result.response.text();
 
     const parsed = tryParseJsonFromText(rawText);
-    if (parsed && typeof parsed === "object") return parsed;
-    return { message: rawText, assessment_complete: false };
+    const out =
+      parsed && typeof parsed === "object"
+        ? parsed
+        : { message: rawText, assessment_complete: false };
+
+    if (out && typeof out === "object" && "message" in out) {
+      out.message = sanitizeAiMessage(out.message);
+    }
+
+    return out;
   };
 
   const runWithRetry = async (modelName, { attempts = 2 } = {}) => {

@@ -72,6 +72,7 @@ export const bookAppointment = async (req, res) => {
       slot_date: slot.slot_date,
       start_time: slot.start_time,
       end_time: slot.end_time,
+      consultation_fee: doctor.consultation_fee ?? null,
     });
 
     // 5. Log event
@@ -260,6 +261,11 @@ export const cancelAppointment = async (req, res) => {
       throw e;
     }
 
+    // Block cancellation once payment has been received — no refunds are implemented
+    if (appointment.payment_status === "paid") {
+      return res.status(400).json({ error: "cannot_cancel_paid_appointment" });
+    }
+
     // Release the slot back to available
     await doctorClient.updateSlotStatus(
       appointment.doctor_id,
@@ -412,6 +418,25 @@ export const setStatus = async (req, res) => {
         return res.status(400).json({ error: "appointment_not_confirmed" });
       }
 
+      // Payment guard: clinical actions require full payment
+      if (appointment.payment_status !== "paid") {
+        return res.status(400).json({ error: "appointment_not_paid" });
+      }
+
+      // Time guard: cannot mark complete before the slot has ended
+      if (appointment.slot_date && appointment.end_time) {
+        const slotDateStr =
+          typeof appointment.slot_date === "string"
+            ? appointment.slot_date.slice(0, 10)
+            : new Date(appointment.slot_date).toISOString().slice(0, 10);
+        const slotEnd = new Date(
+          `${slotDateStr}T${String(appointment.end_time).slice(0, 8)}`,
+        );
+        if (new Date() < slotEnd) {
+          return res.status(400).json({ error: "slot_not_yet_ended" });
+        }
+      }
+
       const updated = await appointmentService.setStatus(
         req.db,
         req.params.appointmentId,
@@ -484,6 +509,43 @@ export const doctorDecision = async (req, res) => {
 
     const newStatus = decision === "accept" ? "confirmed" : "rejected";
 
+    // When accepting: enforce late-acceptance guard, compute payment_deadline.
+    if (decision === "accept") {
+      // Build slot start datetime from snapshotted columns
+      const slotDateStr =
+        typeof appointment.slot_date === "string"
+          ? appointment.slot_date.slice(0, 10)
+          : new Date(appointment.slot_date).toISOString().slice(0, 10);
+      const slotStart = new Date(
+        `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}`,
+      );
+      const twoHoursBefore = new Date(slotStart.getTime() - 2 * 60 * 60 * 1000);
+
+      // Guard: block acceptance if less than 2 hours remain before slot start
+      if (twoHoursBefore <= new Date()) {
+        return res.status(400).json({ error: "too_close_to_slot_time" });
+      }
+
+      // Compute payment deadline: whichever is earlier — 24h from now or slot_start − 2h
+      const twentyFourHoursFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const paymentDeadline =
+        twoHoursBefore < twentyFourHoursFromNow
+          ? twoHoursBefore
+          : twentyFourHoursFromNow;
+
+      // Confirm the appointment first, then store the deadline
+      await appointmentService.setStatus(
+        req.db,
+        req.params.appointmentId,
+        "confirmed",
+      );
+      await appointmentService.setPaymentDeadline(
+        req.db,
+        req.params.appointmentId,
+        paymentDeadline,
+      );
+    }
+
     // When rejecting, release the slot so other patients can book it again.
     if (decision === "reject") {
       await doctorClient.updateSlotStatus(
@@ -493,11 +555,21 @@ export const doctorDecision = async (req, res) => {
       );
     }
 
-    const updated = await appointmentService.setStatus(
-      req.db,
-      req.params.appointmentId,
-      newStatus,
-    );
+    // For reject: update status now. For accept: status was already set above.
+    let updated;
+    if (decision === "reject") {
+      updated = await appointmentService.setStatus(
+        req.db,
+        req.params.appointmentId,
+        newStatus,
+      );
+    } else {
+      // accept path: status + deadline were already committed above; re-fetch for response
+      updated = await appointmentService.getAppointmentById(
+        req.db,
+        req.params.appointmentId,
+      );
+    }
 
     await appointmentService.addEvent(req.db, req.params.appointmentId, {
       event_type: `appointment_${newStatus}`,
@@ -546,34 +618,32 @@ export const updatePaymentStatus = async (req, res) => {
       payment_status,
     );
 
-    if (
-      payment_status === "expired" &&
-      appointment.appointment_status !== "confirmed"
-    ) {
-      await doctorClient.updateSlotStatus(
-        appointment.doctor_id,
-        appointment.slot_id,
-        "available",
-      );
-      await appointmentService.setStatus(
-        req.db,
-        req.params.appointmentId,
-        "cancelled",
-      );
-      await appointmentService.addEvent(req.db, req.params.appointmentId, {
-        event_type: "payment_expired",
-        event_actor: null,
-        notes: "Payment window elapsed — slot released",
-      });
-    } else if (
-      payment_status === "expired" &&
-      appointment.appointment_status === "confirmed"
-    ) {
-      await appointmentService.addEvent(req.db, req.params.appointmentId, {
-        event_type: "payment_expired_ignored",
-        event_actor: null,
-        notes: "Payment expired but appointment already confirmed — slot kept",
-      });
+    if (payment_status === "expired") {
+      if (appointment.payment_status !== "paid") {
+        // Normal expiry path: release slot and cancel appointment
+        await doctorClient.updateSlotStatus(
+          appointment.doctor_id,
+          appointment.slot_id,
+          "available",
+        );
+        await appointmentService.setStatus(
+          req.db,
+          req.params.appointmentId,
+          "cancelled",
+        );
+        await appointmentService.addEvent(req.db, req.params.appointmentId, {
+          event_type: "payment_expired",
+          event_actor: null,
+          notes: "Payment window elapsed — slot released",
+        });
+      } else {
+        // Race: payment arrived before expiry could be processed — ignore
+        await appointmentService.addEvent(req.db, req.params.appointmentId, {
+          event_type: "payment_expired_ignored",
+          event_actor: null,
+          notes: "Payment already received — expiry webhook ignored",
+        });
+      }
     } else {
       await appointmentService.addEvent(req.db, req.params.appointmentId, {
         event_type: `payment_${payment_status}`,

@@ -26,13 +26,14 @@ export const createAppointment = async (
     slot_date,
     start_time,
     end_time,
+    consultation_fee,
   },
 ) => {
   const { rows } = await db.query(
     `INSERT INTO appointments
        (patient_id, doctor_id, slot_id, patient_email, reason_for_visit,
-        doctor_name, patient_name, slot_date, start_time, end_time)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        doctor_name, patient_name, slot_date, start_time, end_time, consultation_fee)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
     [
       patient_id,
@@ -45,6 +46,7 @@ export const createAppointment = async (
       slot_date ?? null,
       start_time ?? null,
       end_time ?? null,
+      consultation_fee ?? null,
     ],
   );
   return rows[0];
@@ -175,6 +177,24 @@ export const getEvents = async (db, appointmentId) => {
     [appointmentId],
   );
   return rows;
+};
+
+// --- Payment Deadline -----------------------------------------------------
+
+export const setPaymentDeadline = async (db, appointmentId, deadline) => {
+  const { rows } = await db.query(
+    `UPDATE appointments
+     SET payment_deadline = $1, updated_at = now()
+     WHERE appointment_id = $2
+     RETURNING *`,
+    [deadline, appointmentId],
+  );
+  if (!rows[0]) {
+    const e = new Error("appointment_not_found");
+    e.status = 404;
+    throw e;
+  }
+  return rows[0];
 };
 
 // --- Payment Status -------------------------------------------------------

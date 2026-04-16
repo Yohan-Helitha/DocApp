@@ -54,9 +54,9 @@ const buildLocalDateTime = (slotDate, time) => {
   const dateStr = String(slotDate).slice(0, 10);
   const hms = parseTimeToHms(time);
   if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(dateStr) || !hms) return null;
-  const hh = String(hms.hh).padStart(2, '0');
-  const mm = String(hms.mm).padStart(2, '0');
-  const ss = String(hms.ss).padStart(2, '0');
+  const hh = String(hms.hh).padStart(2, "0");
+  const mm = String(hms.mm).padStart(2, "0");
+  const ss = String(hms.ss).padStart(2, "0");
   const d = new Date(`${dateStr}T${hh}:${mm}:${ss}`);
   return Number.isNaN(d.getTime()) ? null : d;
 };
@@ -69,6 +69,26 @@ const isWithinSlotWindow = (appt) => {
   return now >= start && now <= end;
 };
 
+const formatDeadline = (deadline) => {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  const diffMs = d - now;
+  if (diffMs <= 0) return "Payment deadline passed";
+  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffM = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const timeStr = d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  if (diffH > 0) return `Pay by ${timeStr} (${diffH}h ${diffM}m left)`;
+  return `Pay by ${timeStr} (${diffM}m left)`;
+};
+
 export default function MyAppointments({ navigate }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +96,7 @@ export default function MyAppointments({ navigate }) {
   const [filter, setFilter] = useState("all");
   const [cancelling, setCancelling] = useState(null);
   const [confirmingCancel, setConfirmingCancel] = useState(null);
+  const [payingNow, setPayingNow] = useState(null);
   const [rescheduleTarget, setRescheduleTarget] = useState(null);
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -225,6 +246,59 @@ export default function MyAppointments({ navigate }) {
       } catch {}
     sessionStorage.clear();
     navigate("/login");
+  };
+
+  const initiatePayment = async (appointmentId, consultationFee) => {
+    setPayingNow(appointmentId);
+    try {
+      let email = "";
+      let firstName = "";
+      try {
+        const decoded = JSON.parse(atob(token.split(".")[1]));
+        email = decoded.email || "";
+        firstName = email.split("@")[0];
+      } catch {}
+      const r = await Api.post(
+        "/api/v1/payments/initiate",
+        {
+          appointmentId,
+          patientId: userId,
+          amount: Number(consultationFee) || 0,
+          currency: "LKR",
+          items: "Consultation fee",
+          firstName,
+          lastName: "",
+          email,
+          returnTo: `${window.location.origin}/#/payments/return?appointmentId=${appointmentId}`,
+          cancelTo: `${window.location.origin}/#/payments/cancel?appointmentId=${appointmentId}`,
+        },
+        token,
+      );
+      if (r.status !== 200 && r.status !== 201) {
+        setError(
+          r.body?.error || r.body?.message || "Failed to initiate payment.",
+        );
+        setPayingNow(null);
+        return;
+      }
+      const { checkout } = r.body;
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = checkout.actionUrl;
+      Object.entries(checkout.fields).forEach(([k, v]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = k;
+        input.value = v;
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+      // Don't reset payingNow — browser navigates away via form submit
+    } catch {
+      setError("Network error. Please try again.");
+      setPayingNow(null);
+    }
   };
 
   const filtered =
@@ -466,7 +540,8 @@ export default function MyAppointments({ navigate }) {
                       </button>
                     )}
                     {(a.appointment_status === "pending" ||
-                      a.appointment_status === "confirmed") &&
+                      (a.appointment_status === "confirmed" &&
+                        a.payment_status !== "paid")) &&
                       (confirmingCancel === a.appointment_id ? (
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs text-slate-500">
@@ -497,26 +572,66 @@ export default function MyAppointments({ navigate }) {
                           Cancel
                         </button>
                       ))}
-                    {a.appointment_status === "confirmed" && (() => {
-                      const canJoinNow = isWithinSlotWindow(a);
-                      const locked = !canJoinNow;
-                      return (
-                        <button
-                          onClick={() => {
-                            if (locked) return;
-                            navigate(`/telemedicine?appointmentId=${a.appointment_id}`);
-                          }}
-                          disabled={locked}
-                          title={locked ? "You can only join during the appointment time window." : undefined}
-                          className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-sm">
-                            video_call
-                          </span>
-                          Join Session
-                        </button>
-                      );
-                    })()}
+                    {a.appointment_status === "confirmed" &&
+                      a.payment_status !== "paid" && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {a.payment_deadline &&
+                            formatDeadline(a.payment_deadline) && (
+                              <span className="text-xs text-amber-600 font-semibold">
+                                {formatDeadline(a.payment_deadline)}
+                              </span>
+                            )}
+                          <button
+                            onClick={() =>
+                              initiatePayment(
+                                a.appointment_id,
+                                a.consultation_fee,
+                              )
+                            }
+                            disabled={payingNow === a.appointment_id}
+                            className="px-4 py-2 text-xs font-bold text-white bg-amber-500 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {payingNow === a.appointment_id ? (
+                              <span className="material-symbols-outlined text-sm animate-spin">
+                                progress_activity
+                              </span>
+                            ) : (
+                              <span className="material-symbols-outlined text-sm">
+                                payments
+                              </span>
+                            )}
+                            Pay Now
+                          </button>
+                        </div>
+                      )}
+                    {a.appointment_status === "confirmed" &&
+                      a.payment_status === "paid" &&
+                      (() => {
+                        const canJoinNow = isWithinSlotWindow(a);
+                        const locked = !canJoinNow;
+                        return (
+                          <button
+                            onClick={() => {
+                              if (locked) return;
+                              navigate(
+                                `/telemedicine?appointmentId=${a.appointment_id}`,
+                              );
+                            }}
+                            disabled={locked}
+                            title={
+                              locked
+                                ? "You can only join during the appointment time window."
+                                : undefined
+                            }
+                            className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-xl hover:bg-opacity-90 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              video_call
+                            </span>
+                            Join Session
+                          </button>
+                        );
+                      })()}
                     {a.appointment_status === "completed" && (
                       <button
                         onClick={() =>

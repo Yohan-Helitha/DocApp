@@ -13,6 +13,8 @@ build/
 # Misc
 .DS_Store
 *.pem
+# Allow RSA public keys used for JWT verification in services
+!**/keys/public.pem
 
 # Debug
 npm-debug.log*
@@ -71,8 +73,4 @@ Desktop.ini
 # ─── Editor ──────────────────────────────────────────────────────────────────
 .vscode/settings.json
 .idea/
-
-infra/k8s/*/notification-db-secret.yaml
-infra/k8s/*/*secret.yaml
-
 

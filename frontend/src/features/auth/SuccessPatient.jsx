@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import Api from '../../core/api';
-import DashboardLayout from '../../layouts/DashboardLayout';
+import React, { useEffect, useState } from "react";
+import Api from "../../core/api";
+import DashboardLayout from "../../layouts/DashboardLayout";
 
 const parseUpcomingDateRange = (dateStr) => {
   if (!dateStr) return null;
@@ -32,7 +32,7 @@ export default function PatientDashboard({ navigate }) {
     let mounted = true;
     (async () => {
       try {
-        const token = sessionStorage.getItem('accessToken') || '';
+        const token = sessionStorage.getItem("accessToken") || "";
 
         const decodeJwtPayload = (jwtToken) => {
           try {
@@ -64,7 +64,7 @@ export default function PatientDashboard({ navigate }) {
           Api.get('/api/v1/reports/recent', token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
-          Api.get('/api/v1/notifications/latest', token)
+          Api.get("/api/v1/notifications/latest", token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
           patientId ? Api.get(`/api/v1/patients/${patientId}`, token) : Promise.resolve({ status: 404, body: null }),
@@ -85,7 +85,7 @@ export default function PatientDashboard({ navigate }) {
           goTo('/patient/profile');
         }
       } catch (e) {
-        console.error('Error fetching dashboard data:', e);
+        console.error("Error fetching dashboard data:", e);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -96,16 +96,16 @@ export default function PatientDashboard({ navigate }) {
   }, []);
 
   const logout = async () => {
-    const refreshToken = sessionStorage.getItem('refreshToken');
+    const refreshToken = sessionStorage.getItem("refreshToken");
     if (refreshToken) {
       try {
-        await Api.post('/api/v1/auth/logout', { refreshToken });
+        await Api.post("/api/v1/auth/logout", { refreshToken });
       } catch (e) {}
     }
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('refreshToken');
-    if (navigate) navigate('/login');
-    else window.location.hash = '/login';
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("refreshToken");
+    if (navigate) navigate("/login");
+    else window.location.hash = "/login";
   };
 
   const goTo = (path) => {
@@ -119,21 +119,31 @@ export default function PatientDashboard({ navigate }) {
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-600">Welcome back! Here's an overview of your health sessions and records.</p>
+          <p className="text-slate-600">
+            Welcome back! Here's an overview of your health sessions and
+            records.
+          </p>
         </div>
 
         {/* Complete Profile Banner */}
         {!profile && !loading && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <span className="material-symbols-outlined text-blue-600 text-3xl">person</span>
+              <span className="material-symbols-outlined text-blue-600 text-3xl">
+                person
+              </span>
               <div>
-                <h3 className="font-bold text-blue-900 text-lg">Complete Your Profile</h3>
-                <p className="text-blue-700 text-sm">Add your personal information to get personalized healthcare recommendations.</p>
+                <h3 className="font-bold text-blue-900 text-lg">
+                  Complete Your Profile
+                </h3>
+                <p className="text-blue-700 text-sm">
+                  Add your personal information to get personalized healthcare
+                  recommendations.
+                </p>
               </div>
             </div>
-            <button 
-              onClick={() => goTo('/patient/profile')}
+            <button
+              onClick={() => goTo("/patient/profile")}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all active:scale-95 whitespace-nowrap"
             >
               Complete Profile
@@ -144,9 +154,17 @@ export default function PatientDashboard({ navigate }) {
         {/* AI Symptom Checker */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 bg-primary rounded-xl p-8 text-on-primary shadow-lg">
-            <h3 className="text-3xl font-extrabold">Feeling unwell? Check your symptoms instantly.</h3>
-            <p className="text-primary-container font-medium">Our AI analysis tool provides clinical-grade preliminary assessments in under 2 minutes.</p>
-            <button className="bg-white text-primary px-6 py-3 rounded-lg font-bold shadow-sm hover:bg-primary-container transition-colors mt-4" onClick={() => goTo('/symptom-checker')}>
+            <h3 className="text-3xl font-extrabold">
+              Feeling unwell? Check your symptoms instantly.
+            </h3>
+            <p className="text-primary-container font-medium">
+              Our AI analysis tool provides clinical-grade preliminary
+              assessments in under 2 minutes.
+            </p>
+            <button
+              className="bg-white text-primary px-6 py-3 rounded-lg font-bold shadow-sm hover:bg-primary-container transition-colors mt-4"
+              onClick={() => goTo("/symptom-checker")}
+            >
               Start AI Assessment
             </button>
           </div>
@@ -154,7 +172,9 @@ export default function PatientDashboard({ navigate }) {
             <h4 className="font-bold text-lg">Quick Find</h4>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-500">Specialty</label>
+                <label className="text-xs font-bold text-slate-500">
+                  Specialty
+                </label>
                 <select className="w-full rounded-lg border-slate-200 text-sm focus:border-primary focus:ring-primary">
                   <option>Cardiology</option>
                   <option>Neurology</option>
@@ -163,8 +183,13 @@ export default function PatientDashboard({ navigate }) {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500">Date Preference</label>
-                <input className="w-full rounded-lg border-slate-200 text-sm focus:border-primary focus:ring-primary" type="date" />
+                <label className="text-xs font-bold text-slate-500">
+                  Date Preference
+                </label>
+                <input
+                  className="w-full rounded-lg border-slate-200 text-sm focus:border-primary focus:ring-primary"
+                  type="date"
+                />
               </div>
             </div>
             <button className="w-full mt-6 py-3 border-2 border-primary text-primary hover:bg-primary hover:text-white transition-all font-bold rounded-lg text-sm">
@@ -185,17 +210,25 @@ export default function PatientDashboard({ navigate }) {
                 >
                   <div className="flex justify-between items-center">
                     <div>
-                      <h5 className="font-bold text-lg">{a.doctorName || a.doctor}</h5>
-                      <p className="text-xs text-slate-500">{a.date || a.time}</p>
+                      <h5 className="font-bold text-lg">
+                        {a.doctorName || a.doctor}
+                      </h5>
+                      <p className="text-xs text-slate-500">
+                        {a.date || a.time}
+                      </p>
                     </div>
                     {(() => {
-                      const isTelemed = a.type === 'telemedicine';
+                      const isTelemed = a.type === "telemedicine";
                       const locked = isTelemed && !canJoinNowFromUpcoming(a);
                       return (
                         <button
                           className="bg-primary text-on-primary px-6 py-2 rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={locked}
-                          title={locked ? 'You can only join during the appointment time window.' : undefined}
+                          title={
+                            locked
+                              ? "You can only join during the appointment time window."
+                              : undefined
+                          }
                           onClick={() => {
                             if (locked) return;
                             goTo(
@@ -205,7 +238,9 @@ export default function PatientDashboard({ navigate }) {
                             );
                           }}
                         >
-                          {a.type === 'telemedicine' ? 'Join Session' : 'View Details'}
+                          {a.type === "telemedicine"
+                            ? "Join Session"
+                            : "View Details"}
                         </button>
                       );
                     })()}
@@ -224,16 +259,25 @@ export default function PatientDashboard({ navigate }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {reports && reports.length ? (
               reports.map((r) => (
-                <div key={r.id || r._id} className="bg-white p-4 rounded-xl border border-outline-variant/30">
+                <div
+                  key={r.id || r._id}
+                  className="bg-white p-4 rounded-xl border border-outline-variant/30"
+                >
                   <h5 className="font-bold text-sm">{r.name || r.filename}</h5>
                   <p className="text-xs text-slate-500">{r.date}</p>
                   <div className="flex gap-3 mt-3">
-                    <button className="text-primary text-sm font-bold">View</button>
-                    <button className="text-slate-400 text-sm font-bold">Delete</button>
+                    <button className="text-primary text-sm font-bold">
+                      View
+                    </button>
+                    <button className="text-slate-400 text-sm font-bold">
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))
-            ) : <p className="text-gray-500">No reports uploaded</p>}
+            ) : (
+              <p className="text-gray-500">No reports uploaded</p>
+            )}
           </div>
         </section>
       </div>

@@ -12,6 +12,7 @@ export default {
   PGPASSWORD: getEnv("PGPASSWORD", "postgres"),
   PGDATABASE: getEnv("PGDATABASE", "appointmentsdb"),
   JWT_SECRET: getEnv("JWT_SECRET", "change-me"),
+  AUTH_PUBLIC_KEY_PATH: getEnv("AUTH_PUBLIC_KEY_PATH", ""),
   DOCTOR_SERVICE_URL: getEnv(
     "DOCTOR_SERVICE_URL",
     "http://doctor-management-service:4002",

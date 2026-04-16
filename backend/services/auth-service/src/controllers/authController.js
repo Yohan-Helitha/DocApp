@@ -118,6 +118,19 @@ export const internalListPendingDoctorVerifications = async (req, res) => {
   }
 };
 
+export const internalListDoctorVerifications = async (req, res) => {
+  try {
+    const result = await authService.listDoctorVerifications();
+    return res.json(result);
+  } catch (err) {
+    req.log &&
+      req.log.error &&
+      req.log.error(err, "internal list doctor verifications error");
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: "internal_error" });
+  }
+};
+
 export const internalDownloadDoctorLicense = async (req, res) => {
   try {
     const { filename, mimeType, data } = await authService.getDoctorLicense(

@@ -119,6 +119,16 @@ export default function DoctorVerification() {
     return 'pending';
   };
 
+  const hasRegistrationDocument = (doc) => {
+    if (!doc) return false;
+    if (doc.license_original_name || doc.license_mime_type) return true;
+    return Number(doc.license_size_bytes || 0) > 0;
+  };
+
+  const isFullyVerified = (doc) => {
+    return getLoginStatus(doc) === 'approved' && getProfileStatus(doc) === 'approved';
+  };
+
   const query = search.trim().toLowerCase();
 
   const filteredDoctors = doctors.filter((doc) => {
@@ -237,7 +247,7 @@ export default function DoctorVerification() {
                   {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-6 py-4 text-xs text-primary font-semibold">
-                  {getLoginStatus(doc) === 'pending' ? (
+                  {hasRegistrationDocument(doc) ? (
                     <button
                       type="button"
                       onClick={() => handleViewRegistration(doc.user_id)}
@@ -282,14 +292,16 @@ export default function DoctorVerification() {
                         <button
                           type="button"
                           onClick={() => handleProfileDecision(doc.user_id, true)}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                          disabled={isFullyVerified(doc)}
+                          className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg ${isFullyVerified(doc) ? 'bg-emerald-50 text-emerald-400 cursor-not-allowed' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
                         >
                           Approve Profile
                         </button>
                         <button
                           type="button"
                           onClick={() => handleProfileDecision(doc.user_id, false)}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200"
+                          disabled={isFullyVerified(doc)}
+                          className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg ${isFullyVerified(doc) ? 'bg-rose-50 text-rose-300 cursor-not-allowed' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
                         >
                           Reject Profile
                         </button>

@@ -71,11 +71,10 @@ export const listPendingDoctors = async () => {
     throw err;
   }
 
-  const res = await authClient.get('/api/v1/internal/auth/doctors/pending-verification', {
+  const allDoctorsRes = await authClient.get('/api/v1/internal/auth/doctors/verification-records', {
     headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
   });
-
-  const authPendingDoctors = Array.isArray(res.data?.doctors) ? res.data.doctors : [];
+  const authDoctors = Array.isArray(allDoctorsRes.data?.doctors) ? allDoctorsRes.data.doctors : [];
 
   const doctorStatusesRes = await doctorClient.get('/api/v1/internal/doctors/verification-statuses', {
     headers: { 'x-internal-api-key': env.INTERNAL_API_KEY }
@@ -85,7 +84,7 @@ export const listPendingDoctors = async () => {
     : [];
 
   const pendingByUserId = new Map(
-    authPendingDoctors
+    authDoctors
       .filter((d) => d && d.user_id)
       .map((d) => [d.user_id, d])
   );
@@ -96,27 +95,26 @@ export const listPendingDoctors = async () => {
       .map((d) => [d.user_id, d])
   );
 
-  const userIdsNeedingReview = new Set();
-
-  for (const d of authPendingDoctors) {
-    if (d && d.user_id) userIdsNeedingReview.add(d.user_id);
+  const userIds = new Set();
+  for (const d of authDoctors) {
+    if (d?.user_id) userIds.add(d.user_id);
   }
-
   for (const d of profileDoctors) {
-    if (!d || !d.user_id) continue;
-    const profileStatus = String(d.verification_status || 'pending').toLowerCase();
-    if (profileStatus !== 'approved') {
-      userIdsNeedingReview.add(d.user_id);
-    }
+    if (d?.user_id) userIds.add(d.user_id);
   }
 
-  return Array.from(userIdsNeedingReview).map((userId) => {
+  return Array.from(userIds).map((userId) => {
     const authRow = pendingByUserId.get(userId) || null;
     const profileRow = profileByUserId.get(userId) || null;
 
     const authProfile = authRow?.profile_data || {};
     const submittedAt = authRow?.submitted_at || authRow?.created_at || profileRow?.created_at || null;
-    const loginVerificationStatus = authRow ? 'pending' : 'approved';
+
+    const accountStatus = String(authRow?.account_status || 'pending_verification').toLowerCase();
+    const loginVerificationStatus = accountStatus === 'pending_verification'
+      ? 'pending'
+      : (accountStatus === 'active' ? 'approved' : (accountStatus === 'rejected' ? 'rejected' : accountStatus));
+
     const profileVerificationStatus = profileRow
       ? String(profileRow.verification_status || 'pending').toLowerCase()
       : 'not_created';
@@ -124,10 +122,10 @@ export const listPendingDoctors = async () => {
     return {
       doctor_id: profileRow?.doctor_id || null,
       user_id: userId,
-      email: profileRow?.email || authRow?.email || null,
+      email: authRow?.email || profileRow?.email || null,
       full_name: profileRow?.full_name || authProfile.full_name || null,
       specialization: profileRow?.specialization || authProfile.specialization || null,
-      account_status: authRow?.account_status || 'active',
+      account_status: accountStatus,
       created_at: submittedAt,
       submitted_at: submittedAt,
       verification_status: profileVerificationStatus,
@@ -291,8 +289,13 @@ export const getDashboardMetrics = async () => {
 
   let pendingCount = 0;
   if (env.INTERNAL_API_KEY) {
-    const doctorsNeedingReview = await listPendingDoctors();
-    pendingCount = doctorsNeedingReview.length;
+    const doctors = await listPendingDoctors();
+    pendingCount = doctors.filter((d) => {
+      const login = String(d.login_verification_status || '').toLowerCase();
+      const profile = String(d.profile_verification_status || '').toLowerCase();
+      if (login === 'rejected' || profile === 'rejected') return false;
+      return !(login === 'approved' && profile === 'approved');
+    }).length;
   }
 
   return {

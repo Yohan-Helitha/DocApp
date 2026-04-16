@@ -50,6 +50,11 @@ router.put(
 
 // Internal (service-to-service) doctor verification workflow
 router.get(
+	'/api/v1/internal/auth/doctors/verification-records',
+	internalAuthMiddleware,
+	controller.internalListDoctorVerifications,
+);
+router.get(
 	'/api/v1/internal/auth/doctors/pending-verification',
 	internalAuthMiddleware,
 	controller.internalListPendingDoctorVerifications,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Api from "../core/api";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 const STATUS_COLORS = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -217,15 +218,6 @@ export default function MyAppointments({ navigate }) {
     return `${hour % 12 || 12}:${min} ${hour >= 12 ? "PM" : "AM"}`;
   };
 
-  const logout = async () => {
-    const rt = sessionStorage.getItem("refreshToken");
-    if (rt)
-      try {
-        await Api.post("/api/v1/auth/logout", { refreshToken: rt });
-      } catch {}
-    sessionStorage.clear();
-    navigate("/login");
-  };
 
   const filtered =
     filter === "all"
@@ -255,59 +247,8 @@ export default function MyAppointments({ navigate }) {
   }
 
   return (
-    <div className="bg-background text-on-background antialiased">
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
-        <div className="mb-8 px-4 py-2">
-          <h1 className="text-lg font-extrabold text-[#0b9385]">
-            SmartHealth AI
-          </h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Patient Portal
-          </p>
-        </div>
-        <nav className="flex-1 space-y-1">
-          <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
-            onClick={() => navigate("/success/patient")}
-          >
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="font-semibold text-sm">Overview</span>
-          </a>
-          <a className="bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer">
-            <span className="material-symbols-outlined">event</span>
-            <span className="font-semibold text-sm">Appointments</span>
-          </a>
-          <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
-            onClick={() => navigate("/doctors")}
-          >
-            <span className="material-symbols-outlined">person_search</span>
-            <span className="font-semibold text-sm">Search Doctors</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer">
-            <span className="material-symbols-outlined">description</span>
-            <span className="font-semibold text-sm">Medical Records</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="font-semibold text-sm">Notifications</span>
-          </a>
-        </nav>
-        <div className="mt-auto pt-4 border-t border-slate-200/50">
-          <button
-            onClick={logout}
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all w-full text-left"
-          >
-            <span className="material-symbols-outlined">logout</span>
-            <span className="font-semibold text-sm">Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="md:ml-64 min-h-screen">
-        <header className="sticky top-0 w-full flex justify-between items-center px-8 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
+    <DashboardLayout navigate={navigate} pageName="Appointments">
+        <header className="sticky top-0 w-full flex justify-between items-center px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
           <h2 className="text-xl font-black text-[#0b9385] tracking-tight">
             My Appointments
           </h2>
@@ -320,7 +261,7 @@ export default function MyAppointments({ navigate }) {
           </button>
         </header>
 
-        <div className="p-8 max-w-5xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {/* Filter tabs */}
           <div className="flex gap-2 mb-8 flex-wrap">
             {TABS.map((tab) => (
@@ -538,7 +479,6 @@ export default function MyAppointments({ navigate }) {
             </div>
           )}
         </div>
-      </main>
 
       {/* Reschedule Modal */}
       {rescheduleTarget && (
@@ -634,6 +574,6 @@ export default function MyAppointments({ navigate }) {
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }

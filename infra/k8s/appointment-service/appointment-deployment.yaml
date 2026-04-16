@@ -88,10 +88,16 @@ spec:
                 secretKeyRef:
                   name: appointment-db-secret
                   key: JWT_SECRET
+            - name: AUTH_PUBLIC_KEY_PATH
+              value: "/keys/public.pem"
             - name: DOCTOR_SERVICE_URL
               value: "http://doctor-management-service:4002"
             - name: NOTIFICATION_SERVICE_URL
               value: "http://notification-service:6000"
+          volumeMounts:
+            - name: auth-public-key
+              mountPath: /keys
+              readOnly: true
       volumes:
         - name: appointment-db-init
           configMap:
@@ -99,6 +105,9 @@ spec:
             items:
               - key: init.sql
                 path: init.sql
+        - name: auth-public-key
+          secret:
+            secretName: auth-public-key
 
 ---
 apiVersion: v1

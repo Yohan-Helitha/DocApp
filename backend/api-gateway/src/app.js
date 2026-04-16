@@ -357,10 +357,10 @@ app.use(
   }),
 );
 
-// Proxy appointment routes to the patient-management-service (or appointment-service if separate)
+// Proxy appointment routes to the appointment-service
 app.use(
   createProxyMiddleware("/api/v1/appointments", {
-    target: env.PATIENT_SERVICE_URL,
+    target: env.APPOINTMENT_SERVICE_URL,
     changeOrigin: false,
     logProvider: () => logger,
     onProxyReq(proxyReq, req) {
@@ -369,11 +369,11 @@ app.use(
           method: req.method,
           path: req.originalUrl,
         },
-        "Proxying request to appointments",
+        "Proxying request to appointment-service",
       );
     },
     onError(err, req, res) {
-      logger.error({ err }, "Error proxying request to appointments");
+      logger.error({ err }, "Error proxying request to appointment-service");
       if (!res.headersSent) {
         res.status(502).json({ error: "appointment_service_unavailable" });
       }

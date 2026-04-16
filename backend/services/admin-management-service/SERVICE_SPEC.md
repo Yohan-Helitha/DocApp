@@ -12,3 +12,5 @@
 - `GET /api/v1/admin/doctors/pending-verification`
 - `PUT /api/v1/admin/doctors/{doctorId}/verify`
 - `GET /api/v1/admin/transactions`
+- `GET /api/v1/admin/audit-logs`
+- `GET /api/v1/admin/dashboard/metrics`

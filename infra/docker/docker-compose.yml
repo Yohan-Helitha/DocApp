@@ -1,13 +1,19 @@
-version: '3.9'
+version: "3.9"
 services:
   api-gateway:
     build: ../../backend/api-gateway
     environment:
       - AUTH_SERVICE_URL=http://auth-service:4001
+      - DOCTOR_SERVICE_URL=http://doctor-management-service:4002
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:4003
+      - PAYMENT_SERVICE_URL=http://payment-service:4006
     ports:
       - "4000:4000"
     depends_on:
       - auth-service
+      - doctor-management-service
+      - appointment-service
+      - payment-service
   auth-service:
     build: ../../backend/services/auth-service
     env_file:
@@ -16,16 +22,57 @@ services:
     build: ../../backend/services/patient-management-service
   doctor-management-service:
     build: ../../backend/services/doctor-management-service
+    env_file:
+      - ../../backend/services/doctor-management-service/.env
+    depends_on:
+      - doctors-postgres
   appointment-service:
     build: ../../backend/services/appointment-service
+    env_file:
+      - ../../backend/services/appointment-service/.env
+    depends_on:
+      - appointments-postgres
+      - doctor-management-service
+      - notification-service
   telemedicine-service:
     build: ../../backend/services/telemedicine-service
   payment-service:
     build: ../../backend/services/payment-service
+    env_file:
+      - ../../backend/services/payment-service/.env
+    environment:
+      # Override DB host/port for docker network
+      - PAYMENT_PGHOST=payment-postgres
+      - PAYMENT_PGPORT=5432
+      - PAYMENT_PGUSER=postgres
+      - PAYMENT_PGPASSWORD=postgres
+      - PAYMENT_PGDATABASE=paymentdb
+      - PAYMENT_DATABASE_URL=postgresql://postgres:postgres@payment-postgres:5432/paymentdb
+      # IMPORTANT: PayHere notify_url must be publicly reachable; override with your tunnel URL.
+      # Example: https://<your-ngrok-subdomain>.ngrok-free.app/api/v1/payments/notify
+    ports:
+      - "4006:4006"
+    depends_on:
+      - payment-postgres
+  payment-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paymentdb
+    ports:
+      - "5437:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+      - ../../backend/services/payment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
   notification-service:
     build: ../../backend/services/notification-service
   admin-management-service:
     build: ../../backend/services/admin-management-service
+    env_file:
+      - ../../backend/services/admin-management-service/.env
+    ports:
+      - "4008:4008"
   ai-symptom-checker-service:
     build: ../../backend/services/ai-symptom-checker-service
   frontend:
@@ -63,6 +110,28 @@ services:
       - "5432:5432"
     volumes:
       - auth-db-data:/var/lib/postgresql/data
+  doctors-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: doctorsdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - doctors-db-data:/var/lib/postgresql/data
+  appointments-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appointmentsdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - appointments-db-data:/var/lib/postgresql/data
 volumes:
   auth-db-data:
-
+  doctors-db-data:
+  appointments-db-data:
+  payment-db-data:

@@ -1,0 +1,860 @@
+import React, { useEffect, useState } from "react";
+import Api from "../core/api";
+
+const SLOT_COLORS = {
+  available: "bg-green-100 text-green-700",
+  booked: "bg-blue-100 text-blue-700",
+  blocked: "bg-slate-100 text-slate-500",
+};
+
+export default function DoctorAvailability({ navigate }) {
+  const [doctor, setDoctor] = useState(null);
+  const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formLoading, setFormLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [editTarget, setEditTarget] = useState(null);
+  const [editDate, setEditDate] = useState("");
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const [slotDate, setSlotDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  // Bulk slot generator
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkDate, setBulkDate] = useState("");
+  const [bulkFrom, setBulkFrom] = useState("");
+  const [bulkTo, setBulkTo] = useState("");
+  const [bulkDuration, setBulkDuration] = useState("30");
+  const [bulkPreview, setBulkPreview] = useState([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  const token = sessionStorage.getItem("accessToken");
+
+  const goTo = (path) => {
+    if (navigate) navigate(path);
+    else window.location.hash = path;
+  };
+
+  const logout = async () => {
+    const refreshToken = sessionStorage.getItem("refreshToken");
+    if (refreshToken) {
+      try {
+        await Api.post("/api/v1/auth/logout", { refreshToken });
+      } catch (e) {}
+    }
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("refreshToken");
+    goTo("/login");
+  };
+
+  const loadSlots = async (doc) => {
+    const res = await Api.get(
+      `/api/v1/doctors/${doc.doctor_id}/availability-slots`,
+      token,
+    );
+    if (res.status === 200) setSlots(res.body?.slots || []);
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      if (!token) {
+        goTo("/login");
+        return;
+      }
+      let role = "";
+      try {
+        role = JSON.parse(atob(token.split(".")[1])).role;
+      } catch {}
+      if (role && role !== "doctor") {
+        setLoading(false);
+        setAccessDenied(true);
+        return;
+      }
+      try {
+        let userId = "";
+        try {
+          userId = JSON.parse(atob(token.split(".")[1])).sub;
+        } catch {}
+        const dRes = await Api.get("/api/v1/doctors", token);
+        const me = (dRes.body?.doctors || []).find((d) => d.user_id === userId);
+        if (me) {
+          setDoctor(me);
+          await loadSlots(me);
+        }
+      } catch {}
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const handleAddSlot = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    if (!slotDate || !startTime || !endTime) {
+      setError("All fields are required.");
+      return;
+    }
+    if (endTime <= startTime) {
+      setError("End time must be after start time.");
+      return;
+    }
+    setFormLoading(true);
+    try {
+      const res = await Api.post(
+        `/api/v1/doctors/${doctor.doctor_id}/availability-slots`,
+        { slot_date: slotDate, start_time: startTime, end_time: endTime },
+        token,
+      );
+      if (res.status === 201 || res.status === 200) {
+        setSuccess("Slot added successfully.");
+        setSlotDate("");
+        setStartTime("");
+        setEndTime("");
+        await loadSlots(doctor);
+      } else {
+        setError(res.body?.message || "Failed to add slot.");
+      }
+    } catch {
+      setError("An error occurred.");
+    }
+    setFormLoading(false);
+  };
+
+  const handleDeleteSlot = async (slotId) => {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await Api.delete(
+        `/api/v1/doctors/${doctor.doctor_id}/availability-slots/${slotId}`,
+        token,
+      );
+      if (res.status === 200 || res.status === 204) {
+        setSlots((prev) => prev.filter((s) => s.slot_id !== slotId));
+        setSuccess("Slot removed.");
+      } else {
+        setError(res.body?.message || "Failed to remove slot.");
+      }
+    } catch {
+      setError("An error occurred.");
+    }
+  };
+
+  const openEdit = (slot) => {
+    setEditError("");
+    setEditDate(slot.slot_date);
+    setEditStartTime(slot.start_time.slice(0, 5));
+    setEditEndTime(slot.end_time.slice(0, 5));
+    setEditTarget(slot);
+  };
+
+  const handleEditSlot = async (e) => {
+    e.preventDefault();
+    setEditError("");
+    if (!editDate || !editStartTime || !editEndTime) {
+      setEditError("All fields are required.");
+      return;
+    }
+    if (editEndTime <= editStartTime) {
+      setEditError("End time must be after start time.");
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const res = await Api.put(
+        `/api/v1/doctors/${doctor.doctor_id}/availability-slots/${editTarget.slot_id}`,
+        {
+          slot_date: editDate,
+          start_time: editStartTime,
+          end_time: editEndTime,
+        },
+        token,
+      );
+      if (res.status === 200) {
+        setSlots((prev) =>
+          prev.map((s) =>
+            s.slot_id === editTarget.slot_id
+              ? {
+                  ...s,
+                  slot_date: editDate,
+                  start_time: editStartTime,
+                  end_time: editEndTime,
+                }
+              : s,
+          ),
+        );
+        setSuccess("Slot updated.");
+        setEditTarget(null);
+      } else {
+        setEditError(
+          res.body?.message || `Failed to update slot (${res.status}).`,
+        );
+      }
+    } catch {
+      setEditError("Network error. Please try again.");
+    }
+    setEditLoading(false);
+  };
+
+  const timeToMinutes = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const minutesToTime = (mins) => {
+    const h = Math.floor(mins / 60)
+      .toString()
+      .padStart(2, "0");
+    const m = (mins % 60).toString().padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  const generateBulkPreview = () => {
+    if (!bulkDate || !bulkFrom || !bulkTo || !bulkDuration) {
+      setError("All bulk generator fields are required.");
+      return;
+    }
+    const fromMins = timeToMinutes(bulkFrom);
+    const toMins = timeToMinutes(bulkTo);
+    const dur = parseInt(bulkDuration, 10);
+    if (toMins <= fromMins) {
+      setError("'To' time must be after 'From' time.");
+      return;
+    }
+    const generated = [];
+    let cursor = fromMins;
+    while (cursor + dur <= toMins) {
+      const start = minutesToTime(cursor);
+      const end = minutesToTime(cursor + dur);
+      const isDuplicate = slots.some(
+        (s) =>
+          s.slot_date.slice(0, 10) === bulkDate &&
+          s.start_time.slice(0, 5) === start,
+      );
+      generated.push({
+        start_time: start,
+        end_time: end,
+        duplicate: isDuplicate,
+      });
+      cursor += dur;
+    }
+    if (generated.length === 0) {
+      setError("No slots can be generated in the given time window.");
+      return;
+    }
+    setError("");
+    setBulkPreview(generated);
+  };
+
+  const handleAddBulk = async () => {
+    const toAdd = bulkPreview.filter((s) => !s.duplicate);
+    if (toAdd.length === 0) {
+      setError("All generated slots already exist. No new slots to add.");
+      return;
+    }
+    setBulkLoading(true);
+    setError("");
+    setSuccess("");
+    let added = 0;
+    let failed = 0;
+    for (const slot of toAdd) {
+      try {
+        const res = await Api.post(
+          `/api/v1/doctors/${doctor.doctor_id}/availability-slots`,
+          {
+            slot_date: bulkDate,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+          },
+          token,
+        );
+        if (res.status === 201 || res.status === 200) {
+          added++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+    await loadSlots(doctor);
+    setBulkPreview([]);
+    setBulkDate("");
+    setBulkFrom("");
+    setBulkTo("");
+    if (failed === 0) {
+      setSuccess(`${added} slot${added !== 1 ? "s" : ""} added successfully.`);
+    } else {
+      setSuccess(
+        `${added} slot${added !== 1 ? "s" : ""} added. ${failed} failed.`,
+      );
+    }
+    setBulkLoading(false);
+  };
+
+  const formatDate = (d) => {
+    if (!d) return "";
+    const [y, m, day] = d.slice(0, 10).split("-");
+    return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const formatTime = (t) => {
+    if (!t) return "";
+    const [h, min] = t.split(":");
+    const hour = parseInt(h, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    return `${hour % 12 || 12}:${min} ${ampm}`;
+  };
+
+  const filteredSlots =
+    filterStatus === "all"
+      ? slots
+      : slots.filter((s) => s.slot_status === filterStatus);
+
+  const pending = slots.filter((s) => s.slot_status === "available").length;
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center px-6">
+          <span className="material-symbols-outlined text-5xl text-red-400 block">
+            lock
+          </span>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
+          <p className="text-slate-500 mt-2">This page is for doctors only.</p>
+          <button
+            onClick={() => goTo("/")}
+            className="mt-6 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-on-background antialiased overflow-x-hidden">
+      {/* Sidebar */}
+      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950 p-4 z-40">
+        <div className="mb-10 px-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary">
+                clinical_notes
+              </span>
+            </div>
+            <div>
+              <h1 className="text-lg font-extrabold text-[#0b9385]">
+                SmartHealth AI
+              </h1>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                Doctor Portal
+              </p>
+            </div>
+          </div>
+        </div>
+        <nav className="flex-1 space-y-1">
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo("/success/doctor")}
+          >
+            <span className="material-symbols-outlined">dashboard</span>
+            <span className="font-semibold text-sm">Overview</span>
+          </a>
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo("/doctor/appointments")}
+          >
+            <span className="material-symbols-outlined">event</span>
+            <span className="font-semibold text-sm">Appointments</span>
+          </a>
+          <a className="bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer">
+            <span className="material-symbols-outlined">calendar_month</span>
+            <span className="font-semibold text-sm">Availability</span>
+            {pending > 0 && (
+              <span className="ml-auto bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {pending}
+              </span>
+            )}
+          </a>
+          <button
+            type="button"
+            onClick={() => goTo("/telemedicine")}
+            className="w-full text-left text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all hover:translate-x-1 duration-200"
+          >
+            <span className="material-symbols-outlined" data-icon="video_chat">
+              video_chat
+            </span>
+            <span className="font-semibold text-sm">Telemedicine</span>
+          </button>
+        </nav>
+        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
+          <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
+            <span className="material-symbols-outlined">help</span>
+            <span className="font-semibold text-sm">Help Center</span>
+          </a>
+          <button
+            onClick={logout}
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all w-full text-left"
+          >
+            <span className="material-symbols-outlined">logout</span>
+            <span className="font-semibold text-sm">Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="md:ml-64 p-8 min-h-screen">
+        <header className="flex justify-between items-end mb-10">
+          <div>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Availability
+            </h2>
+            <p className="text-slate-400 font-medium mt-1">
+              Manage your open time slots
+            </p>
+          </div>
+          {doctor && (
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-extrabold text-lg">
+              {doctor.full_name.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </header>
+
+        {/* Alerts */}
+        {error && (
+          <div className="mb-6 bg-red-50   border border-red-200   text-red-700   rounded-2xl px-5 py-4 text-sm font-medium">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 rounded-2xl px-5 py-4 text-sm font-medium">
+            {success}
+          </div>
+        )}
+
+        <div className="grid grid-cols-5 gap-8">
+          {/* Add Slot Form */}
+          <div className="col-span-5 lg:col-span-2">
+            <div className="bg-white rounded-2xl p-8 shadow-sm sticky top-8">
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">
+                  add_circle
+                </span>
+                Add New Slot
+              </h3>
+
+              {/* Mode toggle */}
+              <div className="flex gap-2 mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkMode(false);
+                    setBulkPreview([]);
+                    setError("");
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${!bulkMode ? "bg-primary text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                >
+                  Single Slot
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkMode(true);
+                    setError("");
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${bulkMode ? "bg-primary text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                >
+                  Bulk Generator
+                </button>
+              </div>
+
+              {!bulkMode ? (
+                <form onSubmit={handleAddSlot} className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={slotDate}
+                      onChange={(e) => setSlotDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={formLoading || !doctor}
+                    className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {formLoading ? (
+                      <span className="material-symbols-outlined animate-spin text-lg">
+                        progress_activity
+                      </span>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-lg">
+                          add
+                        </span>
+                        Add Slot
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={bulkDate}
+                      onChange={(e) => setBulkDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                        From
+                      </label>
+                      <input
+                        type="time"
+                        value={bulkFrom}
+                        onChange={(e) => setBulkFrom(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                        To
+                      </label>
+                      <input
+                        type="time"
+                        value={bulkTo}
+                        onChange={(e) => setBulkTo(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      Slot Duration
+                    </label>
+                    <select
+                      value={bulkDuration}
+                      onChange={(e) => {
+                        setBulkDuration(e.target.value);
+                        setBulkPreview([]);
+                      }}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    >
+                      <option value="15">15 minutes</option>
+                      <option value="30">30 minutes</option>
+                      <option value="45">45 minutes</option>
+                      <option value="60">60 minutes</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkPreview([]);
+                      generateBulkPreview();
+                    }}
+                    disabled={!doctor}
+                    className="w-full border border-primary text-primary font-bold py-3 rounded-xl hover:bg-primary/5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      preview
+                    </span>
+                    Preview Slots
+                  </button>
+
+                  {bulkPreview.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                        Preview —{" "}
+                        {bulkPreview.filter((s) => !s.duplicate).length} new,{" "}
+                        {bulkPreview.filter((s) => s.duplicate).length}{" "}
+                        duplicate
+                      </p>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {bulkPreview.map((s, i) => (
+                          <div
+                            key={i}
+                            className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium ${s.duplicate ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}
+                          >
+                            <span>
+                              {formatTime(s.start_time)} –{" "}
+                              {formatTime(s.end_time)}
+                            </span>
+                            {s.duplicate && (
+                              <span className="text-[10px] font-bold uppercase bg-amber-100 px-1.5 py-0.5 rounded">
+                                duplicate
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddBulk}
+                        disabled={bulkLoading || !doctor}
+                        className="w-full mt-4 bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                      >
+                        {bulkLoading ? (
+                          <span className="material-symbols-outlined animate-spin text-lg">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-lg">
+                              add_circle
+                            </span>
+                            Add {bulkPreview.filter((s) => !s.duplicate).length}{" "}
+                            Slot
+                            {bulkPreview.filter((s) => !s.duplicate).length !==
+                            1
+                              ? "s"
+                              : ""}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Slot List */}
+          <div className="col-span-5 lg:col-span-3">
+            <div className="bg-white rounded-2xl p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">
+                    calendar_month
+                  </span>
+                  Your Slots
+                  <span className="ml-2 text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-full">
+                    {slots.length}
+                  </span>
+                </h3>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="all">All</option>
+                  <option value="available">Available</option>
+                  <option value="booked">Booked</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </div>
+
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <span className="material-symbols-outlined text-primary text-4xl animate-spin">
+                    progress_activity
+                  </span>
+                </div>
+              ) : filteredSlots.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <span className="material-symbols-outlined text-5xl block mb-3">
+                    event_busy
+                  </span>
+                  <p className="font-medium">
+                    {filterStatus === "all"
+                      ? "No slots yet. Add your first slot."
+                      : `No ${filterStatus} slots.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredSlots.map((slot) => (
+                    <div
+                      key={slot.slot_id}
+                      className="flex items-center justify-between border border-slate-100 rounded-2xl px-5 py-4 hover:border-slate-200 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-primary text-lg">
+                            schedule
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">
+                            {formatDate(slot.slot_date)}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {formatTime(slot.start_time)} –{" "}
+                            {formatTime(slot.end_time)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${SLOT_COLORS[slot.slot_status] || "bg-slate-100 text-slate-500"}`}
+                        >
+                          {slot.slot_status}
+                        </span>
+                        {slot.slot_status === "available" && (
+                          <>
+                            <button
+                              onClick={() => openEdit(slot)}
+                              title="Edit slot"
+                              className="text-slate-400 hover:text-primary transition-colors p-1 rounded-lg hover:bg-primary/10"
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                edit
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSlot(slot.slot_id)}
+                              title="Remove slot"
+                              className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                delete
+                              </span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Edit Slot Modal */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-extrabold text-slate-900">
+                Edit Slot
+              </h3>
+              <button
+                onClick={() => setEditTarget(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleEditSlot} className="px-6 py-5 space-y-4">
+              {editError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
+                  {editError}
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+                  Start Time
+                </label>
+                <input
+                  type="time"
+                  value={editStartTime}
+                  onChange={(e) => setEditStartTime(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  value={editEndTime}
+                  onChange={(e) => setEditEndTime(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditTarget(null)}
+                  className="flex-1 border border-slate-200 text-slate-600 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  {editLoading ? (
+                    <span className="material-symbols-outlined animate-spin text-lg">
+                      progress_activity
+                    </span>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

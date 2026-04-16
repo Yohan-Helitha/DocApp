@@ -93,6 +93,8 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            - name: PORT
+              value: "4001"
             - name: PGHOST
               value: "auth-postgres"
             - name: PGPORT
@@ -126,13 +128,12 @@ spec:
                 path: init.sql
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
   name: auth-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: auth-service
   ports:

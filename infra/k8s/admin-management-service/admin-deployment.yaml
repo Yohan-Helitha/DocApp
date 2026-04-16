@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-management-service
+  labels:
+    app: admin-management-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-management-service
+  template:
+    metadata:
+      labels:
+        app: admin-management-service
+    spec:
+      containers:
+        - name: admin-management-service
+          image: docapp/admin-management-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4008
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4008"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@admin-postgres:5432/admindb"
+            - name: PGHOST
+              value: "admin-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: admin-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: admin-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: admin-db-secret
+                  key: PGPASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-management-service
+spec:
+  type: ClusterIP
+  selector:
+    app: admin-management-service
+  ports:
+    - protocol: TCP
+      port: 4008
+      targetPort: 4008

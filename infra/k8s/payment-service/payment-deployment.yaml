@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  labels:
+    app: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: docapp/payment-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4006
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4006"
+            - name: PAYMENT_DATABASE_URL
+              value: "postgresql://postgres:postgres@payment-postgres:5432/paymentdb"
+            - name: PAYMENT_PGHOST
+              value: "payment-postgres"
+            - name: PAYMENT_PGPORT
+              value: "5432"
+            - name: PAYMENT_PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-db-config
+                  key: PGDATABASE
+            - name: PAYMENT_PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-db-config
+                  key: PGUSER
+            - name: PAYMENT_PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-db-secret
+                  key: PGPASSWORD
+            - name: LOG_LEVEL
+              value: "info"
+            - name: PAYHERE_MERCHANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: payhere-credentials
+                  key: PAYHERE_MERCHANT_ID
+            - name: PAYHERE_MERCHANT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: payhere-credentials
+                  key: PAYHERE_MERCHANT_SECRET
+            - name: PAYHERE_SANDBOX
+              value: "true"
+            - name: PAYHERE_RETURN_URL
+              value: "https://docapp.ngrok.app/payhere/return"
+            - name: PAYHERE_CANCEL_URL
+              value: "https://docapp.ngrok.app/payhere/cancel"
+            - name: PAYHERE_NOTIFY_URL
+              value: "https://docapp.ngrok.app/api/v1/payments/notify"
+            - name: CORS_ORIGIN
+              value: "http://localhost:8081"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-service
+  ports:
+    - protocol: TCP
+      port: 4006
+      targetPort: 4006

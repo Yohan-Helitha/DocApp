@@ -60,10 +60,6 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="material-symbols-outlined">description</span>
               <span className="font-semibold text-sm">Medical Records</span>
             </a>
-            <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/patient/prescriptions'); }}>
-              <span className="material-symbols-outlined">medication</span>
-              <span className="font-semibold text-sm">Prescriptions</span>
-            </a>
             <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer" onClick={(e) => { e.preventDefault(); goTo('/patient/history'); }}>
               <span className="material-symbols-outlined">history</span>
               <span className="font-semibold text-sm">Medical History</span>

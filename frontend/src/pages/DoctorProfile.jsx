@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Api from "../core/api";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 const formatTime = (t) => {
   if (!t) return "";
@@ -70,15 +71,6 @@ export default function DoctorProfile({ navigate }) {
     load();
   }, [doctorId]);
 
-  const logout = async () => {
-    const rt = sessionStorage.getItem("refreshToken");
-    if (rt)
-      try {
-        await Api.post("/api/v1/auth/logout", { refreshToken: rt });
-      } catch {}
-    sessionStorage.clear();
-    navigate("/login");
-  };
 
   const bookSlot = (slot) => {
     const params = new URLSearchParams({
@@ -93,62 +85,8 @@ export default function DoctorProfile({ navigate }) {
   };
 
   return (
-    <div className="bg-background text-on-background antialiased">
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
-        <div className="mb-8 px-4 py-2">
-          <h1 className="text-lg font-extrabold text-[#0b9385]">
-            SmartHealth AI
-          </h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Patient Portal
-          </p>
-        </div>
-        <nav className="flex-1 space-y-1">
-          <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
-            onClick={() => navigate("/success/patient")}
-          >
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="font-semibold text-sm">Overview</span>
-          </a>
-          <a
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
-            onClick={() => navigate("/appointments")}
-          >
-            <span className="material-symbols-outlined">event</span>
-            <span className="font-semibold text-sm">Appointments</span>
-          </a>
-          <a
-            className="bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer"
-            onClick={() => navigate("/doctors")}
-          >
-            <span className="material-symbols-outlined">person_search</span>
-            <span className="font-semibold text-sm">Search Doctors</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer">
-            <span className="material-symbols-outlined">description</span>
-            <span className="font-semibold text-sm">Medical Records</span>
-          </a>
-          <a className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="font-semibold text-sm">Notifications</span>
-          </a>
-        </nav>
-        <div className="mt-auto pt-4 border-t border-slate-200/50">
-          <button
-            onClick={logout}
-            className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all w-full text-left"
-          >
-            <span className="material-symbols-outlined">logout</span>
-            <span className="font-semibold text-sm">Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="md:ml-64 min-h-screen">
-        <header className="sticky top-0 w-full flex items-center gap-3 px-8 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
+    <DashboardLayout navigate={navigate} pageName="Doctor Profile">
+        <header className="sticky top-0 w-full flex items-center gap-3 px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
           <button
             onClick={() => navigate("/doctors")}
             className="text-slate-400 hover:text-primary transition-colors"
@@ -160,7 +98,7 @@ export default function DoctorProfile({ navigate }) {
           </h2>
         </header>
 
-        <div className="p-8 max-w-5xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {loading && (
             <div className="flex justify-center py-24">
               <span className="material-symbols-outlined text-primary text-5xl animate-spin">
@@ -299,7 +237,6 @@ export default function DoctorProfile({ navigate }) {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }

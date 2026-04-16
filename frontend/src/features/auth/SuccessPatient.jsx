@@ -34,11 +34,31 @@ export default function PatientDashboard({ navigate }) {
       try {
         const token = sessionStorage.getItem('accessToken') || '';
 
-        const [a, p, r, n] = await Promise.all([
+        const decodeJwtPayload = (jwtToken) => {
+          try {
+            const payloadPart = String(jwtToken || '').split('.')[1];
+            if (!payloadPart) return null;
+
+            let b64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4;
+            if (pad) b64 += '='.repeat(4 - pad);
+
+            return JSON.parse(atob(b64));
+          } catch {
+            return null;
+          }
+        };
+
+        // patientId is the JWT sub (UUID) – store it for other pages to reuse.
+        let patientId = localStorage.getItem('patientId');
+        if (!patientId && token) {
+          const payload = decodeJwtPayload(token);
+          patientId = payload?.sub || payload?.userId;
+          if (patientId) localStorage.setItem('patientId', patientId);
+        }
+
+        const [upcoming, recentReports, latestNotifications, profileRes] = await Promise.all([
           Api.get('/api/v1/appointments/upcoming', token)
-            .then((res) => (Array.isArray(res?.body) ? res.body : []))
-            .catch(() => []),
-          Api.get('/api/v1/prescriptions/recent', token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
           Api.get('/api/v1/reports/recent', token)
@@ -47,23 +67,21 @@ export default function PatientDashboard({ navigate }) {
           Api.get('/api/v1/notifications/latest', token)
             .then((res) => (Array.isArray(res?.body) ? res.body : []))
             .catch(() => []),
+          patientId ? Api.get(`/api/v1/patients/${patientId}`, token) : Promise.resolve({ status: 404, body: null }),
         ]);
 
         if (!mounted) return;
 
-        const a = results[0].body || [];
-        const r = results[1].body || [];
-        const n = results[2].body || [];
-        const p = results[3].body;
+        setAppointments(upcoming);
+        setReports(recentReports);
+        setNotifications(latestNotifications);
 
-        setAppointments(a);
-        setReports(r);
-        setNotifications(n);
-        setProfile(p);
-        
-        // Auto-redirect to profile if it doesn't exist (new user)
-        if (!p || results[3].status === 404) {
-          console.log('No profile found, redirecting to complete setup...');
+        if (profileRes?.status === 200) {
+          setProfile(profileRes.body);
+          localStorage.setItem('requiresProfileCompletion', 'false');
+        } else if (profileRes?.status === 404) {
+          setProfile(null);
+          localStorage.setItem('requiresProfileCompletion', 'true');
           goTo('/patient/profile');
         }
       } catch (e) {
@@ -155,51 +173,49 @@ export default function PatientDashboard({ navigate }) {
           </div>
         </div>
 
-            {/* Upcoming Appointments */}
-            <section>
-              <h3 className="text-2xl font-bold">Upcoming Sessions</h3>
-              {appointments && appointments.length ? (
-                <div className="space-y-4">
-                  {appointments.map((a) => (
-                    <div key={a.id || a._id} className="bg-surface-bright rounded-xl p-5 shadow-sm border border-outline-variant/20">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h5 className="font-bold text-lg">{a.doctorName || a.doctor}</h5>
-                          <p className="text-xs text-slate-500">{a.date || a.time}</p>
-                        </div>
-                        {(() => {
-                          const isTelemed = a.type === 'telemedicine';
-                          const locked = isTelemed && !canJoinNowFromUpcoming(a);
-                          return (
-                            <button
-                              className="bg-primary text-on-primary px-6 py-2 rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={locked}
-                              title={locked ? 'You can only join during the appointment time window.' : undefined}
-                              onClick={() => {
-                                if (locked) return;
-                                goTo(
-                                  `/telemedicine?appointmentId=${encodeURIComponent(
-                                    a.appointment_id || a.id || a._id,
-                                  )}`,
-                                );
-                              }}
-                            >
-                              {a.type === 'telemedicine'
-                                ? 'Join Session'
-                                : 'View Details'}
-                            </button>
-                          );
-                        })()}
-                      </div>
+        {/* Upcoming Appointments */}
+        <section>
+          <h3 className="text-2xl font-bold">Upcoming Sessions</h3>
+          {appointments && appointments.length ? (
+            <div className="space-y-4">
+              {appointments.map((a) => (
+                <div
+                  key={a.id || a._id}
+                  className="bg-surface-bright rounded-xl p-5 shadow-sm border border-outline-variant/20"
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h5 className="font-bold text-lg">{a.doctorName || a.doctor}</h5>
+                      <p className="text-xs text-slate-500">{a.date || a.time}</p>
                     </div>
-                    <button className="bg-primary text-on-primary px-6 py-2 rounded-lg font-bold text-sm" onClick={() => goTo(`/telemedicine/${a.id || a._id}`)}>
-                      {a.type === 'telemedicine' ? 'Join Session' : 'View Details'}
-                    </button>
+                    {(() => {
+                      const isTelemed = a.type === 'telemedicine';
+                      const locked = isTelemed && !canJoinNowFromUpcoming(a);
+                      return (
+                        <button
+                          className="bg-primary text-on-primary px-6 py-2 rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={locked}
+                          title={locked ? 'You can only join during the appointment time window.' : undefined}
+                          onClick={() => {
+                            if (locked) return;
+                            goTo(
+                              `/telemedicine?appointmentId=${encodeURIComponent(
+                                a.appointment_id || a.id || a._id,
+                              )}`,
+                            );
+                          }}
+                        >
+                          {a.type === 'telemedicine' ? 'Join Session' : 'View Details'}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
             </div>
-          ) : <p className="text-gray-500">No upcoming appointments</p>}
+          ) : (
+            <p className="text-gray-500">No upcoming appointments</p>
+          )}
         </section>
 
         {/* Uploaded Reports */}

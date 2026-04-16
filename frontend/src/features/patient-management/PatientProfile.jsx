@@ -33,19 +33,31 @@ export default function PatientProfile({ navigate }) {
   });
 
   const token = sessionStorage.getItem('accessToken');
+
+  const decodeJwtPayload = (jwtToken) => {
+    try {
+      const payloadPart = String(jwtToken || '').split('.')[1];
+      if (!payloadPart) return null;
+
+      // base64url -> base64
+      let b64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4;
+      if (pad) b64 += '='.repeat(4 - pad);
+
+      return JSON.parse(atob(b64));
+    } catch {
+      return null;
+    }
+  };
   
   // Extract patientId from JWT token (if not in localStorage)
   let patientId = localStorage.getItem('patientId');
   if (!patientId && token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      patientId = payload.sub; // 'sub' is the user ID (UUID) in the JWT
-      console.log('Extracted patientId from JWT:', patientId);
-      if (patientId) {
-        localStorage.setItem('patientId', patientId);
-      }
-    } catch (e) {
-      console.error('Failed to extract patientId from token:', e);
+    const payload = decodeJwtPayload(token);
+    patientId = payload?.sub; // 'sub' is the user ID (UUID) in the JWT
+    console.log('Extracted patientId from JWT:', patientId);
+    if (patientId) {
+      localStorage.setItem('patientId', patientId);
     }
   }
 
@@ -137,6 +149,7 @@ export default function PatientProfile({ navigate }) {
       // Check if patient record doesn't exist (404)
       if (response.status === 404) {
         console.log('Patient record not found (404) - treating as new patient');
+        localStorage.setItem('requiresProfileCompletion', 'true');
         setIsNewPatient(true);
         setIsProfileCompletionRequired(true);
         setIsModalOpen(true);
@@ -214,6 +227,9 @@ export default function PatientProfile({ navigate }) {
       setFormData(mappedData);
       setPreviewImage(mappedData.profileImage);
       setError(null);
+
+      // Keep the navigation gate in sync with actual profile state
+      localStorage.setItem('requiresProfileCompletion', isNewPatient ? 'true' : 'false');
       
       // Auto-open modal for new patients
       if (isNewPatient) {
@@ -336,6 +352,7 @@ export default function PatientProfile({ navigate }) {
         throw new Error(responseData.error || responseData.message || 'Failed to update patient data');
       }
 
+      localStorage.setItem('requiresProfileCompletion', 'false');
       setIsModalOpen(false);
       setIsNewPatient(false);
       setIsProfileCompletionRequired(false);

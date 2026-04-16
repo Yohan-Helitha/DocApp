@@ -279,8 +279,9 @@ app.use(
       }
     },
   }),
+);
+
 // Proxy payment routes to payment-service.
-// In your gateway app.js, update the payment proxy:
 app.use(
   '/api/v1/payments',
   createProxyMiddleware({

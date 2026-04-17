@@ -7,6 +7,12 @@ services:
       - DOCTOR_SERVICE_URL=http://doctor-management-service:4002
       - APPOINTMENT_SERVICE_URL=http://appointment-service:4003
       - PAYMENT_SERVICE_URL=http://payment-service:4006
+      # After PayHere completes, bounce the browser back to the local SPA.
+      # PayHere returns to docapp.ngrok.app/payhere/return; the gateway then
+      # redirects to this URL, forwarding all PayHere query params (including custom_2).
+      - PAYHERE_DEFAULT_RETURN_TO=http://localhost:8081/#/payments/return
+      - PAYHERE_DEFAULT_CANCEL_TO=http://localhost:8081/#/payments/cancel
+      - PAYHERE_RETURN_TO_ALLOWLIST=localhost,127.0.0.1
     ports:
       - "4000:4000"
     depends_on:

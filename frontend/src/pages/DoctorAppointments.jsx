@@ -594,52 +594,59 @@ export default function DoctorAppointments({ navigate }) {
                       </button>
                     </>
                   )}
-                  {appt.appointment_status === "confirmed" && (
-                    <>
-                      <button
-                        onClick={() =>
-                          goTo(
-                            `/telemedicine?appointmentId=${appt.appointment_id}`,
-                          )
-                        }
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold hover:bg-violet-500 hover:text-white transition-colors border border-violet-200"
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          video_call
-                        </span>
-                        Create Session
-                      </button>
-                      <button
-                        disabled={!!actionLoading[appt.appointment_id]}
-                        onClick={() => handleComplete(appt.appointment_id)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-500 hover:text-white transition-colors border border-blue-200 disabled:opacity-50"
-                      >
-                        {actionLoading[appt.appointment_id] === "complete" ? (
-                          <span className="material-symbols-outlined animate-spin text-sm">
-                            progress_activity
-                          </span>
-                        ) : (
+                  {appt.appointment_status === "confirmed" &&
+                    appt.payment_status !== "paid" && (
+                      <span className="text-xs text-amber-600 font-semibold bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+                        Awaiting Payment
+                      </span>
+                    )}
+                  {appt.appointment_status === "confirmed" &&
+                    appt.payment_status === "paid" && (
+                      <>
+                        <button
+                          onClick={() =>
+                            goTo(
+                              `/telemedicine?appointmentId=${appt.appointment_id}`,
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold hover:bg-violet-500 hover:text-white transition-colors border border-violet-200"
+                        >
                           <span className="material-symbols-outlined text-sm">
-                            task_alt
+                            video_call
                           </span>
-                        )}
-                        Mark Complete
-                      </button>
-                      <button
-                        onClick={() =>
-                          goTo(
-                            `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
-                          )
-                        }
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          medication
-                        </span>
-                        Write Prescription
-                      </button>
-                    </>
-                  )}
+                          Create Session
+                        </button>
+                        <button
+                          disabled={!!actionLoading[appt.appointment_id]}
+                          onClick={() => handleComplete(appt.appointment_id)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-500 hover:text-white transition-colors border border-blue-200 disabled:opacity-50"
+                        >
+                          {actionLoading[appt.appointment_id] === "complete" ? (
+                            <span className="material-symbols-outlined animate-spin text-sm">
+                              progress_activity
+                            </span>
+                          ) : (
+                            <span className="material-symbols-outlined text-sm">
+                              task_alt
+                            </span>
+                          )}
+                          Mark Complete
+                        </button>
+                        <button
+                          onClick={() =>
+                            goTo(
+                              `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-sm">
+                            medication
+                          </span>
+                          Write Prescription
+                        </button>
+                      </>
+                    )}
                 </div>
               </div>
             ))}

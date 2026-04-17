@@ -17,18 +17,22 @@ CREATE TABLE IF NOT EXISTS appointments (
   end_time           TIME,                   -- snapshotted from doctor_availability_slots at booking time (Bug 11 fix)
   reason_for_visit   TEXT,
   appointment_status TEXT        DEFAULT 'pending',  -- pending/confirmed/rejected/completed/cancelled
-  payment_status     TEXT        DEFAULT 'unpaid',   -- unpaid/paid/refunded/expired
+  payment_status     TEXT        DEFAULT 'unpaid',   -- unpaid/paid/refunded/expired; set to 'paid' by payment-service webhook callback
+  consultation_fee   NUMERIC(10,2),                  -- snapshotted from doctor profile at booking time
+  payment_deadline   TIMESTAMPTZ,                    -- set when doctor accepts: MIN(now()+24h, slot_start−2h)
   created_at         TIMESTAMPTZ DEFAULT now(),
   updated_at         TIMESTAMPTZ DEFAULT now()
 );
 
 -- Migrate existing deployments: add denormalization columns if they don't exist yet.
 -- Safe to run multiple times (IF NOT EXISTS).
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_name  TEXT;
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_name TEXT;
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS slot_date    DATE;
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS start_time   TIME;
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS end_time     TIME;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_name       TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_name      TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS slot_date         DATE;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS start_time        TIME;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS end_time          TIME;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS consultation_fee  NUMERIC(10,2);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_deadline  TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS appointment_events (
   event_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

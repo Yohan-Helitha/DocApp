@@ -146,11 +146,37 @@ export const initiatePayment = async (req, res) => {
         }
       };
 
+      // PayHere return redirects do not reliably include custom_1/custom_2.
+      // Our SPA reads appointmentId from the hash fragment query, so include it
+      // directly in the return URL.
+      const withHashParam = (urlStr, key, value) => {
+        const raw = String(urlStr || '').trim();
+        const k = String(key || '').trim();
+        const v = String(value || '').trim();
+        if (!raw || !k || !v) return raw;
+
+        const hashIndex = raw.indexOf('#');
+        if (hashIndex === -1) {
+          const sep = raw.includes('?') ? '&' : '?';
+          return raw + sep + encodeURIComponent(k) + '=' + encodeURIComponent(v);
+        }
+
+        const base = raw.slice(0, hashIndex);
+        const fragment = raw.slice(hashIndex + 1);
+        const qIndex = fragment.indexOf('?');
+        const fragPath = qIndex === -1 ? fragment : fragment.slice(0, qIndex);
+        const fragQuery = qIndex === -1 ? '' : fragment.slice(qIndex + 1);
+
+        const params = new URLSearchParams(fragQuery);
+        params.set(k, v);
+        return `${base}#${fragPath}?${params.toString()}`;
+      };
+
       const checkout = {
         actionUrl: `${getPayHereBaseUrl()}/pay/checkout`,
         fields: {
           merchant_id: String(env.PAYHERE_MERCHANT_ID || '').trim(),
-          return_url: withReturnTo(env.PAYHERE_RETURN_URL, returnTo),
+          return_url: withHashParam(withReturnTo(env.PAYHERE_RETURN_URL, returnTo), 'appointmentId', appointmentId),
           cancel_url: withReturnTo(env.PAYHERE_CANCEL_URL, cancelTo),
           notify_url: env.PAYHERE_NOTIFY_URL,
           order_id: orderId,

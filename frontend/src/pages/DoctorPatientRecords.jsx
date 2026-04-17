@@ -198,6 +198,49 @@ export default function DoctorPatientRecords({ navigate }) {
     setSearchQuery("");
   };
 
+  // ── Download helper ────────────────────────────────────────────────────────
+  // Cloudinary raw uploads return Content-Type: application/octet-stream, so
+  // the header is useless for type detection. Instead we read the first 8 bytes
+  // of the downloaded blob and match against known magic byte signatures.
+  const detectExtFromBytes = async (blob) => {
+    const buf = await blob.slice(0, 8).arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    if (hex.startsWith("25504446")) return "pdf"; // %PDF
+    if (hex.startsWith("ffd8ff")) return "jpg"; // JPEG
+    if (hex.startsWith("89504e47")) return "png"; // PNG
+    if (hex.startsWith("47494638")) return "gif"; // GIF
+    if (hex.startsWith("52494646") && hex.slice(16, 24) === "57454250")
+      return "webp"; // RIFF....WEBP
+    return "pdf"; // safe fallback
+  };
+
+  const handleDownload = async (report) => {
+    try {
+      const response = await fetch(report.file_url);
+      if (!response.ok) throw new Error("fetch failed");
+      const blob = await response.blob();
+      const ext = await detectExtFromBytes(blob);
+      const base = (report.report_name || "medical-report").replace(
+        /\.[^/.]+$/,
+        "",
+      );
+      const filename = `${base}.${ext}`;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(report.file_url, "_blank");
+    }
+  };
+
   // ── Guard states ──────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -506,17 +549,15 @@ export default function DoctorPatientRecords({ navigate }) {
                                       </span>
                                     </div>
                                   </div>
-                                  <a
-                                    href={report.file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                  <button
+                                    onClick={() => handleDownload(report)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors flex-shrink-0"
                                   >
                                     <span className="material-symbols-outlined text-sm">
-                                      open_in_new
+                                      download
                                     </span>
-                                    View File
-                                  </a>
+                                    Download
+                                  </button>
                                 </div>
                                 {report.notes && (
                                   <p className="mt-2 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">

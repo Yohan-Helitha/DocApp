@@ -96,6 +96,11 @@ services:
       - "8081:5173"
     environment:
       - VITE_API_BASE=http://localhost:4000
+      # When Vite runs inside Docker, 'localhost' means the container itself, not the
+      # host machine. Set VITE_PROXY_TARGET to the api-gateway's Docker network hostname
+      # so that the Vite dev-server proxy (used by ngrok → PayHere notify_url) can reach
+      # the api-gateway. Browser-side JS still uses VITE_API_BASE=localhost:4000.
+      - VITE_PROXY_TARGET=http://api-gateway:4000
     command: sh -c "npm install --silent && npm run dev -- --host 0.0.0.0 --port 5173"
     depends_on:
       - api-gateway
@@ -108,6 +113,32 @@ services:
       - notification-service
       - admin-management-service
       - ai-symptom-checker-service
+  # ── ngrok tunnel ─────────────────────────────────────────────────────────────
+  # Exposes the frontend (Vite dev server) at the reserved public domain
+  # docapp.ngrok.app so PayHere sandbox accepts the checkout origin and can
+  # deliver the server-to-server notify webhook.
+  #
+  # Requires infra/docker/.env to contain:
+  #   NGROK_AUTHTOKEN=<your token>   (DO NOT commit this file)
+  #   NGROK_DOMAIN=docapp.ngrok.app
+  #
+  # The Vite dev server proxies /api/* to api-gateway:4000 (inside Docker),
+  # so PayHere's notify_url (https://docapp.ngrok.app/api/v1/payments/notify)
+  # is correctly forwarded through: ngrok → Vite proxy → api-gateway → payment-service.
+  ngrok:
+    image: ngrok/ngrok:alpine
+    restart: on-failure
+    depends_on:
+      - frontend
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - "http"
+      - "http://frontend:5173"
+      - "--url=${NGROK_DOMAIN}"
+    ports:
+      # ngrok request inspector UI — open http://localhost:4040 to watch live traffic
+      - "4040:4040"
   postgres:
     image: postgres:15.4-alpine
     environment:
@@ -118,6 +149,7 @@ services:
       - "5432:5432"
     volumes:
       - auth-db-data:/var/lib/postgresql/data
+      - ../../backend/services/auth-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
   doctors-postgres:
     image: postgres:15.4-alpine
     environment:

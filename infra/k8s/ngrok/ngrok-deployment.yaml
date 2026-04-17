@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ngrok-api-gateway
+  name: ngrok-frontend
   labels:
-    app: ngrok-api-gateway
+    app: ngrok-frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ngrok-api-gateway
+      app: ngrok-frontend
   template:
     metadata:
       labels:
-        app: ngrok-api-gateway
+        app: ngrok-frontend
     spec:
       containers:
         - name: ngrok

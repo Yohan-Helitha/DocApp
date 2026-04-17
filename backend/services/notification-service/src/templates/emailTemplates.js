@@ -13,6 +13,21 @@ export const EMAIL_TEMPLATES = {
       </div>
     `
   },
+  PAYMENT_REMINDER: {
+    subject: 'Payment Reminder - DocApp',
+    html: (data) => `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Payment Required</h2>
+        <p>Hello ${data.patientName},</p>
+        <p>Your appointment with <strong>Dr. ${data.doctorName}</strong> has been confirmed.</p>
+        <p>Please complete your payment within <strong>${data.remainingHours}</strong> hour(s).</p>
+        ${data.deadline ? `<p><strong>Payment deadline:</strong> ${data.deadline}</p>` : ''}
+        ${data.date ? `<p><strong>Appointment date:</strong> ${data.date}</p>` : ''}
+        ${data.time ? `<p><strong>Appointment time:</strong> ${data.time}</p>` : ''}
+        <p>Thank you for choosing DocApp.</p>
+      </div>
+    `
+  },
   APPOINTMENT_CANCELLED: {
     subject: 'Appointment Cancelled - DocApp',
     html: (data) => `
@@ -26,6 +41,41 @@ export const EMAIL_TEMPLATES = {
   },
 
   // Telemedicine Service
+  TELEMEDICINE_SESSION_CONFIGURED: {
+    subject: 'Telemedicine Session Scheduled - DocApp',
+    html: (data) => `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Telemedicine Session Scheduled</h2>
+        <p>Hello ${data.patientName},</p>
+        <p>Your telemedicine session for the appointment with <strong>Dr. ${data.doctorName}</strong> has been configured.</p>
+        ${data.date ? `<p><strong>Date:</strong> ${data.date}</p>` : ''}
+        ${data.time ? `<p><strong>Time:</strong> ${data.time}</p>` : ''}
+        <p>You will be able to join during your appointment time window.</p>
+      </div>
+    `
+  },
+  TELEMEDICINE_SESSION_STARTED: {
+    subject: 'Telemedicine Session Started - DocApp',
+    html: (data) => `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Telemedicine Session Started</h2>
+        <p>Hello ${data.patientName},</p>
+        <p>Your telemedicine session for the appointment with <strong>Dr. ${data.doctorName}</strong> has started.</p>
+        <p>You can join from the Telemedicine section in your dashboard.</p>
+      </div>
+    `
+  },
+  TELEMEDICINE_SESSION_ENDED: {
+    subject: 'Telemedicine Session Ended - DocApp',
+    html: (data) => `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Telemedicine Session Ended</h2>
+        <p>Hello ${data.patientName},</p>
+        <p>Your telemedicine session for the appointment with <strong>Dr. ${data.doctorName}</strong> has ended.</p>
+        <p>Thank you for using DocApp.</p>
+      </div>
+    `
+  },
   CONSULTATION_COMPLETED: {
     subject: 'Consultation Summary - DocApp',
     html: (data) => `

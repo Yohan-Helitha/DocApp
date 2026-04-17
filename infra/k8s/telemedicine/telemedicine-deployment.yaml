@@ -50,6 +50,8 @@ spec:
               key: JWT_SECRET
         - name: AUTH_PUBLIC_KEY_PATH
           value: "/keys/public.pem"
+        - name: NOTIFICATION_SERVICE_URL
+          value: "http://notification-service:6000"
         volumeMounts:
         - name: auth-public-key
           mountPath: /keys

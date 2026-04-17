@@ -34,6 +34,43 @@ const tryCreateAdminAuditLog = async ({ actionType, targetEntity, targetEntityId
   }
 };
 
+const trySendWelcomeNotification = async ({ userId, email, role, name }) => {
+  if (!env.NOTIFICATION_SERVICE_URL) return;
+
+  const base = String(env.NOTIFICATION_SERVICE_URL || '').replace(/\/$/, '');
+  if (!base) return;
+
+  try {
+    const displayName =
+      (name && String(name).trim()) ||
+      (email && String(email).split('@')[0]) ||
+      'User';
+
+    await fetch(`${base}/api/v1/notifications/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': String(userId),
+        'x-user-role': String(role || 'user'),
+      },
+      body: JSON.stringify({
+        recipient_user_id: userId,
+        recipient_email: email,
+        channel: 'email',
+        template_code: 'WELCOME_USER',
+        message: 'Welcome to DocApp!',
+        payload_json: {
+          name: displayName,
+          role: String(role || 'user'),
+        },
+        priority: 'high',
+      }),
+    });
+  } catch {
+    // Best-effort; do not fail registration.
+  }
+};
+
 export const register = async (userData) => {
   const { email, password, role } = userData || {};
   if (!email || !password || !role) {
@@ -70,6 +107,16 @@ export const register = async (userData) => {
       targetEntityId: user.user_id,
       actionNote: `User registered: ${user.email} (${user.role})`
     });
+
+    // Patient welcome notification (best-effort)
+    if (user.role === 'patient') {
+      await trySendWelcomeNotification({
+        userId: user.user_id,
+        email: user.email,
+        role: user.role,
+        name: userData?.name || userData?.full_name || userData?.fullName,
+      });
+    }
 
     return { user };
   } catch (err) {

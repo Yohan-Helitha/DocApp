@@ -19,5 +19,9 @@ export default {
   BCRYPT_SALT_ROUNDS: Number(getEnv('BCRYPT_SALT_ROUNDS', '10')),
   LOG_LEVEL: getEnv('LOG_LEVEL', 'info'),
   INTERNAL_API_KEY: getEnv('INTERNAL_API_KEY', ''),
-  ADMIN_SERVICE_URL: getEnv('ADMIN_SERVICE_URL', 'http://admin-management-service:4008')
+  ADMIN_SERVICE_URL: getEnv('ADMIN_SERVICE_URL', 'http://admin-management-service:4008'),
+  NOTIFICATION_SERVICE_URL: getEnv(
+    'NOTIFICATION_SERVICE_URL',
+    'http://notification-service:6000',
+  ),
 };

@@ -509,6 +509,9 @@ export const doctorDecision = async (req, res) => {
 
     const newStatus = decision === "accept" ? "confirmed" : "rejected";
 
+    let paymentDeadlineForNotification = null;
+    let paymentRemainingHours = null;
+
     // When accepting: enforce late-acceptance guard, compute payment_deadline.
     if (decision === "accept") {
       // Build slot start datetime from snapshotted columns
@@ -532,6 +535,12 @@ export const doctorDecision = async (req, res) => {
         twoHoursBefore < twentyFourHoursFromNow
           ? twoHoursBefore
           : twentyFourHoursFromNow;
+
+      paymentDeadlineForNotification = paymentDeadline;
+      paymentRemainingHours = Math.max(
+        0,
+        Math.ceil((paymentDeadline.getTime() - Date.now()) / (60 * 60 * 1000)),
+      );
 
       // Confirm the appointment first, then store the deadline
       await appointmentService.setStatus(
@@ -578,15 +587,54 @@ export const doctorDecision = async (req, res) => {
     });
 
     // Notify patient of the decision (best-effort)
-    notificationClient
-      .sendEmail({
-        callerId: req.user.id,
-        callerRole: req.user.role,
-        recipient_user_id: appointment.patient_id,
-        recipient_email: appointment.patient_email,
-        message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
-      })
-      .catch((err) => req.log.warn(err, "doctor decision notification failed"));
+    if (decision === "accept") {
+      const dateStr =
+        typeof appointment.slot_date === "string"
+          ? appointment.slot_date.slice(0, 10)
+          : appointment.slot_date
+            ? new Date(appointment.slot_date).toISOString().slice(0, 10)
+            : null;
+      const timeStr = appointment.start_time
+        ? String(appointment.start_time).slice(0, 5)
+        : null;
+
+      notificationClient
+        .sendEmail({
+          callerId: req.user.id,
+          callerRole: req.user.role,
+          recipient_user_id: appointment.patient_id,
+          recipient_email: appointment.patient_email,
+          template_code: "PAYMENT_REMINDER",
+          message: `Payment required within ${paymentRemainingHours} hour(s) for your confirmed appointment with Dr. ${doctor.full_name}.`,
+          payload_json: {
+            patientName:
+              appointment.patient_name ||
+              (appointment.patient_email
+                ? String(appointment.patient_email).split("@")[0]
+                : "Patient"),
+            doctorName: doctor.full_name,
+            remainingHours: paymentRemainingHours,
+            deadline: paymentDeadlineForNotification
+              ? paymentDeadlineForNotification.toISOString()
+              : null,
+            date: dateStr,
+            time: timeStr,
+          },
+        })
+        .catch((err) =>
+          req.log.warn(err, "appointment payment reminder notification failed"),
+        );
+    } else {
+      notificationClient
+        .sendEmail({
+          callerId: req.user.id,
+          callerRole: req.user.role,
+          recipient_user_id: appointment.patient_id,
+          recipient_email: appointment.patient_email,
+          message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
+        })
+        .catch((err) => req.log.warn(err, "doctor decision notification failed"));
+    }
 
     return res.json({ appointment: updated });
   } catch (err) {

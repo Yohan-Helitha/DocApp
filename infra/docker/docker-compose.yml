@@ -7,6 +7,7 @@ services:
       - DOCTOR_SERVICE_URL=http://doctor-management-service:4002
       - APPOINTMENT_SERVICE_URL=http://appointment-service:4003
       - PAYMENT_SERVICE_URL=http://payment-service:4006
+      - PATIENT_SERVICE_URL=http://patient-management-service:6001
       # After PayHere completes, bounce the browser back to the local SPA.
       # PayHere returns to docapp.ngrok.app/payhere/return; the gateway then
       # redirects to this URL, forwarding all PayHere query params (including custom_2).
@@ -20,18 +21,30 @@ services:
       - doctor-management-service
       - appointment-service
       - payment-service
+      - patient-management-service
   auth-service:
     build: ../../backend/services/auth-service
     env_file:
       - ../../backend/services/auth-service/.env
   patient-management-service:
     build: ../../backend/services/patient-management-service
+    env_file:
+      - ../../backend/services/patient-management-service/.env
+    environment:
+      - DB_HOST=patient-postgres
+    depends_on:
+      patient-postgres:
+        condition: service_healthy
   doctor-management-service:
     build: ../../backend/services/doctor-management-service
     env_file:
       - ../../backend/services/doctor-management-service/.env
+    environment:
+      - PATIENT_SERVICE_URL=http://patient-management-service:6001
+      - INTERNAL_SECRET=change-me
     depends_on:
-      - doctors-postgres
+      doctors-postgres:
+        condition: service_healthy
   appointment-service:
     build: ../../backend/services/appointment-service
     env_file:
@@ -41,9 +54,12 @@ services:
       # Slot times are stored as naive TIME values in the local timezone.
       - TZ=Asia/Colombo
     depends_on:
-      - appointments-postgres
-      - doctor-management-service
-      - notification-service
+      appointments-postgres:
+        condition: service_healthy
+      doctor-management-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
   telemedicine-service:
     build: ../../backend/services/telemedicine-service
   payment-service:
@@ -65,18 +81,8 @@ services:
     ports:
       - "4006:4006"
     depends_on:
-      - payment-postgres
-  payment-postgres:
-    image: postgres:15.4-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: paymentdb
-    ports:
-      - "5437:5432"
-    volumes:
-      - payment-db-data:/var/lib/postgresql/data
-      - ../../backend/services/payment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      payment-postgres:
+        condition: service_healthy
   notification-service:
     build: ../../backend/services/notification-service
   admin-management-service:
@@ -154,6 +160,11 @@ services:
     volumes:
       - auth-db-data:/var/lib/postgresql/data
       - ../../backend/services/auth-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d authdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   doctors-postgres:
     image: postgres:15.4-alpine
     environment:
@@ -165,6 +176,11 @@ services:
     volumes:
       - doctors-db-data:/var/lib/postgresql/data
       - ../../backend/services/doctor-management-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d doctorsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   appointments-postgres:
     image: postgres:15.4-alpine
     environment:
@@ -176,8 +192,46 @@ services:
     volumes:
       - appointments-db-data:/var/lib/postgresql/data
       - ../../backend/services/appointment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d appointmentsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  patient-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: patientdb
+    ports:
+      - "5435:5432"
+    volumes:
+      - patient-db-data:/var/lib/postgresql/data
+      - ../../backend/services/patient-management-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d patientdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  payment-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paymentdb
+    ports:
+      - "5437:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+      - ../../backend/services/payment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paymentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 volumes:
   auth-db-data:
   doctors-db-data:
   appointments-db-data:
+  patient-db-data:
   payment-db-data:

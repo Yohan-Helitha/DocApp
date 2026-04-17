@@ -14,5 +14,10 @@ export default {
   JWT_SECRET: getEnv("JWT_SECRET", "change-me"),
   AUTH_PUBLIC_KEY_PATH: getEnv("AUTH_PUBLIC_KEY_PATH", ""),
   INTERNAL_API_KEY: getEnv("INTERNAL_API_KEY", ""),
+  PATIENT_SERVICE_URL: getEnv(
+    "PATIENT_SERVICE_URL",
+    "http://patient-management-service:6001",
+  ),
+  INTERNAL_SECRET: getEnv("INTERNAL_SECRET", "change-me"),
   LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
 };

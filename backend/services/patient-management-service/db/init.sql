@@ -1,8 +1,8 @@
 -- Patients Table
 CREATE TABLE IF NOT EXISTS patients (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER UNIQUE NOT NULL,
-    -- Links to Auth Service User
+    user_id VARCHAR(255) UNIQUE NOT NULL,
+    -- Links to Auth Service User (UUID string)
     first_name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS patients (
     allergies TEXT,
     emergency_contact_name VARCHAR(255),
     emergency_contact_phone VARCHAR(20),
+    profile_image TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

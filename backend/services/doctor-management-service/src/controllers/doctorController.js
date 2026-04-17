@@ -1,4 +1,6 @@
 import * as doctorService from "../services/doctorService.js";
+import axios from "axios";
+import env from "../config/environment.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -231,7 +233,7 @@ export const deleteSlot = async (req, res) => {
   }
 };
 
-// ─── Patient Reports (stub) ───────────────────────────────────────────────────
+// ─── Patient Reports (cross-service proxy) ───────────────────────────────────
 
 export const getPatientReports = async (req, res) => {
   try {
@@ -241,11 +243,18 @@ export const getPatientReports = async (req, res) => {
     );
     if (doctor.user_id !== req.user.id)
       return res.status(403).json({ error: "forbidden" });
-    return res.json({
-      reports: [],
-      message: "patient_management_service_not_yet_integrated",
-    });
+
+    const { patientId } = req.params;
+    const response = await axios.get(
+      `${env.PATIENT_SERVICE_URL}/api/v1/internal/patients/${patientId}/medical-reports`,
+      {
+        headers: { "x-internal-secret": env.INTERNAL_SECRET },
+        timeout: 5000,
+      },
+    );
+    return res.json({ reports: response.data.reports || [] });
   } catch (err) {
+    if (err.response?.status === 404) return res.json({ reports: [] });
     return handleError(err, res, req, "getPatientReports");
   }
 };

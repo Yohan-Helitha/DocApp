@@ -34,7 +34,7 @@ export const createPatient = async (req, res) => {
     const newPatient = await patientService.createPatient(req.body, req.user);
     res.status(201).json(newPatient);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 

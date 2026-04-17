@@ -209,6 +209,17 @@ const cleanup = () => {
     "authdb: demo users + tokens + verification requests cleared (5 accounts)",
   );
 
+  // patientdb — truncate all patient data (profiles + all cascaded records)
+  // TRUNCATE is more reliable than DELETE WHERE email=... because each seed run
+  // registers kavindi with a fresh auth user_id; the old patientdb row would fail
+  // the unique-email + different-user_id check on re-seed.
+  runSQL(
+    "docker-patient-postgres-1",
+    "patientdb",
+    "TRUNCATE patients CASCADE;",
+  );
+  log("cleanup", "patientdb: demo patient profile cleared");
+
   console.log("");
 };
 
@@ -413,6 +424,58 @@ const main = async () => {
 
   const doctorToken = await login(DOCTOR_EMAIL, PASSWORD);
   const patientToken = await login(PATIENT_EMAIL, PASSWORD);
+
+  // Extract patient user_id from JWT sub claim — needed for patient profile and prescriptions
+  const patientUserId = JSON.parse(
+    Buffer.from(patientToken.split(".")[1], "base64url").toString("utf8"),
+  ).sub;
+  log("patient-id", `extracted from JWT: ${patientUserId}`);
+  summary.patientUserId = patientUserId;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PHASE 3b — Patient profile (patientdb.patients)
+  //            Must exist before medical reports can be fetched for this patient.
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log("\n─── Phase 3b: Patient profile in patientdb ───────────\n");
+
+  const existingPatientRes = await jsonFetch(
+    `/api/v1/patients/${patientUserId}`,
+    {
+      token: patientToken,
+    },
+  );
+
+  if (existingPatientRes.status === 200) {
+    log(
+      "patient-profile",
+      `already exists for user_id=${patientUserId} — skipping create`,
+    );
+  } else {
+    const createPatientRes = await jsonFetch("/api/v1/patients/", {
+      method: "POST",
+      token: patientToken,
+      body: {
+        user_id: patientUserId,
+        first_name: "Kavindi",
+        last_name: "Silva",
+        email: PATIENT_EMAIL,
+        phone: "+94771234567",
+        dob: "1995-06-15",
+        gender: "Female",
+        address: "42 Galle Road, Colombo 03, Sri Lanka",
+        blood_group: "O+",
+        allergies: "None",
+        emergency_contact_name: "Rohan Silva",
+        emergency_contact_phone: "+94779876543",
+      },
+    });
+    must(
+      createPatientRes.status === 201,
+      `create patient profile failed: HTTP ${createPatientRes.status} — ${JSON.stringify(createPatientRes.body)}`,
+    );
+    log("patient-profile", `created for user_id=${patientUserId}`);
+    summary.created.patientProfile = true;
+  }
 
   // ──────────────────────────────────────────────────────────────────────────
   // PHASE 4 — Doctor profile (doctorsdb.doctors)
@@ -703,13 +766,7 @@ const main = async () => {
   // ──────────────────────────────────────────────────────────────────────────
   console.log("\n─── Phase 7: Book appointments ───────────────────────\n");
 
-  // We need the patient's user_id for prescriptions. Extract it from the JWT payload.
-  // JWT payload: { sub: user_id, email, role } — the user ID is in the 'sub' claim.
-  const patientUserId = JSON.parse(
-    Buffer.from(patientToken.split(".")[1], "base64url").toString("utf8"),
-  ).sub;
-  log("patient-id", `extracted from JWT: ${patientUserId}`);
-  summary.patientUserId = patientUserId;
+  // patientUserId was extracted in Phase 3b and is already available here.
 
   const bookAppointment = async (slotObj, reason) => {
     const res = await jsonFetch("/api/v1/appointments", {

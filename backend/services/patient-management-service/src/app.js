@@ -7,6 +7,7 @@ import historyRoutes from "./routes/historyRoutes.js";
 import prescriptionRoutes from "./routes/prescriptionRoutes.js";
 import internalAuthMiddleware from "./middleware/internalAuthMiddleware.js";
 import { getPatientByUserId } from "./controllers/patientController.js";
+import { getMedicalReports } from "./controllers/reportController.js";
 
 const app = express();
 
@@ -29,6 +30,13 @@ app.get(
   "/api/v1/patients/by-user/:userId",
   internalAuthMiddleware,
   getPatientByUserId,
+);
+
+// Internal: service-to-service medical reports access (for doctor portal proxy)
+app.get(
+  "/api/v1/internal/patients/:patientId/medical-reports",
+  internalAuthMiddleware,
+  getMedicalReports,
 );
 
 // Routes - Internal microservice prefix

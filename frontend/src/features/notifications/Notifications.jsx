@@ -12,19 +12,33 @@ export default function Notifications({ navigate }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
 
-  // patientId is the JWT sub (UUID) – same as recipient_user_id in notifications table
+  // patientId is the JWT sub (UUID) – same as recipient_user_id in notifications table.
   const token = sessionStorage.getItem('accessToken');
-  let patientId = localStorage.getItem('patientId');
 
-  // If patientId is missing, extract it from token sub
-  if (!patientId && token) {
+  const decodeJwtPayload = (jwtToken) => {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      patientId = payload.sub || payload.userId;
-      if (patientId) localStorage.setItem('patientId', patientId);
-    } catch (e) {
-      console.error('Failed to parse token for patientId:', e);
+      const payloadPart = String(jwtToken || '').split('.')[1];
+      if (!payloadPart) return null;
+
+      let b64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4;
+      if (pad) b64 += '='.repeat(4 - pad);
+      return JSON.parse(atob(b64));
+    } catch {
+      return null;
     }
+  };
+
+  // JWT `sub` is the source of truth; overwrite stale localStorage.
+  let patientId = localStorage.getItem('patientId');
+  const payload = token ? decodeJwtPayload(token) : null;
+  const tokenPatientId = payload?.sub || payload?.userId;
+  if (tokenPatientId && tokenPatientId !== patientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
+  } else if (!patientId && tokenPatientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
   }
 
   useEffect(() => {

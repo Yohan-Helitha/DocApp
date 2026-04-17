@@ -65,6 +65,8 @@ export default function Telemedicine({ navigate }) {
     }
     sessionStorage.removeItem('accessToken');
     sessionStorage.removeItem('refreshToken');
+    localStorage.removeItem('patientId');
+    localStorage.removeItem('requiresProfileCompletion');
     if (navigate) navigate('/login');
     else window.location.hash = '/login';
   };

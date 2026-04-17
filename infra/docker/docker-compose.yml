@@ -36,6 +36,10 @@ services:
     build: ../../backend/services/appointment-service
     env_file:
       - ../../backend/services/appointment-service/.env
+    environment:
+      # Ensure datetime comparisons match the timezone used when seeding/creating slots.
+      # Slot times are stored as naive TIME values in the local timezone.
+      - TZ=Asia/Colombo
     depends_on:
       - appointments-postgres
       - doctor-management-service

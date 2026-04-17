@@ -415,12 +415,20 @@ export const setStatus = async (req, res) => {
       }
 
       if (appointment.appointment_status !== "confirmed") {
-        return res.status(400).json({ error: "appointment_not_confirmed" });
+        return res.status(400).json({
+          error: "appointment_not_confirmed",
+          message:
+            "This appointment is not in a confirmed state and cannot be marked as complete.",
+        });
       }
 
       // Payment guard: clinical actions require full payment
       if (appointment.payment_status !== "paid") {
-        return res.status(400).json({ error: "appointment_not_paid" });
+        return res.status(400).json({
+          error: "appointment_not_paid",
+          message:
+            "Cannot mark as complete — payment has not been received for this appointment.",
+        });
       }
 
       // Time guard: cannot mark complete before the slot has ended
@@ -433,7 +441,11 @@ export const setStatus = async (req, res) => {
           `${slotDateStr}T${String(appointment.end_time).slice(0, 8)}`,
         );
         if (new Date() < slotEnd) {
-          return res.status(400).json({ error: "slot_not_yet_ended" });
+          return res.status(400).json({
+            error: "slot_not_yet_ended",
+            message:
+              "Cannot mark as complete — the appointment slot has not ended yet. Please wait until after the scheduled session time.",
+          });
         }
       }
 
@@ -511,27 +523,37 @@ export const doctorDecision = async (req, res) => {
 
     // When accepting: enforce late-acceptance guard, compute payment_deadline.
     if (decision === "accept") {
-      // Build slot start datetime from snapshotted columns
-      const slotDateStr =
-        typeof appointment.slot_date === "string"
-          ? appointment.slot_date.slice(0, 10)
-          : new Date(appointment.slot_date).toISOString().slice(0, 10);
-      const slotStart = new Date(
-        `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}`,
-      );
-      const twoHoursBefore = new Date(slotStart.getTime() - 2 * 60 * 60 * 1000);
-
-      // Guard: block acceptance if less than 2 hours remain before slot start
-      if (twoHoursBefore <= new Date()) {
-        return res.status(400).json({ error: "too_close_to_slot_time" });
-      }
-
-      // Compute payment deadline: whichever is earlier — 24h from now or slot_start − 2h
       const twentyFourHoursFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      const paymentDeadline =
-        twoHoursBefore < twentyFourHoursFromNow
-          ? twoHoursBefore
-          : twentyFourHoursFromNow;
+      let paymentDeadline = twentyFourHoursFromNow;
+
+      // Build slot start datetime from snapshotted columns (only if both are available)
+      if (appointment.slot_date != null && appointment.start_time != null) {
+        const slotDateStr =
+          typeof appointment.slot_date === "string"
+            ? appointment.slot_date.slice(0, 10)
+            : new Date(appointment.slot_date).toISOString().slice(0, 10);
+        const slotStart = new Date(
+          `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}`,
+        );
+        const twoHoursBefore = new Date(
+          slotStart.getTime() - 2 * 60 * 60 * 1000,
+        );
+
+        // Guard: block acceptance if less than 2 hours remain before slot start
+        if (twoHoursBefore <= new Date()) {
+          return res.status(400).json({
+            error: "too_close_to_slot_time",
+            message:
+              "Cannot accept this appointment — the session is scheduled to start within 2 hours.",
+          });
+        }
+
+        // Compute payment deadline: whichever is earlier — 24h from now or slot_start − 2h
+        paymentDeadline =
+          twoHoursBefore < twentyFourHoursFromNow
+            ? twoHoursBefore
+            : twentyFourHoursFromNow;
+      }
 
       // Confirm the appointment first, then store the deadline
       await appointmentService.setStatus(

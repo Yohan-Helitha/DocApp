@@ -17,6 +17,17 @@ export const getNotificationsByUser = async (userId) => {
   });
 };
 
+export const getLatestInAppNotificationsByUser = async (userId, limit = 5) => {
+  const n = Number(limit);
+  const safeLimit = Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 5;
+
+  return await Notification.findAll({
+    where: { recipient_user_id: userId, channel: 'in-app' },
+    order: [['created_at', 'DESC']],
+    limit: safeLimit,
+  });
+};
+
 export const getNotificationById = async (id) => {
   return await Notification.findByPk(id);
 };
@@ -88,18 +99,22 @@ export const sendEmail = async (to, subject, text, html, templateCode = null, pa
   try {
     let finalSubject = subject;
     let finalHtml = html;
+    let finalText = text || subject;
 
     if (templateCode && EMAIL_TEMPLATES[templateCode]) {
       const template = EMAIL_TEMPLATES[templateCode];
       finalSubject = template.subject;
       finalHtml = template.html(payloadData);
+      if (!text && typeof template.text === 'function') {
+        finalText = template.text(payloadData);
+      }
     }
 
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
       to,
       subject: finalSubject,
-      text: text || finalSubject,
+      text: text || finalText || finalSubject,
       html: finalHtml,
     });
 

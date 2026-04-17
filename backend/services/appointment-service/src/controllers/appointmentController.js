@@ -66,6 +66,7 @@ export const bookAppointment = async (req, res) => {
       doctor_id,
       slot_id,
       patient_email: req.user.email,
+      doctor_email: doctor.email,
       reason_for_visit,
       doctor_name: doctor.full_name,
       patient_name: null,
@@ -703,5 +704,85 @@ export const updatePaymentStatus = async (req, res) => {
     return res.json({ appointment: updated });
   } catch (err) {
     return handleError(err, res, req, "updatePaymentStatus");
+  }
+};
+
+// ─── Get Appointment Payment Context (internal) ──────────────────────────────
+
+export const getPaymentContextInternal = async (req, res) => {
+  try {
+    const secret = req.headers["x-internal-secret"];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    return res.json({
+      context: {
+        appointment_id: appointment.appointment_id,
+        patient_id: appointment.patient_id,
+        patient_email: appointment.patient_email || null,
+        patient_name: appointment.patient_name || null,
+        doctor_id: appointment.doctor_id,
+        doctor_email: appointment.doctor_email || null,
+        doctor_name: appointment.doctor_name || null,
+        slot_id: appointment.slot_id,
+        slot_date: appointment.slot_date || null,
+        start_time: appointment.start_time || null,
+        end_time: appointment.end_time || null,
+      },
+    });
+  } catch (err) {
+    return handleError(err, res, req, "getPaymentContextInternal");
+  }
+};
+
+// ─── Get Appointment Payment Context (internal, v2) ─────────────────────────
+// Same auth as v1 (X-Internal-Secret), but enriches doctor email/name by
+// querying doctor-management-service using a service JWT.
+export const getPaymentContextInternalV2 = async (req, res) => {
+  try {
+    const secret = req.headers["x-internal-secret"];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    let doctor = null;
+    try {
+      doctor = await doctorClient.getDoctorAsService(appointment.doctor_id);
+    } catch (e) {
+      // Best-effort enrichment — fall back to snapshotted DB fields.
+      req.log?.warn?.(
+        { err: e?.message || e, doctor_id: appointment.doctor_id },
+        "Failed to enrich doctor contact for payment context",
+      );
+    }
+
+    return res.json({
+      context: {
+        appointment_id: appointment.appointment_id,
+        patient_id: appointment.patient_id,
+        patient_email: appointment.patient_email || null,
+        patient_name: appointment.patient_name || null,
+        doctor_id: appointment.doctor_id,
+        doctor_email: doctor?.email || appointment.doctor_email || null,
+        doctor_name: doctor?.full_name || appointment.doctor_name || null,
+        slot_id: appointment.slot_id,
+        slot_date: appointment.slot_date || null,
+        start_time: appointment.start_time || null,
+        end_time: appointment.end_time || null,
+      },
+    });
+  } catch (err) {
+    return handleError(err, res, req, "getPaymentContextInternalV2");
   }
 };

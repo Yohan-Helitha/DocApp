@@ -268,7 +268,7 @@ export const listTransactions = async () => {
   // For simplicity, expose financial_monitoring_records as the admin view of transactions
   try {
     const result = await db.query(
-      'SELECT record_id, transaction_id, appointment_id, amount, currency, status, flagged, flag_reason, created_at FROM financial_monitoring_records ORDER BY created_at DESC'
+      'SELECT record_id, transaction_id, appointment_id, amount, currency, provider, status, flagged, flag_reason, patient_email, doctor_email, created_at FROM financial_monitoring_records ORDER BY created_at DESC'
     );
     return result.rows || [];
   } catch (err) {
@@ -276,6 +276,100 @@ export const listTransactions = async () => {
       return [];
     }
     throw err;
+  }
+};
+
+export const upsertTransactionRecord = async ({
+  transactionId,
+  appointmentId,
+  amount,
+  currency,
+  status,
+  provider,
+  patientEmail,
+  doctorEmail,
+}) => {
+  if (!transactionId) {
+    const err = new Error('transaction_id_required');
+    err.status = 400;
+    throw err;
+  }
+  if (amount == null || !currency || !status) {
+    const err = new Error('missing_fields');
+    err.status = 400;
+    throw err;
+  }
+
+  const normalizedStatus = String(status).trim().toLowerCase();
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let previousStatus = null;
+    try {
+      const prev = await client.query(
+        'SELECT status FROM financial_monitoring_records WHERE transaction_id = $1',
+        [transactionId],
+      );
+      previousStatus = prev.rows?.[0]?.status
+        ? String(prev.rows[0].status).trim().toLowerCase()
+        : null;
+    } catch (e) {
+      // If the table doesn't exist yet, let the insert fail normally (and surface the error).
+      throw e;
+    }
+
+    const upsertRes = await client.query(
+      `INSERT INTO financial_monitoring_records
+         (transaction_id, appointment_id, amount, currency, provider, status, patient_email, doctor_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (transaction_id) DO UPDATE SET
+         appointment_id = COALESCE(EXCLUDED.appointment_id, financial_monitoring_records.appointment_id),
+         amount = EXCLUDED.amount,
+         currency = EXCLUDED.currency,
+         provider = COALESCE(EXCLUDED.provider, financial_monitoring_records.provider),
+         status = EXCLUDED.status,
+         patient_email = COALESCE(EXCLUDED.patient_email, financial_monitoring_records.patient_email),
+         doctor_email = COALESCE(EXCLUDED.doctor_email, financial_monitoring_records.doctor_email)
+       RETURNING record_id, transaction_id, appointment_id, amount, currency, provider, status, flagged, flag_reason, created_at`,
+      [
+        transactionId,
+        appointmentId,
+        amount,
+        String(currency).trim().toUpperCase(),
+        provider,
+        normalizedStatus,
+        patientEmail,
+        doctorEmail,
+      ],
+    );
+
+    const record = upsertRes.rows?.[0] || null;
+
+    // Only create audit logs on meaningful status transitions to a non-pending state.
+    const statusChanged = previousStatus !== normalizedStatus;
+    const shouldAudit = statusChanged && normalizedStatus && normalizedStatus !== 'pending';
+    if (shouldAudit) {
+      const appt = appointmentId ? ` appointment=${appointmentId}` : '';
+      const pe = patientEmail ? ` patient=${patientEmail}` : '';
+      const de = doctorEmail ? ` doctor=${doctorEmail}` : '';
+      const prov = provider ? ` provider=${provider}` : '';
+      const note = `Transaction status changed to ${normalizedStatus}.${appt}${prov}${pe}${de}`;
+
+      await client.query(
+        'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5)',
+        [SYSTEM_ADMIN_USER_ID, 'transaction_status_change', 'transaction', transactionId, note],
+      );
+    }
+
+    await client.query('COMMIT');
+    return record;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 };
 

@@ -93,4 +93,16 @@ router.put(
   appointmentController.updatePaymentStatus,
 );
 
+// Internal: payment-service lookup for patient/doctor emails (uses X-Internal-Secret)
+router.get(
+  "/api/v1/internal/appointments/:appointmentId/payment-context",
+  appointmentController.getPaymentContextInternal,
+);
+
+// Internal: payment-service lookup (v2) — enriches doctor contact via doctor-service
+router.get(
+  "/api/v1/internal/appointments/:appointmentId/payment-context-v2",
+  appointmentController.getPaymentContextInternalV2,
+);
+
 export default router;

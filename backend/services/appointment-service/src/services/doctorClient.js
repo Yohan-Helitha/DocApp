@@ -55,6 +55,16 @@ export const getDoctor = async (bearerToken, doctorId) => {
 };
 
 /**
+ * Fetch a single doctor profile using a service JWT.
+ * Useful for internal flows where no end-user bearer token is available.
+ * @param {string} doctorId UUID of the doctor
+ */
+export const getDoctorAsService = async (doctorId) => {
+  const token = mintServiceToken();
+  return getDoctor(`Bearer ${token}`, doctorId);
+};
+
+/**
  * Fetch a single availability slot.
  * Used at booking time to snapshot slot_date, start_time, end_time.
  * @param {string} bearerToken   The caller's "Bearer <token>" string

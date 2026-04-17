@@ -10,6 +10,8 @@ router.post('/send-sms', verifyIdentity, notificationValidator, controller.sendS
 router.post('/send-bulk', verifyIdentity, restrictToAdmin, controller.sendBulk);
 
 // Enhanced CRUD (secured with identity and access control)
+// Latest notifications for the authenticated user (patient dashboard overview)
+router.get('/latest', verifyIdentity, controller.getLatestNotifications);
 router.get('/user/:userId', verifyIdentity, controller.getNotifications);
 router.get('/:id', verifyIdentity, controller.getNotificationById);
 router.patch('/:id/read', verifyIdentity, controller.markAsRead);

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   doctor_id          UUID        NOT NULL,    -- doctor_id from doctor-management-service doctors table
   slot_id            UUID        NOT NULL,    -- slot_id from doctor-management-service doctor_availability_slots
   patient_email      TEXT,                   -- stored at booking time so notifications can reach the patient without calling auth-service
+  doctor_email       TEXT,                   -- snapshotted from doctor profile at booking time
   doctor_name        TEXT,                   -- snapshotted from doctor profile at booking time (Bug 6 / Bug 11 fix)
   patient_name       TEXT,                   -- snapshotted from patient-service at booking time (populated once patient-service exposes GET /api/v1/patients/by-user/:userId)
   slot_date          DATE,                   -- snapshotted from doctor_availability_slots at booking time (Bug 11 fix)
@@ -31,6 +32,7 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_name      TEXT;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS slot_date         DATE;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS start_time        TIME;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS end_time          TIME;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_email      TEXT;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS consultation_fee  NUMERIC(10,2);
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_deadline  TIMESTAMPTZ;
 

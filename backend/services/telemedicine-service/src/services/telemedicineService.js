@@ -270,6 +270,13 @@ export const createJoinToken = async (sessionId, user, role = 'patient', { autho
   }
   const session = s.rows[0];
 
+  // Guard: sessions cannot be re-joined once ended.
+  if (String(session.session_status || '').toLowerCase() === 'ended') {
+    const err = new Error('session_ended');
+    err.status = 410;
+    throw err;
+  }
+
   // Guard: only allow joining if appointment is confirmed and within the appointment's time window.
   if (session.appointment_id) {
     const appointment = await assertAppointmentConfirmed({ appointmentId: session.appointment_id, authorization });

@@ -34,7 +34,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
   };
 
   return (
-    <div className="bg-background text-on-background antialiased">
+    <div className="bg-background text-on-background antialiased overflow-x-hidden">
       <div className="flex flex-col md:flex-row">
         {/* Side Navigation */}
         <aside className="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 border-r border-slate-200/50 bg-slate-50 p-4 z-40">
@@ -85,7 +85,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
         </aside>
 
         {/* Main Content */}
-        <main className="md:ml-64 min-h-screen w-full bg-gradient-to-br from-slate-50 to-slate-100">
+        <main className="md:ml-64 min-h-screen w-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-x-hidden">
           <div className="p-8">
             {children}
           </div>

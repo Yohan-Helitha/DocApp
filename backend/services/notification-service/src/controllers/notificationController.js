@@ -203,6 +203,24 @@ export const getNotifications = async (req, res) => {
   }
 };
 
+export const getLatestNotifications = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'unauthorized_access' });
+
+    const limitRaw = req.query?.limit;
+    const limit = Math.min(20, Math.max(1, Number(limitRaw || 5)));
+
+    const result = await service.getLatestInAppNotificationsByUser(userId, limit);
+
+    // NOTE: Frontend patient dashboard expects an array body (not { notifications }).
+    return res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Error fetching latest notifications');
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const getNotificationById = async (req, res) => {
   try {
     const { id } = req.params;

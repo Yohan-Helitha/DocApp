@@ -121,6 +121,13 @@ spec:
                 secretKeyRef:
                   name: internal-api-secret
                   key: INTERNAL_API_KEY
+            - name: PATIENT_SERVICE_URL
+              value: "http://patient-management-service:6001"
+            - name: INTERNAL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_SECRET
           volumeMounts:
             - name: auth-public-key
               mountPath: /app/keys

@@ -94,6 +94,13 @@ spec:
               value: "http://doctor-management-service:4002"
             - name: NOTIFICATION_SERVICE_URL
               value: "http://notification-service:6000"
+            - name: PATIENT_SERVICE_URL
+              value: "http://patient-management-service:6001"
+            - name: INTERNAL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_SECRET
           volumeMounts:
             - name: auth-public-key
               mountPath: /keys

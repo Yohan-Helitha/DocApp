@@ -46,12 +46,18 @@ export default function DoctorAppointments({ navigate }) {
   const [success, setSuccess] = useState("");
   const [accessDenied, setAccessDenied] = useState(false);
   const [profileStatus, setProfileStatus] = useState(null); // null | "none" | "pending" | "rejected"
-
   const token = sessionStorage.getItem("accessToken");
 
   const goTo = (path) => {
     if (navigate) navigate(path);
     else window.location.hash = path;
+  };
+
+  const openPatientRecords = (appt) => {
+    const name = appt.patient_name || "Patient";
+    goTo(
+      `/doctor/patient-records?patientId=${encodeURIComponent(appt.patient_id)}&patientName=${encodeURIComponent(name)}`,
+    );
   };
 
   const logout = async () => {
@@ -286,6 +292,13 @@ export default function DoctorAppointments({ navigate }) {
               </span>
               <span className="font-semibold text-sm">Telemedicine</span>
             </button>
+            <a
+              className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+              onClick={() => goTo("/doctor/patient-records")}
+            >
+              <span className="material-symbols-outlined">folder_shared</span>
+              <span className="font-semibold text-sm">Patient Records</span>
+            </a>
           </nav>
           <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
             <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
@@ -403,6 +416,13 @@ export default function DoctorAppointments({ navigate }) {
             </span>
             <span className="font-semibold text-sm">Telemedicine</span>
           </button>
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo("/doctor/patient-records")}
+          >
+            <span className="material-symbols-outlined">folder_shared</span>
+            <span className="font-semibold text-sm">Patient Records</span>
+          </a>
         </nav>
         <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
           <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
@@ -497,18 +517,14 @@ export default function DoctorAppointments({ navigate }) {
             {filtered.map((appt) => (
               <div
                 key={appt.appointment_id}
-                className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4"
+                className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-5 flex flex-col sm:flex-row sm:items-start sm:flex-wrap gap-4"
               >
                 {/* Left: ID + info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 flex-wrap mb-1">
                     {/* Bug 6 fix: show patient name instead of UUID */}
                     <span className="font-bold text-slate-900 text-sm">
-                      {appt.patient_name
-                        ? appt.patient_name
-                        : appt.patient_email
-                          ? appt.patient_email.split("@")[0]
-                          : `Patient #${appt.patient_id.slice(0, 8).toUpperCase()}`}
+                      {appt.patient_name || "Patient"}
                     </span>
                     <span
                       className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${STATUS_COLORS[appt.appointment_status] || "bg-slate-100 text-slate-500"}`}
@@ -561,7 +577,7 @@ export default function DoctorAppointments({ navigate }) {
                         onClick={() =>
                           handleDecision(appt.appointment_id, "accept")
                         }
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-600 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0b9385]/10 text-[#0b9385] border border-[#0b9385]/20 text-xs font-bold hover:bg-[#0b9385] hover:text-white transition-colors disabled:opacity-50"
                       >
                         {actionLoading[appt.appointment_id] === "accept" ? (
                           <span className="material-symbols-outlined animate-spin text-sm">
@@ -635,15 +651,24 @@ export default function DoctorAppointments({ navigate }) {
                         <button
                           onClick={() =>
                             goTo(
-                              `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
+                              `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}&patientName=${encodeURIComponent(appt.patient_name || "")}`,
                             )
                           }
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-500 hover:text-white transition-colors border border-amber-200"
                         >
                           <span className="material-symbols-outlined text-sm">
                             medication
                           </span>
                           Write Prescription
+                        </button>
+                        <button
+                          onClick={() => openPatientRecords(appt)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-500 hover:text-white transition-colors border border-indigo-200"
+                        >
+                          <span className="material-symbols-outlined text-sm">
+                            folder_shared
+                          </span>
+                          Patient Records
                         </button>
                       </>
                     )}

@@ -224,7 +224,7 @@ export default function MyAppointments({ navigate }) {
 
   const fmtDate = (d) => {
     if (!d) return "";
-    const [y, m, day] = d.split("-");
+    const [y, m, day] = String(d).slice(0, 10).split("-");
     return new Date(y, m - 1, day).toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -283,20 +283,24 @@ export default function MyAppointments({ navigate }) {
 
   return (
     <DashboardLayout navigate={navigate} pageName="Appointments">
-      <header className="sticky top-0 w-full flex justify-between items-center px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
-        <h2 className="text-xl font-black text-[#0b9385] tracking-tight">
-          My Appointments
-        </h2>
-        <button
-          onClick={() => navigate("/doctors")}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-sm">add</span>
-          Book New
-        </button>
-      </header>
-
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">
+              My Appointments
+            </h1>
+            <p className="text-slate-600">
+              View and manage your scheduled appointments.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/doctors")}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+          >
+            <span className="material-symbols-outlined">add_circle</span>
+            Book New
+          </button>
+        </div>
         {/* Filter tabs */}
         <div className="flex gap-2 mb-8 flex-wrap">
           {TABS.map((tab) => (
@@ -417,7 +421,15 @@ export default function MyAppointments({ navigate }) {
                         month: "short",
                         day: "numeric",
                       })}
-                    </p>
+                    </p>{" "}
+                    {a.appointment_status === "confirmed" &&
+                      a.payment_status !== "paid" &&
+                      a.payment_deadline &&
+                      formatDeadline(a.payment_deadline) && (
+                        <p className="text-xs text-amber-600 font-semibold mt-1">
+                          {formatDeadline(a.payment_deadline)}
+                        </p>
+                      )}{" "}
                   </div>
                 </div>
 
@@ -476,35 +488,24 @@ export default function MyAppointments({ navigate }) {
                     ))}
                   {a.appointment_status === "confirmed" &&
                     a.payment_status !== "paid" && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {a.payment_deadline &&
-                          formatDeadline(a.payment_deadline) && (
-                            <span className="text-xs text-amber-600 font-semibold">
-                              {formatDeadline(a.payment_deadline)}
-                            </span>
-                          )}
-                        <button
-                          onClick={() =>
-                            initiatePayment(
-                              a.appointment_id,
-                              a.consultation_fee,
-                            )
-                          }
-                          disabled={payingNow === a.appointment_id}
-                          className="px-4 py-2 text-xs font-bold text-white bg-amber-500 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          {payingNow === a.appointment_id ? (
-                            <span className="material-symbols-outlined text-sm animate-spin">
-                              progress_activity
-                            </span>
-                          ) : (
-                            <span className="material-symbols-outlined text-sm">
-                              payments
-                            </span>
-                          )}
-                          Pay Now
-                        </button>
-                      </div>
+                      <button
+                        onClick={() =>
+                          initiatePayment(a.appointment_id, a.consultation_fee)
+                        }
+                        disabled={payingNow === a.appointment_id}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#0b9385] bg-[#0b9385]/10 border border-[#0b9385]/20 rounded-xl hover:bg-[#0b9385] hover:text-white transition-colors disabled:opacity-50"
+                      >
+                        {payingNow === a.appointment_id ? (
+                          <span className="material-symbols-outlined text-sm animate-spin">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <span className="material-symbols-outlined text-sm">
+                            payments
+                          </span>
+                        )}
+                        Pay Now
+                      </button>
                     )}
                   {a.appointment_status === "confirmed" &&
                     a.payment_status === "paid" &&

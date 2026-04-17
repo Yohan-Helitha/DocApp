@@ -65,13 +65,20 @@ export const listPrescriptionsByPatient = async (
   appointmentId = null,
 ) => {
   const sqlParams = [patientId];
-  let filter = `WHERE patient_id = $1`;
+  let filter = `WHERE p.patient_id = $1`;
   if (appointmentId) {
     sqlParams.push(appointmentId);
-    filter += ` AND appointment_id = $2`;
+    filter += ` AND p.appointment_id = $2`;
   }
   const { rows } = await db.query(
-    `SELECT * FROM prescriptions ${filter} ORDER BY issued_at DESC`,
+    `SELECT p.*,
+            d.full_name        AS doctor_name,
+            d.specialization   AS doctor_specialization,
+            d.license_number   AS doctor_license_number
+       FROM prescriptions p
+       LEFT JOIN doctors d ON d.doctor_id = p.doctor_id
+      ${filter}
+      ORDER BY p.issued_at DESC`,
     sqlParams,
   );
   return rows;

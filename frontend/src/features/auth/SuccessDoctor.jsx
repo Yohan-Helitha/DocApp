@@ -337,8 +337,15 @@ export default function SuccessDoctor({ navigate }) {
             </span>
             <span className="font-semibold text-sm">Telemedicine</span>
           </button>
+          <a
+            className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-lg transition-all cursor-pointer"
+            onClick={() => goTo("/doctor/patient-records")}
+          >
+            <span className="material-symbols-outlined">folder_shared</span>
+            <span className="font-semibold text-sm">Patient Records</span>
+          </a>
         </nav>
-        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50">
+        <div className="mt-auto space-y-1 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
           <a className="text-slate-500 dark:text-slate-400 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer">
             <span className="material-symbols-outlined">help</span>
             <span className="font-semibold text-sm">Help Center</span>
@@ -576,7 +583,7 @@ export default function SuccessDoctor({ navigate }) {
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-                      Consult Fee ($)
+                      Consult Fee (LKR)
                     </label>
                     <input
                       type="number"
@@ -844,7 +851,7 @@ export default function SuccessDoctor({ navigate }) {
                     [
                       "Consult Fee",
                       doctor?.consultation_fee != null
-                        ? `$${doctor.consultation_fee}`
+                        ? `LKR ${Number(doctor.consultation_fee).toLocaleString()}`
                         : "—",
                     ],
                   ].map(([label, val]) => (
@@ -1080,7 +1087,7 @@ export default function SuccessDoctor({ navigate }) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-                    Consult Fee ($)
+                    Consult Fee (LKR)
                   </label>
                   <input
                     type="number"

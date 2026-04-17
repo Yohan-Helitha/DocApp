@@ -32,6 +32,9 @@ export default function PrescriptionEditor({ navigate }) {
   const params = Object.fromEntries(new URLSearchParams(qs));
   const appointmentId = params.appointmentId || "";
   const patientId = params.patientId || "";
+  const patientName = params.patientName
+    ? decodeURIComponent(params.patientName)
+    : "";
 
   const goTo = (path) => {
     if (navigate) navigate(path);
@@ -580,9 +583,9 @@ export default function PrescriptionEditor({ navigate }) {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">Patient ID</span>
-                  <span className="font-mono font-bold text-slate-900">
-                    {patientId ? `${patientId.slice(0, 8)}…` : "—"}
+                  <span className="text-slate-500 font-medium">Patient</span>
+                  <span className="font-bold text-slate-900">
+                    {patientName || "—"}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -664,14 +667,13 @@ export default function PrescriptionEditor({ navigate }) {
                             {p.medication}
                           </p>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            {fmtDate(p.issued_at)}
-                            {p.diagnosis ? ` · ${p.diagnosis}` : ""}
+                            {p.diagnosis || ""}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="text-xs font-mono text-slate-400">
-                          Patient: {p.patient_id.slice(0, 8)}…
+                        <span className="text-xs text-slate-400">
+                          {fmtDate(p.issued_at)}
                         </span>
                         <span className="material-symbols-outlined text-slate-400 text-lg">
                           {expandedPresc === p.prescription_id

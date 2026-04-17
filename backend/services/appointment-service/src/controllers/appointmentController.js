@@ -1,6 +1,7 @@
 import * as appointmentService from "../services/appointmentService.js";
 import * as doctorClient from "../services/doctorClient.js";
 import * as notificationClient from "../services/notificationClient.js";
+import * as patientClient from "../services/patientClient.js";
 import env from "../config/environment.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,8 +60,7 @@ export const bookAppointment = async (req, res) => {
     await doctorClient.updateSlotStatus(doctor_id, slot_id, "booked");
 
     // 4. Persist appointment with denormalized display fields (Bug 6 / Bug 11 fix)
-    //    patient_name is null until patient-service exposes GET /api/v1/patients/by-user/:userId
-    //    — patientClient.js is the integration hook; populate once teammate builds the endpoint.
+    const patientProfile = await patientClient.getPatientByUserId(req.user.id);
     const appointment = await appointmentService.createAppointment(req.db, {
       patient_id: req.user.id,
       doctor_id,
@@ -69,7 +69,7 @@ export const bookAppointment = async (req, res) => {
       doctor_email: doctor.email,
       reason_for_visit,
       doctor_name: doctor.full_name,
-      patient_name: null,
+      patient_name: patientProfile?.full_name ?? null,
       slot_date: slot.slot_date,
       start_time: slot.start_time,
       end_time: slot.end_time,
@@ -383,6 +383,27 @@ export const listByDoctor = async (req, res) => {
       req.db,
       req.params.doctorId,
     );
+
+    // Enrich any appointments that are missing patient_name by calling
+    // the patient-management-service. Collect unique patient_ids first
+    // to avoid redundant requests.
+    const missing = appointments.filter((a) => !a.patient_name && a.patient_id);
+    if (missing.length > 0) {
+      const uniqueIds = [...new Set(missing.map((a) => a.patient_id))];
+      const nameMap = {};
+      await Promise.all(
+        uniqueIds.map(async (userId) => {
+          const profile = await patientClient.getPatientByUserId(userId);
+          if (profile?.full_name) nameMap[userId] = profile.full_name;
+        }),
+      );
+      for (const appt of appointments) {
+        if (!appt.patient_name && nameMap[appt.patient_id]) {
+          appt.patient_name = nameMap[appt.patient_id];
+        }
+      }
+    }
+
     return res.json({ appointments });
   } catch (err) {
     return handleError(err, res, req, "listByDoctor");
@@ -416,12 +437,20 @@ export const setStatus = async (req, res) => {
       }
 
       if (appointment.appointment_status !== "confirmed") {
-        return res.status(400).json({ error: "appointment_not_confirmed" });
+        return res.status(400).json({
+          error: "appointment_not_confirmed",
+          message:
+            "This appointment is not in a confirmed state and cannot be marked as complete.",
+        });
       }
 
       // Payment guard: clinical actions require full payment
       if (appointment.payment_status !== "paid") {
-        return res.status(400).json({ error: "appointment_not_paid" });
+        return res.status(400).json({
+          error: "appointment_not_paid",
+          message:
+            "Cannot mark as complete — payment has not been received for this appointment.",
+        });
       }
 
       // Time guard: cannot mark complete before the slot has ended
@@ -434,7 +463,11 @@ export const setStatus = async (req, res) => {
           `${slotDateStr}T${String(appointment.end_time).slice(0, 8)}`,
         );
         if (new Date() < slotEnd) {
-          return res.status(400).json({ error: "slot_not_yet_ended" });
+          return res.status(400).json({
+            error: "slot_not_yet_ended",
+            message:
+              "Cannot mark as complete — the appointment slot has not ended yet. Please wait until after the scheduled session time.",
+          });
         }
       }
 
@@ -515,27 +548,37 @@ export const doctorDecision = async (req, res) => {
 
     // When accepting: enforce late-acceptance guard, compute payment_deadline.
     if (decision === "accept") {
-      // Build slot start datetime from snapshotted columns
-      const slotDateStr =
-        typeof appointment.slot_date === "string"
-          ? appointment.slot_date.slice(0, 10)
-          : new Date(appointment.slot_date).toISOString().slice(0, 10);
-      const slotStart = new Date(
-        `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}`,
-      );
-      const twoHoursBefore = new Date(slotStart.getTime() - 2 * 60 * 60 * 1000);
-
-      // Guard: block acceptance if less than 2 hours remain before slot start
-      if (twoHoursBefore <= new Date()) {
-        return res.status(400).json({ error: "too_close_to_slot_time" });
-      }
-
-      // Compute payment deadline: whichever is earlier — 24h from now or slot_start − 2h
       const twentyFourHoursFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      const paymentDeadline =
-        twoHoursBefore < twentyFourHoursFromNow
-          ? twoHoursBefore
-          : twentyFourHoursFromNow;
+      let paymentDeadline = twentyFourHoursFromNow;
+
+      // Build slot start datetime from snapshotted columns (only if both are available)
+      if (appointment.slot_date != null && appointment.start_time != null) {
+        const slotDateStr =
+          typeof appointment.slot_date === "string"
+            ? appointment.slot_date.slice(0, 10)
+            : new Date(appointment.slot_date).toISOString().slice(0, 10);
+        const slotStart = new Date(
+          `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}`,
+        );
+        const twoHoursBefore = new Date(
+          slotStart.getTime() - 2 * 60 * 60 * 1000,
+        );
+
+        // Guard: block acceptance if less than 2 hours remain before slot start
+        if (twoHoursBefore <= new Date()) {
+          return res.status(400).json({
+            error: "too_close_to_slot_time",
+            message:
+              "Cannot accept this appointment — the session is scheduled to start within 2 hours.",
+          });
+        }
+
+        // Compute payment deadline: whichever is earlier — 24h from now or slot_start − 2h
+        paymentDeadline =
+          twoHoursBefore < twentyFourHoursFromNow
+            ? twoHoursBefore
+            : twentyFourHoursFromNow;
+      }
 
       paymentDeadlineForNotification = paymentDeadline;
       paymentRemainingHours = Math.max(

@@ -7,6 +7,7 @@ services:
       - DOCTOR_SERVICE_URL=http://doctor-management-service:4002
       - APPOINTMENT_SERVICE_URL=http://appointment-service:4003
       - PAYMENT_SERVICE_URL=http://payment-service:4006
+      - PATIENT_SERVICE_URL=http://patient-management-service:6001
       # After PayHere completes, bounce the browser back to the local SPA.
       # PayHere returns to docapp.ngrok.app/payhere/return; the gateway then
       # redirects to this URL, forwarding all PayHere query params (including custom_2).
@@ -20,26 +21,45 @@ services:
       - doctor-management-service
       - appointment-service
       - payment-service
+      - patient-management-service
   auth-service:
     build: ../../backend/services/auth-service
     env_file:
       - ../../backend/services/auth-service/.env
   patient-management-service:
     build: ../../backend/services/patient-management-service
+    env_file:
+      - ../../backend/services/patient-management-service/.env
+    environment:
+      - DB_HOST=patient-postgres
+    depends_on:
+      patient-postgres:
+        condition: service_healthy
   doctor-management-service:
     build: ../../backend/services/doctor-management-service
     env_file:
       - ../../backend/services/doctor-management-service/.env
+    environment:
+      - PATIENT_SERVICE_URL=http://patient-management-service:6001
+      - INTERNAL_SECRET=change-me
     depends_on:
-      - doctors-postgres
+      doctors-postgres:
+        condition: service_healthy
   appointment-service:
     build: ../../backend/services/appointment-service
     env_file:
       - ../../backend/services/appointment-service/.env
+    environment:
+      # Ensure datetime comparisons match the timezone used when seeding/creating slots.
+      # Slot times are stored as naive TIME values in the local timezone.
+      - TZ=Asia/Colombo
     depends_on:
-      - appointments-postgres
-      - doctor-management-service
-      - notification-service
+      appointments-postgres:
+        condition: service_healthy
+      doctor-management-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
   telemedicine-service:
     build: ../../backend/services/telemedicine-service
   payment-service:
@@ -61,18 +81,8 @@ services:
     ports:
       - "4006:4006"
     depends_on:
-      - payment-postgres
-  payment-postgres:
-    image: postgres:15.4-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: paymentdb
-    ports:
-      - "5437:5432"
-    volumes:
-      - payment-db-data:/var/lib/postgresql/data
-      - ../../backend/services/payment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      payment-postgres:
+        condition: service_healthy
   notification-service:
     build: ../../backend/services/notification-service
   admin-management-service:
@@ -96,6 +106,11 @@ services:
       - "8081:5173"
     environment:
       - VITE_API_BASE=http://localhost:4000
+      # When Vite runs inside Docker, 'localhost' means the container itself, not the
+      # host machine. Set VITE_PROXY_TARGET to the api-gateway's Docker network hostname
+      # so that the Vite dev-server proxy (used by ngrok → PayHere notify_url) can reach
+      # the api-gateway. Browser-side JS still uses VITE_API_BASE=localhost:4000.
+      - VITE_PROXY_TARGET=http://api-gateway:4000
     command: sh -c "npm install --silent && npm run dev -- --host 0.0.0.0 --port 5173"
     depends_on:
       - api-gateway
@@ -108,6 +123,32 @@ services:
       - notification-service
       - admin-management-service
       - ai-symptom-checker-service
+  # ── ngrok tunnel ─────────────────────────────────────────────────────────────
+  # Exposes the frontend (Vite dev server) at the reserved public domain
+  # docapp.ngrok.app so PayHere sandbox accepts the checkout origin and can
+  # deliver the server-to-server notify webhook.
+  #
+  # Requires infra/docker/.env to contain:
+  #   NGROK_AUTHTOKEN=<your token>   (DO NOT commit this file)
+  #   NGROK_DOMAIN=docapp.ngrok.app
+  #
+  # The Vite dev server proxies /api/* to api-gateway:4000 (inside Docker),
+  # so PayHere's notify_url (https://docapp.ngrok.app/api/v1/payments/notify)
+  # is correctly forwarded through: ngrok → Vite proxy → api-gateway → payment-service.
+  ngrok:
+    image: ngrok/ngrok:alpine
+    restart: on-failure
+    depends_on:
+      - frontend
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - "http"
+      - "http://frontend:5173"
+      - "--url=${NGROK_DOMAIN}"
+    ports:
+      # ngrok request inspector UI — open http://localhost:4040 to watch live traffic
+      - "4040:4040"
   postgres:
     image: postgres:15.4-alpine
     environment:
@@ -118,6 +159,12 @@ services:
       - "5432:5432"
     volumes:
       - auth-db-data:/var/lib/postgresql/data
+      - ../../backend/services/auth-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d authdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   doctors-postgres:
     image: postgres:15.4-alpine
     environment:
@@ -129,6 +176,11 @@ services:
     volumes:
       - doctors-db-data:/var/lib/postgresql/data
       - ../../backend/services/doctor-management-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d doctorsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   appointments-postgres:
     image: postgres:15.4-alpine
     environment:
@@ -140,8 +192,46 @@ services:
     volumes:
       - appointments-db-data:/var/lib/postgresql/data
       - ../../backend/services/appointment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d appointmentsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  patient-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: patientdb
+    ports:
+      - "5435:5432"
+    volumes:
+      - patient-db-data:/var/lib/postgresql/data
+      - ../../backend/services/patient-management-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d patientdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  payment-postgres:
+    image: postgres:15.4-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paymentdb
+    ports:
+      - "5437:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+      - ../../backend/services/payment-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paymentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 volumes:
   auth-db-data:
   doctors-db-data:
   appointments-db-data:
+  patient-db-data:
   payment-db-data:

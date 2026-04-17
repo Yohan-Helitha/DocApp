@@ -22,6 +22,7 @@ export default function BookAppointment({ navigate }) {
   const startTime = params.get("startTime") || "";
   const endTime = params.get("endTime") || "";
   const doctorName = params.get("doctorName") || "Doctor";
+  const consultationFee = params.get("consultationFee") || "";
 
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,7 +90,6 @@ export default function BookAppointment({ navigate }) {
     setLoading(false);
   };
 
-
   if (accessDenied) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -114,21 +114,32 @@ export default function BookAppointment({ navigate }) {
 
   return (
     <DashboardLayout navigate={navigate} pageName="Book Appointment">
-        <header className="sticky top-0 w-full flex items-center gap-3 px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
-          <button
-            onClick={() =>
-              doctorId ? navigate(`/doctors/${doctorId}`) : navigate("/doctors")
-            }
-            className="text-slate-400 hover:text-primary transition-colors"
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
-          </button>
-          <h2 className="text-xl font-black text-[#0b9385] tracking-tight">
-            Book Appointment
-          </h2>
-        </header>
-
-        <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() =>
+                doctorId
+                  ? navigate(`/doctors/${doctorId}`)
+                  : navigate("/doctors")
+              }
+              className="flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-primary hover:border-primary/30 transition-colors shrink-0"
+            >
+              <span className="material-symbols-outlined text-xl">
+                arrow_back
+              </span>
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">
+                Book Appointment
+              </h1>
+              <p className="text-slate-600">
+                Review your booking details and confirm.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-6">
           {/* Booking summary */}
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
@@ -141,22 +152,21 @@ export default function BookAppointment({ navigate }) {
               <div className="flex items-center justify-between py-3">
                 <span className="text-sm text-slate-500">Doctor</span>
                 <span className="text-sm font-bold text-slate-900">
-                  {doctorName}
+                  Dr. {doctorName}
                 </span>
               </div>
               <div className="flex items-center justify-between py-3">
                 <span className="text-sm text-slate-500">Date</span>
                 <span className="text-sm font-bold text-slate-900">
                   {slotDate
-                    ? new Date(slotDate + "T00:00:00").toLocaleDateString(
-                        "en-US",
-                        {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        },
-                      )
+                    ? new Date(
+                        slotDate.slice(0, 10) + "T00:00:00",
+                      ).toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })
                     : "—"}
                 </span>
               </div>
@@ -168,6 +178,16 @@ export default function BookAppointment({ navigate }) {
                     : "—"}
                 </span>
               </div>
+              {consultationFee && (
+                <div className="flex items-center justify-between py-3">
+                  <span className="text-sm text-slate-500">
+                    Consultation Fee
+                  </span>
+                  <span className="text-sm font-bold text-[#0b9385]">
+                    LKR {Number(consultationFee).toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -227,6 +247,7 @@ export default function BookAppointment({ navigate }) {
             </button>
           </form>
         </div>
+      </div>
     </DashboardLayout>
   );
 }

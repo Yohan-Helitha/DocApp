@@ -15,17 +15,18 @@ import MyAppointments from "./pages/MyAppointments";
 import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorAppointments from "./pages/DoctorAppointments";
 import PrescriptionEditor from "./pages/PrescriptionEditor";
-import Telemedicine from './features/telemedicine/Telemedicine'
+import Telemedicine from "./features/telemedicine/Telemedicine";
 import PaymentCheckout from "./pages/PaymentCheckout";
 import PaymentReturn from "./pages/PaymentReturn";
 import PaymentCancel from "./pages/PaymentCancel";
 import PatientPrescriptions from "./pages/PatientPrescriptions";
 import SymptomCheckerChat from "./features/AI/pages/SymptomCheckerChat";
-import PatientProfile from './features/patient-management/PatientProfile'
-import PatientHistory from './features/patient-management/PatientHistory'
-import PatientMedicalReports from './features/patient-management/PatientMedicalReports'
-import Notifications from './features/notifications/Notifications'
+import PatientProfile from "./features/patient-management/PatientProfile";
+import PatientHistory from "./features/patient-management/PatientHistory";
+import PatientMedicalReports from "./features/patient-management/PatientMedicalReports";
+import Notifications from "./features/notifications/Notifications";
 import TelemedicineGuard from "./features/auth/TelemedicineGuard";
+import DoctorPatientRecords from "./pages/DoctorPatientRecords";
 
 export default function App() {
   const [route, setRoute] = useState(
@@ -86,17 +87,24 @@ export default function App() {
     Page = () => <PaymentReturn navigate={navigate} />;
   else if (path.startsWith("/payments/cancel"))
     Page = () => <PaymentCancel navigate={navigate} />;
-  else if(route.startsWith('/patient/profile')) Page = ()=> <PatientProfile navigate={navigate} />
-  else if(route.startsWith('/patient/history')) Page = ()=> <PatientHistory navigate={navigate} />
-  else if(route.startsWith('/patient/medical-reports')) Page = ()=> <PatientMedicalReports navigate={navigate} />
-  else if(route.startsWith('/notifications')) Page = ()=> <Notifications navigate={navigate} />
-    
-  const isDashboard = route.startsWith('/patient/') || 
-                      route.startsWith('/success/') || 
-                      route.startsWith('/notifications') ||
-                      route.startsWith('/appointments') ||
-                      route.startsWith('/doctors') ||
-                      route.startsWith('/symptom-checker');
+  else if (route.startsWith("/patient/profile"))
+    Page = () => <PatientProfile navigate={navigate} />;
+  else if (route.startsWith("/patient/history"))
+    Page = () => <PatientHistory navigate={navigate} />;
+  else if (route.startsWith("/patient/medical-reports"))
+    Page = () => <PatientMedicalReports navigate={navigate} />;
+  else if (route.startsWith("/notifications"))
+    Page = () => <Notifications navigate={navigate} />;
+  else if (path.startsWith("/doctor/patient-records"))
+    Page = () => <DoctorPatientRecords navigate={navigate} />;
+
+  const isDashboard =
+    route.startsWith("/patient/") ||
+    route.startsWith("/success/") ||
+    route.startsWith("/notifications") ||
+    route.startsWith("/appointments") ||
+    route.startsWith("/doctors") ||
+    route.startsWith("/symptom-checker");
 
   const hidePublicChrome =
     route.startsWith("/success/admin") ||
@@ -110,7 +118,8 @@ export default function App() {
     path === "/doctors" ||
     path.startsWith("/doctors/") ||
     path.startsWith("/book") ||
-    path.startsWith("/doctor/");
+    path.startsWith("/doctor/") ||
+    path.startsWith("/patient/medical-reports");
 
   if (hidePublicChrome) {
     // These pages provide their own dashboards/layouts, so we intentionally do NOT

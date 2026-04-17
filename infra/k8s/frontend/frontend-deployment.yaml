@@ -17,7 +17,7 @@ spec:
       containers:
         - name: frontend
           image: docapp/frontend:local
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
 

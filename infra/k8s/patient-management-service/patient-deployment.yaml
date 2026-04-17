@@ -17,7 +17,7 @@ spec:
       containers:
         - name: patient-management-service
           image: docapp/patient-management-service:local
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6001
           env:

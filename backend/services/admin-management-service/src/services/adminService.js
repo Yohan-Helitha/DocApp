@@ -18,6 +18,14 @@ const doctorClient = axios.create({
 // using the auth schema's `users` table and the admin-specific tables
 // defined in db/init.sql.
 
+const isUndefinedTable = (err, tableName) => {
+  if (!err) return false;
+  // Postgres: 42P01 = undefined_table
+  if (err.code !== '42P01') return false;
+  const msg = String(err.message || '');
+  return msg.includes(`relation "${tableName}" does not exist`);
+};
+
 export const listUsers = async () => {
   const result = await db.query(
     'SELECT user_id, email, role, account_status, created_at, updated_at FROM users ORDER BY created_at DESC'
@@ -258,30 +266,51 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId, st
 
 export const listTransactions = async () => {
   // For simplicity, expose financial_monitoring_records as the admin view of transactions
-  const result = await db.query(
-    'SELECT record_id, transaction_id, appointment_id, amount, currency, status, flagged, flag_reason, created_at FROM financial_monitoring_records ORDER BY created_at DESC'
-  );
-  return result.rows || [];
+  try {
+    const result = await db.query(
+      'SELECT record_id, transaction_id, appointment_id, amount, currency, status, flagged, flag_reason, created_at FROM financial_monitoring_records ORDER BY created_at DESC'
+    );
+    return result.rows || [];
+  } catch (err) {
+    if (isUndefinedTable(err, 'financial_monitoring_records')) {
+      return [];
+    }
+    throw err;
+  }
 };
 
 export const listAuditLogs = async ({ limit = 100 }) => {
   const safeLimit = Math.min(Math.max(Number(limit) || 0, 1), 500);
-  const result = await db.query(
-    'SELECT action_id, admin_user_id, action_type, target_entity, target_entity_id, action_note, created_at FROM admin_actions ORDER BY created_at DESC LIMIT $1',
-    [safeLimit]
-  );
-  return result.rows || [];
+  try {
+    const result = await db.query(
+      'SELECT action_id, admin_user_id, action_type, target_entity, target_entity_id, action_note, created_at FROM admin_actions ORDER BY created_at DESC LIMIT $1',
+      [safeLimit]
+    );
+    return result.rows || [];
+  } catch (err) {
+    if (isUndefinedTable(err, 'admin_actions')) {
+      return [];
+    }
+    throw err;
+  }
 };
 
 export const getDashboardMetrics = async () => {
-  const financialStatsRes = await db.query(
-    `SELECT
-       COALESCE(SUM(amount), 0) AS total_amount,
-       COUNT(*) AS total_records,
-       COUNT(*) FILTER (WHERE flagged) AS flagged_records
-     FROM financial_monitoring_records`
-  );
-  const financialStats = financialStatsRes.rows[0] || {};
+  let financialStats = { total_amount: 0, total_records: 0, flagged_records: 0 };
+  try {
+    const financialStatsRes = await db.query(
+      `SELECT
+         COALESCE(SUM(amount), 0) AS total_amount,
+         COUNT(*) AS total_records,
+         COUNT(*) FILTER (WHERE flagged) AS flagged_records
+       FROM financial_monitoring_records`
+    );
+    financialStats = financialStatsRes.rows[0] || financialStats;
+  } catch (err) {
+    if (!isUndefinedTable(err, 'financial_monitoring_records')) {
+      throw err;
+    }
+  }
 
   let approvedCount = 0;
   let rejectedCount = 0;

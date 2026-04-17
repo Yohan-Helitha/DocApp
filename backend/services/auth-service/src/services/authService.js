@@ -411,8 +411,31 @@ export const refreshToken = async (rawToken) => {
     throw e;
   }
 
-  // issue new access token
-  const payload = { sub: found.user_id };
+  // Issue a new access token.
+  // Keep claims consistent with `login()` so downstream services that enforce
+  // role-based access (e.g. AI symptom checker) don't break.
+  const uRes = await db.query(
+    "SELECT user_id, email, role, account_status FROM users WHERE user_id = $1",
+    [found.user_id],
+  );
+  const user = uRes.rows && uRes.rows[0];
+  if (!user) {
+    const e = new Error("invalid_refresh_token");
+    e.status = 401;
+    throw e;
+  }
+
+  if (user.account_status !== "active") {
+    const e = new Error(
+      user.account_status === "pending_verification"
+        ? "pending_verification"
+        : "account_inactive",
+    );
+    e.status = 403;
+    throw e;
+  }
+
+  const payload = { sub: user.user_id, email: user.email, role: user.role };
   let accessToken;
   try {
     const pkPath = path.resolve(

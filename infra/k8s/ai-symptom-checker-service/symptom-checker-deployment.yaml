@@ -100,7 +100,7 @@ spec:
                   name: symptom-checker-db-secret
                   key: GEMINI_API_KEY
             - name: GEMINI_MODEL
-              value: "gemini-2.5-flash"
+              value: "gemini-1.5-flash"
             - name: DOCTOR_SERVICE_URL
               value: "http://doctor-management-service:4002"
       volumes:

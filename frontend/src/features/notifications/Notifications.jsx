@@ -3,32 +3,71 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 
 export default function Notifications({ navigate }) {
   const [notifications, setNotifications] = useState([]);
+  const [latestNotifications, setLatestNotifications] = useState([]);
+  const [latestExpandedId, setLatestExpandedId] = useState(null);
+  const [latestLoading, setLatestLoading] = useState(false);
   const [readStatus, setReadStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
 
-  // patientId is the JWT sub (UUID) – same as recipient_user_id in notifications table
+  // patientId is the JWT sub (UUID) – same as recipient_user_id in notifications table.
   const token = sessionStorage.getItem('accessToken');
-  let patientId = localStorage.getItem('patientId');
 
-  // If patientId is missing, extract it from token sub
-  if (!patientId && token) {
+  const decodeJwtPayload = (jwtToken) => {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      patientId = payload.sub || payload.userId;
-      if (patientId) localStorage.setItem('patientId', patientId);
-    } catch (e) {
-      console.error('Failed to parse token for patientId:', e);
+      const payloadPart = String(jwtToken || '').split('.')[1];
+      if (!payloadPart) return null;
+
+      let b64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4;
+      if (pad) b64 += '='.repeat(4 - pad);
+      return JSON.parse(atob(b64));
+    } catch {
+      return null;
     }
+  };
+
+  // JWT `sub` is the source of truth; overwrite stale localStorage.
+  let patientId = localStorage.getItem('patientId');
+  const payload = token ? decodeJwtPayload(token) : null;
+  const tokenPatientId = payload?.sub || payload?.userId;
+  if (tokenPatientId && tokenPatientId !== patientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
+  } else if (!patientId && tokenPatientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
   }
 
   useEffect(() => {
     if (patientId && token) {
       fetchNotifications();
+      fetchLatestNotifications();
     }
   }, [patientId, token]);
+
+  const fetchLatestNotifications = async () => {
+    try {
+      setLatestLoading(true);
+      const response = await fetch('/api/v1/notifications/latest', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch latest notifications');
+
+      const data = await response.json();
+      // /latest returns an array
+      const list = Array.isArray(data) ? data : [];
+      setLatestNotifications(list);
+    } catch (err) {
+      console.error('Error fetching latest notifications:', err);
+      setLatestNotifications([]);
+    } finally {
+      setLatestLoading(false);
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -149,6 +188,15 @@ export default function Notifications({ navigate }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const isPaymentNotification = (notification) => {
+    const code = String(notification?.template_code || '').toUpperCase();
+    return code === 'PAYMENT_SUCCESS' || code === 'PAYMENT_INVOICE';
+  };
+
+  const toggleLatestExpanded = (id) => {
+    setLatestExpandedId((prev) => (prev === id ? null : id));
+  };
+
   const getFilteredNotifications = () => {
     return notifications.filter(notification => {
       const matchesSearch = searchQuery === '' || 
@@ -167,7 +215,7 @@ export default function Notifications({ navigate }) {
 
   return (
     <DashboardLayout navigate={navigate} pageName="Notifications">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
         {/* Header - always visible */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
           <div>
@@ -190,6 +238,126 @@ export default function Notifications({ navigate }) {
               <span className="material-symbols-outlined text-sm">done_all</span>
               Mark all as read
             </button>
+          )}
+        </div>
+
+        {/* Latest - horizontal bar */}
+        <div className="mb-8 bg-white rounded-2xl border border-slate-200 p-6 overflow-hidden">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined">schedule</span>
+              Latest
+            </h2>
+            <button
+              onClick={fetchLatestNotifications}
+              className="text-sm font-bold text-primary"
+              disabled={latestLoading}
+              title="Refresh latest"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {latestLoading ? (
+            <div className="mt-4 text-slate-500 text-sm">Loading latest notifications...</div>
+          ) : latestNotifications.length === 0 ? (
+            <div className="mt-4 text-slate-500 text-sm">No latest notifications.</div>
+          ) : (
+            <div className="mt-4 w-full min-w-0 overflow-x-auto overscroll-x-contain">
+              <div className="flex gap-4 pb-2 w-max">
+                {latestNotifications.map((n) => {
+                  const payload = n.payload_json || {};
+                  const isPayment = isPaymentNotification(n);
+                  const expanded = latestExpandedId === n.id;
+                  const isRead = !!(readStatus?.[n.id] || n.is_read);
+
+                  return (
+                    <div
+                      key={n.id}
+                      className={`shrink-0 w-[280px] sm:w-[320px] lg:w-[360px] rounded-2xl border p-5 min-w-0 ${
+                        isRead ? 'bg-slate-50 border-slate-200' : 'bg-white border-primary/20 ring-1 ring-primary/10'
+                      }`}
+                    >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900 truncate">
+                          {n.template_code ? String(n.template_code).replace(/_/g, ' ') : 'Notification'}
+                        </p>
+                        <p className="text-xs font-medium text-slate-500 mt-1">
+                          {formatTime(n.created_at || n.createdAt)}
+                        </p>
+                      </div>
+
+                      {isPayment ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleLatestExpanded(n.id)}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 font-bold text-sm"
+                          title="View payment details"
+                        >
+                          <span className="material-symbols-outlined">visibility</span>
+                          View
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <p className="text-sm text-slate-700 font-medium mt-3 line-clamp-3">
+                      {n.message}
+                    </p>
+
+                    {isPayment && expanded && (
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="font-black text-slate-900">Payment</p>
+                          <span className="px-3 py-1 rounded-full text-xs font-black bg-slate-900 text-white">PAID</span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          <div className="text-sm">
+                            <p className="text-slate-500 text-xs font-bold">Amount</p>
+                            <p className="text-slate-900 font-bold">
+                              {payload.currency || 'LKR'} {payload.amount || ''}
+                            </p>
+                          </div>
+                          <div className="text-sm">
+                            <p className="text-slate-500 text-xs font-bold">Method</p>
+                            <p className="text-slate-900 font-bold">
+                              {payload.paymentMethod || 'Card'}
+                              {payload.cardLast4 ? ` (•••• ${payload.cardLast4})` : ''}
+                            </p>
+                          </div>
+                          <div className="text-sm col-span-2">
+                            <p className="text-slate-500 text-xs font-bold">Time slot</p>
+                            <p className="text-slate-900 font-bold">{payload.slot || '-'}</p>
+                          </div>
+                          <div className="text-sm">
+                            <p className="text-slate-500 text-xs font-bold">Doctor email</p>
+                            <p className="text-slate-900 font-bold break-all">{payload.doctorEmail || '-'}</p>
+                          </div>
+                          <div className="text-sm">
+                            <p className="text-slate-500 text-xs font-bold">Patient email</p>
+                            <p className="text-slate-900 font-bold break-all">{payload.patientEmail || '-'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isRead && (
+                      <div className="mt-4">
+                        <button
+                          onClick={() => markAsRead(n.id)}
+                          className="text-primary hover:text-primary-dark text-sm font-bold flex items-center gap-2 transition-all group"
+                        >
+                          <span className="material-symbols-outlined text-base group-hover:scale-110 transition-transform">done</span>
+                          Mark as read
+                        </button>
+                      </div>
+                    )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
 

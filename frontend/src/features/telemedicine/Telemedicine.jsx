@@ -79,7 +79,15 @@ export default function Telemedicine({ navigate }) {
     else window.location.hash = path;
   };
 
-  const getAccessToken = () => sessionStorage.getItem("accessToken") || "";
+  const redirectToPatientDashboard = (message) => {
+    setJoinError(message || 'Redirecting to dashboard…');
+    // Small delay so the user can read the reason.
+    setTimeout(() => {
+      goTo('/success/patient');
+    }, 1500);
+  };
+
+  const getAccessToken = () => sessionStorage.getItem('accessToken') || '';
 
   const authedFetch = async (path, method, body) => {
     const headers = { "Content-Type": "application/json" };
@@ -270,14 +278,18 @@ export default function Telemedicine({ navigate }) {
         );
 
         const sessionId = createRes?.body?.session?.session_id;
-        if (
-          !(createRes.status >= 200 && createRes.status < 300) ||
-          !sessionId
-        ) {
-          setJoinError(
-            (createRes.body && createRes.body.error) ||
-              "failed_to_create_session",
-          );
+        if (!(createRes.status >= 200 && createRes.status < 300) || !sessionId) {
+          const errorCode = (createRes.body && createRes.body.error) || 'failed_to_create_session';
+          if (errorCode === 'appointment_not_confirmed') {
+            const appt = await getAppointment(appointmentId);
+            const st = String(appt?.appointment_status || '').toLowerCase();
+            if (st === 'rejected' || st === 'cancelled') {
+              redirectToPatientDashboard('Appointment was declined. Redirecting to dashboard…');
+              return;
+            }
+          }
+
+          setJoinError(errorCode);
           return;
         }
 
@@ -299,9 +311,22 @@ export default function Telemedicine({ navigate }) {
 
         const url = joinRes?.body?.joinUrl;
         if (!(joinRes.status >= 200 && joinRes.status < 300) || !url) {
-          setJoinError(
-            (joinRes.body && joinRes.body.error) || "failed_to_get_link",
-          );
+          const errorCode = (joinRes.body && joinRes.body.error) || 'failed_to_get_link';
+          if (errorCode === 'session_ended') {
+            redirectToPatientDashboard('This session has already ended. Redirecting to dashboard…');
+            return;
+          }
+
+          if (errorCode === 'appointment_not_confirmed') {
+            const appt = await getAppointment(appointmentId);
+            const st = String(appt?.appointment_status || '').toLowerCase();
+            if (st === 'rejected' || st === 'cancelled') {
+              redirectToPatientDashboard('Appointment was declined. Redirecting to dashboard…');
+              return;
+            }
+          }
+
+          setJoinError(errorCode);
           return;
         }
 

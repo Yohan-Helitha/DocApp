@@ -43,8 +43,20 @@ CREATE TABLE IF NOT EXISTS financial_monitoring_records (
   appointment_id UUID,
   amount NUMERIC(10,2) NOT NULL,
   currency TEXT NOT NULL,
+  provider TEXT,
   status TEXT NOT NULL,
   flagged BOOLEAN DEFAULT false,
   flag_reason TEXT,
+  patient_email TEXT,
+  doctor_email TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migrate existing deployments: add columns/indexes if they don't exist yet.
+ALTER TABLE financial_monitoring_records ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE financial_monitoring_records ADD COLUMN IF NOT EXISTS patient_email TEXT;
+ALTER TABLE financial_monitoring_records ADD COLUMN IF NOT EXISTS doctor_email TEXT;
+
+-- Needed for INSERT ... ON CONFLICT (transaction_id)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_financial_monitoring_transaction_id
+  ON financial_monitoring_records(transaction_id);

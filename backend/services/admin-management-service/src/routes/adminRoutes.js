@@ -7,6 +7,7 @@ const router = express.Router();
 
 // Internal (service-to-service)
 router.post('/api/v1/internal/admin/audit-logs', internalAuthMiddleware, controller.createAuditLog);
+router.post('/api/v1/internal/admin/transactions/upsert', internalAuthMiddleware, controller.upsertTransaction);
 
 // User management
 router.get('/api/v1/admin/users', authAdminRs256, controller.listUsers);

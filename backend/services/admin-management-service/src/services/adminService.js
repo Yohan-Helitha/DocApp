@@ -18,6 +18,14 @@ const doctorClient = axios.create({
 // using the auth schema's `users` table and the admin-specific tables
 // defined in db/init.sql.
 
+const isUndefinedTable = (err, tableName) => {
+  if (!err) return false;
+  // Postgres: 42P01 = undefined_table
+  if (err.code !== '42P01') return false;
+  const msg = String(err.message || '');
+  return msg.includes(`relation "${tableName}" does not exist`);
+};
+
 export const listUsers = async () => {
   const result = await db.query(
     'SELECT user_id, email, role, account_status, created_at, updated_at FROM users ORDER BY created_at DESC'
@@ -258,30 +266,145 @@ export const verifyDoctor = async ({ doctorId, approved, reason, adminUserId, st
 
 export const listTransactions = async () => {
   // For simplicity, expose financial_monitoring_records as the admin view of transactions
-  const result = await db.query(
-    'SELECT record_id, transaction_id, appointment_id, amount, currency, status, flagged, flag_reason, created_at FROM financial_monitoring_records ORDER BY created_at DESC'
-  );
-  return result.rows || [];
+  try {
+    const result = await db.query(
+      'SELECT record_id, transaction_id, appointment_id, amount, currency, provider, status, flagged, flag_reason, patient_email, doctor_email, created_at FROM financial_monitoring_records ORDER BY created_at DESC'
+    );
+    return result.rows || [];
+  } catch (err) {
+    if (isUndefinedTable(err, 'financial_monitoring_records')) {
+      return [];
+    }
+    throw err;
+  }
+};
+
+export const upsertTransactionRecord = async ({
+  transactionId,
+  appointmentId,
+  amount,
+  currency,
+  status,
+  provider,
+  patientEmail,
+  doctorEmail,
+}) => {
+  if (!transactionId) {
+    const err = new Error('transaction_id_required');
+    err.status = 400;
+    throw err;
+  }
+  if (amount == null || !currency || !status) {
+    const err = new Error('missing_fields');
+    err.status = 400;
+    throw err;
+  }
+
+  const normalizedStatus = String(status).trim().toLowerCase();
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let previousStatus = null;
+    try {
+      const prev = await client.query(
+        'SELECT status FROM financial_monitoring_records WHERE transaction_id = $1',
+        [transactionId],
+      );
+      previousStatus = prev.rows?.[0]?.status
+        ? String(prev.rows[0].status).trim().toLowerCase()
+        : null;
+    } catch (e) {
+      // If the table doesn't exist yet, let the insert fail normally (and surface the error).
+      throw e;
+    }
+
+    const upsertRes = await client.query(
+      `INSERT INTO financial_monitoring_records
+         (transaction_id, appointment_id, amount, currency, provider, status, patient_email, doctor_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (transaction_id) DO UPDATE SET
+         appointment_id = COALESCE(EXCLUDED.appointment_id, financial_monitoring_records.appointment_id),
+         amount = EXCLUDED.amount,
+         currency = EXCLUDED.currency,
+         provider = COALESCE(EXCLUDED.provider, financial_monitoring_records.provider),
+         status = EXCLUDED.status,
+         patient_email = COALESCE(EXCLUDED.patient_email, financial_monitoring_records.patient_email),
+         doctor_email = COALESCE(EXCLUDED.doctor_email, financial_monitoring_records.doctor_email)
+       RETURNING record_id, transaction_id, appointment_id, amount, currency, provider, status, flagged, flag_reason, created_at`,
+      [
+        transactionId,
+        appointmentId,
+        amount,
+        String(currency).trim().toUpperCase(),
+        provider,
+        normalizedStatus,
+        patientEmail,
+        doctorEmail,
+      ],
+    );
+
+    const record = upsertRes.rows?.[0] || null;
+
+    // Only create audit logs on meaningful status transitions to a non-pending state.
+    const statusChanged = previousStatus !== normalizedStatus;
+    const shouldAudit = statusChanged && normalizedStatus && normalizedStatus !== 'pending';
+    if (shouldAudit) {
+      const appt = appointmentId ? ` appointment=${appointmentId}` : '';
+      const pe = patientEmail ? ` patient=${patientEmail}` : '';
+      const de = doctorEmail ? ` doctor=${doctorEmail}` : '';
+      const prov = provider ? ` provider=${provider}` : '';
+      const note = `Transaction status changed to ${normalizedStatus}.${appt}${prov}${pe}${de}`;
+
+      await client.query(
+        'INSERT INTO admin_actions (admin_user_id, action_type, target_entity, target_entity_id, action_note) VALUES ($1, $2, $3, $4, $5)',
+        [SYSTEM_ADMIN_USER_ID, 'transaction_status_change', 'transaction', transactionId, note],
+      );
+    }
+
+    await client.query('COMMIT');
+    return record;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 export const listAuditLogs = async ({ limit = 100 }) => {
   const safeLimit = Math.min(Math.max(Number(limit) || 0, 1), 500);
-  const result = await db.query(
-    'SELECT action_id, admin_user_id, action_type, target_entity, target_entity_id, action_note, created_at FROM admin_actions ORDER BY created_at DESC LIMIT $1',
-    [safeLimit]
-  );
-  return result.rows || [];
+  try {
+    const result = await db.query(
+      'SELECT action_id, admin_user_id, action_type, target_entity, target_entity_id, action_note, created_at FROM admin_actions ORDER BY created_at DESC LIMIT $1',
+      [safeLimit]
+    );
+    return result.rows || [];
+  } catch (err) {
+    if (isUndefinedTable(err, 'admin_actions')) {
+      return [];
+    }
+    throw err;
+  }
 };
 
 export const getDashboardMetrics = async () => {
-  const financialStatsRes = await db.query(
-    `SELECT
-       COALESCE(SUM(amount), 0) AS total_amount,
-       COUNT(*) AS total_records,
-       COUNT(*) FILTER (WHERE flagged) AS flagged_records
-     FROM financial_monitoring_records`
-  );
-  const financialStats = financialStatsRes.rows[0] || {};
+  let financialStats = { total_amount: 0, total_records: 0, flagged_records: 0 };
+  try {
+    const financialStatsRes = await db.query(
+      `SELECT
+         COALESCE(SUM(amount), 0) AS total_amount,
+         COUNT(*) AS total_records,
+         COUNT(*) FILTER (WHERE flagged) AS flagged_records
+       FROM financial_monitoring_records`
+    );
+    financialStats = financialStatsRes.rows[0] || financialStats;
+  } catch (err) {
+    if (!isUndefinedTable(err, 'financial_monitoring_records')) {
+      throw err;
+    }
+  }
 
   let approvedCount = 0;
   let rejectedCount = 0;

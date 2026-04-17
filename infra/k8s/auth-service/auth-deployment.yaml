@@ -126,6 +126,8 @@ spec:
                   key: INTERNAL_API_KEY
             - name: ADMIN_SERVICE_URL
               value: "http://admin-management-service:4008"
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service:6000"
       volumes:
         - name: auth-db-init
           configMap:

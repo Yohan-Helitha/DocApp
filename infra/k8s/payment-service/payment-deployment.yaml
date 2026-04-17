@@ -70,6 +70,15 @@ spec:
               value: "http://appointment-service:4003"
             - name: INTERNAL_SECRET
               value: "change-me-internal"
+            - name: ADMIN_SERVICE_URL
+              value: "http://admin-management-service:4008"
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_API_KEY
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service:6000"
             - name: CORS_ORIGIN
               value: "http://localhost:8081"
 ---

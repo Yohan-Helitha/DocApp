@@ -3,10 +3,22 @@ export const SMS_TEMPLATES = {
   APPOINTMENT_BOOKED: (data) => 
     `DocApp: Hi ${data.patientName}, your appointment with Dr. ${data.doctorName} on ${data.date} at ${data.time} is confirmed.`,
 
+  PAYMENT_REMINDER: (data) =>
+    `DocApp: Hi ${data.patientName}, your appointment with Dr. ${data.doctorName} is confirmed. Please pay within ${data.remainingHours} hour(s)${data.deadline ? ` (deadline: ${data.deadline})` : ''}.`,
+
   APPOINTMENT_CANCELLED: (data) => 
     `DocApp: Hi ${data.userName}, your appointment scheduled for ${data.date} has been cancelled.`,
 
   // Telemedicine Service
+  TELEMEDICINE_SESSION_CONFIGURED: (data) =>
+    `DocApp: Hi ${data.patientName}, your telemedicine session with Dr. ${data.doctorName} is scheduled${data.date ? ` on ${data.date}` : ''}${data.time ? ` at ${data.time}` : ''}.`,
+
+  TELEMEDICINE_SESSION_STARTED: (data) =>
+    `DocApp: Hi ${data.patientName}, your telemedicine session with Dr. ${data.doctorName} has started.`,
+
+  TELEMEDICINE_SESSION_ENDED: (data) =>
+    `DocApp: Hi ${data.patientName}, your telemedicine session with Dr. ${data.doctorName} has ended.`,
+
   CONSULTATION_COMPLETED: (data) => 
     `DocApp: Hi ${data.patientName}, your consultation with Dr. ${data.doctorName} is complete. View your prescription in your profile.`,
 

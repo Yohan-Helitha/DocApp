@@ -34,6 +34,43 @@ const tryCreateAdminAuditLog = async ({ actionType, targetEntity, targetEntityId
   }
 };
 
+const trySendWelcomeNotification = async ({ userId, email, role, name }) => {
+  if (!env.NOTIFICATION_SERVICE_URL) return;
+
+  const base = String(env.NOTIFICATION_SERVICE_URL || '').replace(/\/$/, '');
+  if (!base) return;
+
+  try {
+    const displayName =
+      (name && String(name).trim()) ||
+      (email && String(email).split('@')[0]) ||
+      'User';
+
+    await fetch(`${base}/api/v1/notifications/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': String(userId),
+        'x-user-role': String(role || 'user'),
+      },
+      body: JSON.stringify({
+        recipient_user_id: userId,
+        recipient_email: email,
+        channel: 'email',
+        template_code: 'WELCOME_USER',
+        message: 'Welcome to DocApp!',
+        payload_json: {
+          name: displayName,
+          role: String(role || 'user'),
+        },
+        priority: 'high',
+      }),
+    });
+  } catch {
+    // Best-effort; do not fail registration.
+  }
+};
+
 export const register = async (userData) => {
   const { email, password, role } = userData || {};
   if (!email || !password || !role) {
@@ -70,6 +107,16 @@ export const register = async (userData) => {
       targetEntityId: user.user_id,
       actionNote: `User registered: ${user.email} (${user.role})`
     });
+
+    // Patient welcome notification (best-effort)
+    if (user.role === 'patient') {
+      await trySendWelcomeNotification({
+        userId: user.user_id,
+        email: user.email,
+        role: user.role,
+        name: userData?.name || userData?.full_name || userData?.fullName,
+      });
+    }
 
     return { user };
   } catch (err) {
@@ -364,8 +411,31 @@ export const refreshToken = async (rawToken) => {
     throw e;
   }
 
-  // issue new access token
-  const payload = { sub: found.user_id };
+  // Issue a new access token.
+  // Keep claims consistent with `login()` so downstream services that enforce
+  // role-based access (e.g. AI symptom checker) don't break.
+  const uRes = await db.query(
+    "SELECT user_id, email, role, account_status FROM users WHERE user_id = $1",
+    [found.user_id],
+  );
+  const user = uRes.rows && uRes.rows[0];
+  if (!user) {
+    const e = new Error("invalid_refresh_token");
+    e.status = 401;
+    throw e;
+  }
+
+  if (user.account_status !== "active") {
+    const e = new Error(
+      user.account_status === "pending_verification"
+        ? "pending_verification"
+        : "account_inactive",
+    );
+    e.status = 403;
+    throw e;
+  }
+
+  const payload = { sub: user.user_id, email: user.email, role: user.role };
   let accessToken;
   try {
     const pkPath = path.resolve(

@@ -66,6 +66,7 @@ export const bookAppointment = async (req, res) => {
       doctor_id,
       slot_id,
       patient_email: req.user.email,
+      doctor_email: doctor.email,
       reason_for_visit,
       doctor_name: doctor.full_name,
       patient_name: patientProfile?.full_name ?? null,
@@ -542,6 +543,9 @@ export const doctorDecision = async (req, res) => {
 
     const newStatus = decision === "accept" ? "confirmed" : "rejected";
 
+    let paymentDeadlineForNotification = null;
+    let paymentRemainingHours = null;
+
     // When accepting: enforce late-acceptance guard, compute payment_deadline.
     if (decision === "accept") {
       const twentyFourHoursFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -575,6 +579,12 @@ export const doctorDecision = async (req, res) => {
             ? twoHoursBefore
             : twentyFourHoursFromNow;
       }
+
+      paymentDeadlineForNotification = paymentDeadline;
+      paymentRemainingHours = Math.max(
+        0,
+        Math.ceil((paymentDeadline.getTime() - Date.now()) / (60 * 60 * 1000)),
+      );
 
       // Confirm the appointment first, then store the deadline
       await appointmentService.setStatus(
@@ -621,15 +631,54 @@ export const doctorDecision = async (req, res) => {
     });
 
     // Notify patient of the decision (best-effort)
-    notificationClient
-      .sendEmail({
-        callerId: req.user.id,
-        callerRole: req.user.role,
-        recipient_user_id: appointment.patient_id,
-        recipient_email: appointment.patient_email,
-        message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
-      })
-      .catch((err) => req.log.warn(err, "doctor decision notification failed"));
+    if (decision === "accept") {
+      const dateStr =
+        typeof appointment.slot_date === "string"
+          ? appointment.slot_date.slice(0, 10)
+          : appointment.slot_date
+            ? new Date(appointment.slot_date).toISOString().slice(0, 10)
+            : null;
+      const timeStr = appointment.start_time
+        ? String(appointment.start_time).slice(0, 5)
+        : null;
+
+      notificationClient
+        .sendEmail({
+          callerId: req.user.id,
+          callerRole: req.user.role,
+          recipient_user_id: appointment.patient_id,
+          recipient_email: appointment.patient_email,
+          template_code: "PAYMENT_REMINDER",
+          message: `Payment required within ${paymentRemainingHours} hour(s) for your confirmed appointment with Dr. ${doctor.full_name}.`,
+          payload_json: {
+            patientName:
+              appointment.patient_name ||
+              (appointment.patient_email
+                ? String(appointment.patient_email).split("@")[0]
+                : "Patient"),
+            doctorName: doctor.full_name,
+            remainingHours: paymentRemainingHours,
+            deadline: paymentDeadlineForNotification
+              ? paymentDeadlineForNotification.toISOString()
+              : null,
+            date: dateStr,
+            time: timeStr,
+          },
+        })
+        .catch((err) =>
+          req.log.warn(err, "appointment payment reminder notification failed"),
+        );
+    } else {
+      notificationClient
+        .sendEmail({
+          callerId: req.user.id,
+          callerRole: req.user.role,
+          recipient_user_id: appointment.patient_id,
+          recipient_email: appointment.patient_email,
+          message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
+        })
+        .catch((err) => req.log.warn(err, "doctor decision notification failed"));
+    }
 
     return res.json({ appointment: updated });
   } catch (err) {
@@ -698,5 +747,85 @@ export const updatePaymentStatus = async (req, res) => {
     return res.json({ appointment: updated });
   } catch (err) {
     return handleError(err, res, req, "updatePaymentStatus");
+  }
+};
+
+// ─── Get Appointment Payment Context (internal) ──────────────────────────────
+
+export const getPaymentContextInternal = async (req, res) => {
+  try {
+    const secret = req.headers["x-internal-secret"];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    return res.json({
+      context: {
+        appointment_id: appointment.appointment_id,
+        patient_id: appointment.patient_id,
+        patient_email: appointment.patient_email || null,
+        patient_name: appointment.patient_name || null,
+        doctor_id: appointment.doctor_id,
+        doctor_email: appointment.doctor_email || null,
+        doctor_name: appointment.doctor_name || null,
+        slot_id: appointment.slot_id,
+        slot_date: appointment.slot_date || null,
+        start_time: appointment.start_time || null,
+        end_time: appointment.end_time || null,
+      },
+    });
+  } catch (err) {
+    return handleError(err, res, req, "getPaymentContextInternal");
+  }
+};
+
+// ─── Get Appointment Payment Context (internal, v2) ─────────────────────────
+// Same auth as v1 (X-Internal-Secret), but enriches doctor email/name by
+// querying doctor-management-service using a service JWT.
+export const getPaymentContextInternalV2 = async (req, res) => {
+  try {
+    const secret = req.headers["x-internal-secret"];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const appointment = await appointmentService.getAppointmentById(
+      req.db,
+      req.params.appointmentId,
+    );
+
+    let doctor = null;
+    try {
+      doctor = await doctorClient.getDoctorAsService(appointment.doctor_id);
+    } catch (e) {
+      // Best-effort enrichment — fall back to snapshotted DB fields.
+      req.log?.warn?.(
+        { err: e?.message || e, doctor_id: appointment.doctor_id },
+        "Failed to enrich doctor contact for payment context",
+      );
+    }
+
+    return res.json({
+      context: {
+        appointment_id: appointment.appointment_id,
+        patient_id: appointment.patient_id,
+        patient_email: appointment.patient_email || null,
+        patient_name: appointment.patient_name || null,
+        doctor_id: appointment.doctor_id,
+        doctor_email: doctor?.email || appointment.doctor_email || null,
+        doctor_name: doctor?.full_name || appointment.doctor_name || null,
+        slot_id: appointment.slot_id,
+        slot_date: appointment.slot_date || null,
+        start_time: appointment.start_time || null,
+        end_time: appointment.end_time || null,
+      },
+    });
+  } catch (err) {
+    return handleError(err, res, req, "getPaymentContextInternalV2");
   }
 };

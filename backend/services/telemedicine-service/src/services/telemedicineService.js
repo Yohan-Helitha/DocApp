@@ -1,6 +1,7 @@
 import db from '../config/db.js';
 import crypto from 'crypto';
 import env from '../config/environment.js';
+import * as notificationClient from './notificationClient.js';
 
 const fetchAppointment = async ({ appointmentId, authorization }) => {
   const base = String(env.API_GATEWAY_URL || '').replace(/\/$/, '');
@@ -138,7 +139,7 @@ export const createSession = async (payload, user, { authorization } = {}) => {
   }
 
   // Part A — backend guard: ensure appointment is confirmed.
-  await assertAppointmentConfirmed({ appointmentId: appointment_id, authorization });
+  const appointment = await assertAppointmentConfirmed({ appointmentId: appointment_id, authorization });
 
   const client = await db.pool.connect();
   try {
@@ -178,6 +179,34 @@ export const createSession = async (payload, user, { authorization } = {}) => {
     const values = [sessionId, appointment_id, 'jitsi', roomName, 'created'];
     const result = await client.query(insertText, values);
     await client.query('COMMIT');
+
+    // Notify patient that a telemedicine session has been configured (best-effort)
+    try {
+      const dateStr = String(appointment?.slot_date || '').slice(0, 10) || null;
+      const timeStr = appointment?.start_time ? String(appointment.start_time).slice(0, 5) : null;
+
+      await notificationClient.sendEmail({
+        callerId: user?.user_id,
+        callerRole: user?.role,
+        recipient_user_id: appointment?.patient_id,
+        recipient_email: appointment?.patient_email,
+        template_code: 'TELEMEDICINE_SESSION_CONFIGURED',
+        message: 'Your telemedicine session has been scheduled.',
+        payload_json: {
+          patientName:
+            appointment?.patient_name ||
+            (appointment?.patient_email
+              ? String(appointment.patient_email).split('@')[0]
+              : 'Patient'),
+          doctorName: appointment?.doctor_name || 'Doctor',
+          date: dateStr,
+          time: timeStr,
+        },
+      });
+    } catch {
+      // Best-effort
+    }
+
     return { session: result.rows[0], existing: false };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -241,6 +270,13 @@ export const createJoinToken = async (sessionId, user, role = 'patient', { autho
   }
   const session = s.rows[0];
 
+  // Guard: sessions cannot be re-joined once ended.
+  if (String(session.session_status || '').toLowerCase() === 'ended') {
+    const err = new Error('session_ended');
+    err.status = 410;
+    throw err;
+  }
+
   // Guard: only allow joining if appointment is confirmed and within the appointment's time window.
   if (session.appointment_id) {
     const appointment = await assertAppointmentConfirmed({ appointmentId: session.appointment_id, authorization });
@@ -294,18 +330,43 @@ export const startSession = async (sessionId, user, { authorization } = {}) => {
   }
 
   const session = s.rows[0];
+  let appointment = null;
   if (session.appointment_id) {
-    const appointment = await assertAppointmentConfirmed({ appointmentId: session.appointment_id, authorization });
+    appointment = await assertAppointmentConfirmed({ appointmentId: session.appointment_id, authorization });
     assertWithinAppointmentWindow(appointment);
   }
 
-  await db.query(
-    'UPDATE telemedicine_sessions SET session_status = $1, started_at = now() WHERE session_id = $2',
+  const updateRes = await db.query(
+    "UPDATE telemedicine_sessions SET session_status = $1, started_at = now() WHERE session_id = $2 AND session_status <> $1 AND session_status <> 'ended'",
     ['active', sessionId],
   );
+
+  // Only notify if this call actually transitioned state to active
+  if (updateRes && updateRes.rowCount > 0 && appointment) {
+    try {
+      await notificationClient.sendEmail({
+        callerId: user?.user_id,
+        callerRole: user?.role,
+        recipient_user_id: appointment?.patient_id,
+        recipient_email: appointment?.patient_email,
+        template_code: 'TELEMEDICINE_SESSION_STARTED',
+        message: 'Your telemedicine session has started.',
+        payload_json: {
+          patientName:
+            appointment?.patient_name ||
+            (appointment?.patient_email
+              ? String(appointment.patient_email).split('@')[0]
+              : 'Patient'),
+          doctorName: appointment?.doctor_name || 'Doctor',
+        },
+      });
+    } catch {
+      // Best-effort
+    }
+  }
 };
 
-export const endSession = async (sessionId, user) => {
+export const endSession = async (sessionId, user, { authorization } = {}) => {
   if (!sessionId) {
     const err = new Error('missing_session_id');
     err.status = 400;
@@ -318,7 +379,39 @@ export const endSession = async (sessionId, user) => {
     err.status = 403;
     throw err;
   }
-  await db.query('UPDATE telemedicine_sessions SET session_status = $1, ended_at = now() WHERE session_id = $2', ['ended', sessionId]);
+
+  const updateRes = await db.query(
+    "UPDATE telemedicine_sessions SET session_status = $1, ended_at = now() WHERE session_id = $2 AND session_status <> $1 RETURNING appointment_id",
+    ['ended', sessionId],
+  );
+
+  // Only notify if this call actually transitioned state to ended
+  if (updateRes && updateRes.rows && updateRes.rows[0] && updateRes.rowCount > 0) {
+    const appointmentId = updateRes.rows[0].appointment_id;
+    if (appointmentId) {
+      try {
+        const appointment = await fetchAppointment({ appointmentId, authorization });
+        await notificationClient.sendEmail({
+          callerId: user?.user_id,
+          callerRole: user?.role,
+          recipient_user_id: appointment?.patient_id,
+          recipient_email: appointment?.patient_email,
+          template_code: 'TELEMEDICINE_SESSION_ENDED',
+          message: 'Your telemedicine session has ended.',
+          payload_json: {
+            patientName:
+              appointment?.patient_name ||
+              (appointment?.patient_email
+                ? String(appointment.patient_email).split('@')[0]
+                : 'Patient'),
+            doctorName: appointment?.doctor_name || 'Doctor',
+          },
+        });
+      } catch {
+        // Best-effort
+      }
+    }
+  }
 };
 
 export const deleteSession = async (sessionId, user) => {

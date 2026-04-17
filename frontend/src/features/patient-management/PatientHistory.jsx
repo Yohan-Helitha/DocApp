@@ -19,8 +19,33 @@ export default function PatientHistory({ navigate }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Get patient ID and token from local/session storage
-  const patientId = localStorage.getItem('patientId');
   const token = sessionStorage.getItem('accessToken');
+
+  const decodeJwtPayload = (jwtToken) => {
+    try {
+      const payloadPart = String(jwtToken || '').split('.')[1];
+      if (!payloadPart) return null;
+
+      let b64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4;
+      if (pad) b64 += '='.repeat(4 - pad);
+      return JSON.parse(atob(b64));
+    } catch {
+      return null;
+    }
+  };
+
+  // JWT `sub` is the source of truth; overwrite stale localStorage.
+  let patientId = localStorage.getItem('patientId');
+  const payload = token ? decodeJwtPayload(token) : null;
+  const tokenPatientId = payload?.sub || payload?.userId;
+  if (tokenPatientId && tokenPatientId !== patientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
+  } else if (!patientId && tokenPatientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
+  }
 
   // Patient data for PDF export
   const [patientData, setPatientData] = useState({

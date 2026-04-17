@@ -50,11 +50,19 @@ export default function PatientDashboard({ navigate }) {
         };
 
         // patientId is the JWT sub (UUID) – store it for other pages to reuse.
+        const payload = decodeJwtPayload(token);
+        const tokenPatientId = payload?.sub || payload?.userId;
+
+        // JWT `sub` is the source of truth; overwrite stale localStorage.
         let patientId = localStorage.getItem('patientId');
-        if (!patientId && token) {
-          const payload = decodeJwtPayload(token);
-          patientId = payload?.sub || payload?.userId;
-          if (patientId) localStorage.setItem('patientId', patientId);
+        if (tokenPatientId && tokenPatientId !== patientId) {
+          localStorage.setItem('patientId', tokenPatientId);
+          // Reset any stale completion flag from a previous session/user.
+          localStorage.removeItem('requiresProfileCompletion');
+          patientId = tokenPatientId;
+        } else if (!patientId && tokenPatientId) {
+          localStorage.setItem('patientId', tokenPatientId);
+          patientId = tokenPatientId;
         }
 
         const [upcoming, recentReports, latestNotifications, profileRes] = await Promise.all([
@@ -104,6 +112,8 @@ export default function PatientDashboard({ navigate }) {
     }
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("refreshToken");
+    localStorage.removeItem('patientId');
+    localStorage.removeItem('requiresProfileCompletion');
     if (navigate) navigate("/login");
     else window.location.hash = "/login";
   };

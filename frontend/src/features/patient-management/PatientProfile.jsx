@@ -50,15 +50,19 @@ export default function PatientProfile({ navigate }) {
     }
   };
   
-  // Extract patientId from JWT token (if not in localStorage)
+  // JWT `sub` is the source of truth. Always reconcile localStorage to avoid stale IDs.
+  const tokenPayload = token ? decodeJwtPayload(token) : null;
+  const tokenPatientId = tokenPayload?.sub || tokenPayload?.userId;
   let patientId = localStorage.getItem('patientId');
-  if (!patientId && token) {
-    const payload = decodeJwtPayload(token);
-    patientId = payload?.sub; // 'sub' is the user ID (UUID) in the JWT
-    console.log('Extracted patientId from JWT:', patientId);
-    if (patientId) {
-      localStorage.setItem('patientId', patientId);
-    }
+
+  if (tokenPatientId && tokenPatientId !== patientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    // If the logged-in user changed, don't carry over the old completion gate.
+    localStorage.removeItem('requiresProfileCompletion');
+    patientId = tokenPatientId;
+  } else if (!patientId && tokenPatientId) {
+    localStorage.setItem('patientId', tokenPatientId);
+    patientId = tokenPatientId;
   }
 
   const [formData, setFormData] = useState({ ...patientData });
@@ -228,15 +232,18 @@ export default function PatientProfile({ navigate }) {
       setPreviewImage(mappedData.profileImage);
       setError(null);
 
+      setIsNewPatient(isNewPatient);
+      setIsProfileCompletionRequired(isNewPatient);
+
       // Keep the navigation gate in sync with actual profile state
       localStorage.setItem('requiresProfileCompletion', isNewPatient ? 'true' : 'false');
       
       // Auto-open modal for new patients
       if (isNewPatient) {
         console.log('Patient has empty profile - opening modal');
-        setIsNewPatient(true);
-        setIsProfileCompletionRequired(true);
         setIsModalOpen(true);
+      } else {
+        setIsModalOpen(false);
       }
     } catch (err) {
       if (err.name === 'AbortError') {

@@ -64,7 +64,9 @@ export const startSession = async (req, res) => {
 export const endSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    await service.endSession(sessionId, req.user);
+    await service.endSession(sessionId, req.user, {
+      authorization: req.headers.authorization,
+    });
     return res.json({ ok: true });
   } catch (err) {
     req.log && req.log.error && req.log.error(err, 'endSession error');

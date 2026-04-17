@@ -112,6 +112,40 @@ export const listTransactions = async (req, res) => {
   }
 };
 
+export const upsertTransaction = async (req, res) => {
+  try {
+    const {
+      transaction_id,
+      appointment_id,
+      amount,
+      currency,
+      status,
+      provider,
+      patient_email,
+      doctor_email,
+    } = req.body || {};
+
+    if (!transaction_id || amount == null || !currency || !status) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    const record = await adminService.upsertTransactionRecord({
+      transactionId: transaction_id,
+      appointmentId: appointment_id || null,
+      amount,
+      currency,
+      status,
+      provider: provider || null,
+      patientEmail: patient_email || null,
+      doctorEmail: doctor_email || null,
+    });
+
+    return res.status(200).json({ record });
+  } catch (err) {
+    return handleError(req, res, err, 'upsertTransaction error');
+  }
+};
+
 export const listAuditLogs = async (req, res) => {
   try {
     const { limit } = req.query || {};

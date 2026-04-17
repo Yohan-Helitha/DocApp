@@ -20,5 +20,8 @@ export default {
   PAYHERE_NOTIFY_URL: getEnv('PAYHERE_NOTIFY_URL', 'http://localhost:4006/api/v1/payments/notify'),
   APPOINTMENT_SERVICE_URL: getEnv('APPOINTMENT_SERVICE_URL', 'http://localhost:4003'),
   INTERNAL_SECRET: getEnv('INTERNAL_SECRET', ''),
+  ADMIN_SERVICE_URL: getEnv('ADMIN_SERVICE_URL', 'http://admin-management-service:4008'),
+  INTERNAL_API_KEY: getEnv('INTERNAL_API_KEY', ''),
+  NOTIFICATION_SERVICE_URL: getEnv('NOTIFICATION_SERVICE_URL', 'http://notification-service:6000'),
   CORS_ORIGIN: getEnv('CORS_ORIGIN', '')
 };

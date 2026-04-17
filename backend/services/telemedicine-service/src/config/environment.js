@@ -23,4 +23,8 @@ export default {
   JWT_SECRET: getEnv('JWT_SECRET', ''),
   // Path to auth-service public key for RS256 verification
   AUTH_PUBLIC_KEY_PATH: getEnv('AUTH_PUBLIC_KEY_PATH', './keys/public.pem'),
+  NOTIFICATION_SERVICE_URL: getEnv(
+    'NOTIFICATION_SERVICE_URL',
+    'http://notification-service:6000',
+  ),
 };

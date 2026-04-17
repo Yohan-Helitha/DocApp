@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import axios from 'axios';
 import env from '../config/environment.js';
 import db from '../config/db.js';
 
@@ -69,6 +70,207 @@ const sanitizeNotifyParams = (params) => {
   const sanitized = { ...(params || {}) };
   if (sanitized.md5sig) sanitized.md5sig = '[REDACTED]';
   return sanitized;
+};
+
+const mapPaymentStatusForAdmin = (paymentStatus) => {
+  const s = String(paymentStatus || '').trim().toLowerCase();
+  if (s === 'success') return 'completed';
+  if (s === 'pending') return 'pending';
+  if (s === 'failed' || s === 'cancelled' || s === 'charged_back' || s === 'unknown') return 'failed';
+  return s || 'unknown';
+};
+
+const http = axios.create({
+  timeout: 5000,
+  validateStatus: () => true,
+});
+
+const normalizePaymentMethod = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  if (upper.includes('VISA')) return 'Visa';
+  if (upper.includes('MASTER')) return 'Mastercard';
+  return raw;
+};
+
+const extractCardLast4 = (params) => {
+  const candidates = [
+    params?.card_no,
+    params?.card_number,
+    params?.cardNo,
+    params?.cardNumber,
+    params?.card,
+  ];
+  for (const c of candidates) {
+    const s = String(c || '').trim();
+    if (!s) continue;
+    const m = s.match(/(\d{4})\s*$/);
+    if (m) return m[1];
+  }
+  return null;
+};
+
+const extractPaymentMethod = (params) =>
+  normalizePaymentMethod(
+    params?.method || params?.card_type || params?.payment_method || params?.payhere_method,
+  );
+
+const fetchAppointmentPaymentContext = async (appointmentId, logger) => {
+  const base = String(env.APPOINTMENT_SERVICE_URL || '').trim().replace(/\/$/, '');
+  const internalSecret = String(env.INTERNAL_SECRET || '').trim();
+  if (!base || !internalSecret || !appointmentId) return null;
+
+  try {
+    const basePath = `${base}/api/v1/internal/appointments/${encodeURIComponent(
+      String(appointmentId),
+    )}`;
+
+    const tryGet = async (path) => {
+      const res = await http.get(path, {
+        headers: {
+          'x-internal-secret': internalSecret,
+        },
+      });
+      return { status: res.status, body: res?.data ?? null };
+    };
+
+    // Prefer v2 (enriched doctor contact), but fall back to v1 for older deployments.
+    const v2 = await tryGet(`${basePath}/payment-context-v2`);
+    if (v2.status >= 200 && v2.status < 300) return v2.body?.context || null;
+
+    const v1 = await tryGet(`${basePath}/payment-context`);
+    if (v1.status >= 200 && v1.status < 300) return v1.body?.context || null;
+
+    logger?.warn?.(
+      { status: v2.status, body: v2.body, appointmentId },
+      'Failed to fetch appointment payment context',
+    );
+    return null;
+  } catch (err) {
+    logger?.warn?.({ err: err?.message || err, appointmentId }, 'Failed to fetch appointment payment context');
+    return null;
+  }
+};
+
+const upsertAdminTransaction = async (
+  {
+    transactionId,
+    appointmentId,
+    amount,
+    currency,
+    status,
+    provider,
+    patientEmail,
+    doctorEmail,
+  },
+  logger,
+) => {
+  const base = String(env.ADMIN_SERVICE_URL || '').trim().replace(/\/$/, '');
+  const apiKey = String(env.INTERNAL_API_KEY || '').trim();
+  if (!base || !apiKey || !transactionId || amount == null || !currency || !status) return;
+
+  try {
+    const url = `${base}/api/v1/internal/admin/transactions/upsert`;
+    const res = await http.post(
+      url,
+      {
+        transaction_id: transactionId,
+        appointment_id: appointmentId || null,
+        amount,
+        currency,
+        status,
+        provider: provider || null,
+        patient_email: patientEmail || null,
+        doctor_email: doctorEmail || null,
+      },
+      {
+        headers: {
+          'x-internal-api-key': apiKey,
+        },
+      },
+    );
+    if (res.status < 200 || res.status >= 300) {
+      const body = res?.data ?? null;
+      logger?.warn?.(
+        { status: res.status, body, transactionId },
+        'Admin transaction upsert failed',
+      );
+    }
+  } catch (err) {
+    logger?.warn?.({ err: err?.message || err, transactionId }, 'Admin transaction upsert failed');
+  }
+};
+
+const sendPaymentInvoiceNotification = async (
+  {
+    callerId,
+    callerRole,
+    recipientUserId,
+    recipientEmail,
+    appointmentId,
+    doctorName,
+    doctorEmail,
+    patientName,
+    patientEmail,
+    amount,
+    currency,
+    transactionId,
+    paymentMethod,
+    cardLast4,
+    slot,
+  },
+  logger,
+) => {
+  const base = String(env.NOTIFICATION_SERVICE_URL || '').trim().replace(/\/$/, '');
+  if (!base || !recipientUserId || !recipientEmail) return;
+
+  try {
+    const url = `${base}/api/v1/notifications/send-email`;
+    const res = await http.post(
+      url,
+      {
+        recipient_user_id: String(recipientUserId),
+        recipient_email: String(recipientEmail),
+        channel: 'email',
+        template_code: 'PAYMENT_INVOICE',
+        message: 'Your payment was successful. Your invoice is available.',
+        payload_json: {
+          subject: 'Invoice - Payment confirmed',
+          appointmentId: appointmentId || null,
+          doctorName: doctorName || null,
+          doctorEmail: doctorEmail || null,
+          patientName: patientName || null,
+          patientEmail: patientEmail || recipientEmail || null,
+          transactionId: transactionId || null,
+          amount: amount != null ? String(amount) : null,
+          currency: currency || null,
+          paymentMethod: paymentMethod || null,
+          cardLast4: cardLast4 || null,
+          slot: slot || null,
+        },
+      },
+      {
+        headers: {
+          'x-user-id': String(callerId || recipientUserId),
+          'x-user-role': String(callerRole || 'patient'),
+        },
+      },
+    );
+
+    if (res.status < 200 || res.status >= 300) {
+      const body = res?.data ?? null;
+      logger?.warn?.(
+        { status: res.status, body, recipientEmail, appointmentId },
+        'Payment invoice notification failed',
+      );
+    }
+  } catch (err) {
+    logger?.warn?.(
+      { err: err?.message || err, recipientEmail, appointmentId },
+      'Payment invoice notification failed',
+    );
+  }
 };
 
 export const initiatePayment = async (req, res) => {
@@ -203,6 +405,26 @@ export const initiatePayment = async (req, res) => {
         'Prepared PayHere checkout payload'
       );
 
+      // Best-effort: create/refresh a pending transaction record for Admin.
+      // Do not block checkout initiation on admin sync failures.
+      fetchAppointmentPaymentContext(appointmentId, req.log)
+        .then((ctx) =>
+          upsertAdminTransaction(
+            {
+              transactionId: payment.payment_id,
+              appointmentId,
+              amount: amountStr,
+              currency: normalizedCurrency,
+              status: 'pending',
+              provider: 'payhere',
+              patientEmail: ctx?.patient_email || null,
+              doctorEmail: ctx?.doctor_email || null,
+            },
+            req.log,
+          ),
+        )
+        .catch(() => {});
+
       return res.status(200).json({ paymentId: payment.payment_id, checkout });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -306,7 +528,8 @@ export const handlePayHereNotify = async (req, res) => {
       }
 
       const incomingStatus = mapPayHereStatusCode(statusCode);
-      if (canTransitionTo(payment.payment_status, incomingStatus)) {
+      const shouldApplyStatusUpdate = canTransitionTo(payment.payment_status, incomingStatus);
+      if (shouldApplyStatusUpdate) {
         await client.query(
           'UPDATE payments SET payment_status = $1, updated_at = now() WHERE payment_id = $2',
           [incomingStatus, payment.payment_id]
@@ -340,6 +563,26 @@ export const handlePayHereNotify = async (req, res) => {
 
       await client.query('COMMIT');
 
+      // Best-effort: sync to Admin transaction table + audit log.
+      // Do not block webhook response on failures.
+      fetchAppointmentPaymentContext(payment.appointment_id, req.log)
+        .then((ctx) =>
+          upsertAdminTransaction(
+            {
+              transactionId: payment.payment_id,
+              appointmentId: payment.appointment_id,
+              amount: expectedAmountStr,
+              currency: expectedCurrency,
+              status: mapPaymentStatusForAdmin(incomingStatus),
+              provider: payment.provider || 'payhere',
+              patientEmail: ctx?.patient_email || null,
+              doctorEmail: ctx?.doctor_email || null,
+            },
+            req.log,
+          ),
+        )
+        .catch(() => {});
+
       // GAP-8: Notify appointment-service so it can unlock clinical actions.
       // Best-effort — do not fail the PayHere webhook response if this call fails.
       if (incomingStatus === 'success') {
@@ -347,27 +590,36 @@ export const handlePayHereNotify = async (req, res) => {
         const internalSecret = String(env.INTERNAL_SECRET || '').trim();
         if (appointmentServiceUrl && internalSecret && payment.appointment_id) {
           try {
-            fetch(
-              `${appointmentServiceUrl}/api/v1/appointments/${encodeURIComponent(
-                String(payment.appointment_id)
-              )}/payment-status`,
-              {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-internal-secret': internalSecret
+            const url = `${String(appointmentServiceUrl).trim().replace(/\/$/, '')}/api/v1/appointments/${encodeURIComponent(
+              String(payment.appointment_id),
+            )}/payment-status`;
+            http
+              .put(
+                url,
+                { payment_status: 'paid' },
+                {
+                  headers: {
+                    'x-internal-secret': internalSecret,
+                  },
                 },
-                body: JSON.stringify({ payment_status: 'paid' })
-              }
-            ).catch((err) =>
-              req.log?.warn(
-                { err, appointmentId: payment.appointment_id },
-                'Failed to notify appointment-service of payment'
               )
-            );
+              .then((r) => {
+                if (r.status < 200 || r.status >= 300) {
+                  req.log?.warn(
+                    { status: r.status, appointmentId: payment.appointment_id },
+                    'Failed to notify appointment-service of payment',
+                  );
+                }
+              })
+              .catch((err) =>
+                req.log?.warn(
+                  { err: err?.message || err, appointmentId: payment.appointment_id },
+                  'Failed to notify appointment-service of payment',
+                ),
+              );
           } catch (err) {
             req.log?.warn(
-              { err, appointmentId: payment.appointment_id },
+              { err: err?.message || err, appointmentId: payment.appointment_id },
               'Failed to notify appointment-service of payment'
             );
           }
@@ -376,6 +628,39 @@ export const handlePayHereNotify = async (req, res) => {
             { appointmentServiceUrl: !!appointmentServiceUrl, internalSecret: !!internalSecret },
             'APPOINTMENT_SERVICE_URL or INTERNAL_SECRET not configured — skipping appointment-service callback'
           );
+        }
+
+        // Payment invoice email + in-app notification — only on genuine status transitions.
+        if (shouldApplyStatusUpdate) {
+          const method = extractPaymentMethod(params);
+          const last4 = extractCardLast4(params);
+          fetchAppointmentPaymentContext(payment.appointment_id, req.log)
+            .then((ctx) =>
+              sendPaymentInvoiceNotification(
+                {
+                  callerId: payment.patient_id || ctx?.patient_id,
+                  callerRole: 'patient',
+                  recipientUserId: payment.patient_id || ctx?.patient_id,
+                  recipientEmail: ctx?.patient_email || null,
+                  appointmentId: payment.appointment_id,
+                  doctorName: ctx?.doctor_name || null,
+                  doctorEmail: ctx?.doctor_email || null,
+                  patientName: ctx?.patient_name || null,
+                  patientEmail: ctx?.patient_email || null,
+                  amount: expectedAmountStr,
+                  currency: expectedCurrency,
+                  transactionId: payment.payment_id,
+                  paymentMethod: method,
+                  cardLast4: last4,
+                  slot:
+                    ctx?.slot_date && ctx?.start_time && ctx?.end_time
+                      ? `${ctx.slot_date} ${String(ctx.start_time).slice(0, 5)}-${String(ctx.end_time).slice(0, 5)}`
+                      : null,
+                },
+                req.log,
+              ),
+            )
+            .catch(() => {});
         }
       }
 

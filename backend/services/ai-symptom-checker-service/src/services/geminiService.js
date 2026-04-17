@@ -87,8 +87,11 @@ export async function analyzeSymptoms({
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
   const preferredModel = env.GEMINI_MODEL;
-  // Fallback for AI Studio / projects that don't have access to gemini-2.5-flash.
-  const fallbackModels = ["gemini-1.5-flash"].filter((m) => m !== preferredModel);
+  // Fallback models (avoid deprecated/removed 1.5.*).
+  // Keep this list minimal and modern; 2.0-flash is the closest fallback when 2.5-flash is unavailable.
+  const fallbackModels = ["gemini-2.0-flash", "gemini-2.0-flash-001"].filter(
+    (m) => m !== preferredModel,
+  );
 
   const history = [
     // Persist safety rules across all turns.
@@ -158,8 +161,8 @@ export async function analyzeSymptoms({
       });
     }
 
-    // If the preferred model is not accessible, retry with fallback.
-    if ((status === 403 || status === 503) && fallbackModels.length) {
+    // If the preferred model is not accessible (or not found), retry with fallback.
+    if ((status === 403 || status === 404 || status === 503) && fallbackModels.length) {
       for (const m of fallbackModels) {
         try {
           return await runWithRetry(m, { attempts: 2 });

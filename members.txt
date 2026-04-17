@@ -1,5 +1,0 @@
-Group Members:
-1. Name: <NAME_1>, Registration No: <REG_NO_1>, ID: <ID_1>
-2. Name: <NAME_2>, Registration No: <REG_NO_2>, ID: <ID_2>
-3. Name: <NAME_3>, Registration No: <REG_NO_3>, ID: <ID_3>
-4. Name: <NAME_4>, Registration No: <REG_NO_4>, ID: <ID_4>

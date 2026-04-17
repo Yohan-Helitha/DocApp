@@ -1,6 +1,7 @@
 import * as appointmentService from "../services/appointmentService.js";
 import * as doctorClient from "../services/doctorClient.js";
 import * as notificationClient from "../services/notificationClient.js";
+import * as patientClient from "../services/patientClient.js";
 import env from "../config/environment.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,8 +60,7 @@ export const bookAppointment = async (req, res) => {
     await doctorClient.updateSlotStatus(doctor_id, slot_id, "booked");
 
     // 4. Persist appointment with denormalized display fields (Bug 6 / Bug 11 fix)
-    //    patient_name is null until patient-service exposes GET /api/v1/patients/by-user/:userId
-    //    — patientClient.js is the integration hook; populate once teammate builds the endpoint.
+    const patientProfile = await patientClient.getPatientByUserId(req.user.id);
     const appointment = await appointmentService.createAppointment(req.db, {
       patient_id: req.user.id,
       doctor_id,
@@ -68,7 +68,7 @@ export const bookAppointment = async (req, res) => {
       patient_email: req.user.email,
       reason_for_visit,
       doctor_name: doctor.full_name,
-      patient_name: null,
+      patient_name: patientProfile?.full_name ?? null,
       slot_date: slot.slot_date,
       start_time: slot.start_time,
       end_time: slot.end_time,

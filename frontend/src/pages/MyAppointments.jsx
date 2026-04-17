@@ -283,20 +283,24 @@ export default function MyAppointments({ navigate }) {
 
   return (
     <DashboardLayout navigate={navigate} pageName="Appointments">
-      <header className="sticky top-0 w-full flex justify-between items-center px-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-sm">
-        <h2 className="text-xl font-black text-[#0b9385] tracking-tight">
-          My Appointments
-        </h2>
-        <button
-          onClick={() => navigate("/doctors")}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-sm">add</span>
-          Book New
-        </button>
-      </header>
-
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">
+              My Appointments
+            </h1>
+            <p className="text-slate-600">
+              View and manage your scheduled appointments.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/doctors")}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+          >
+            <span className="material-symbols-outlined">add_circle</span>
+            Book New
+          </button>
+        </div>
         {/* Filter tabs */}
         <div className="flex gap-2 mb-8 flex-wrap">
           {TABS.map((tab) => (

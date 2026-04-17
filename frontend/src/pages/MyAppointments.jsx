@@ -224,7 +224,7 @@ export default function MyAppointments({ navigate }) {
 
   const fmtDate = (d) => {
     if (!d) return "";
-    const [y, m, day] = d.split("-");
+    const [y, m, day] = String(d).slice(0, 10).split("-");
     return new Date(y, m - 1, day).toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -421,7 +421,15 @@ export default function MyAppointments({ navigate }) {
                         month: "short",
                         day: "numeric",
                       })}
-                    </p>
+                    </p>{" "}
+                    {a.appointment_status === "confirmed" &&
+                      a.payment_status !== "paid" &&
+                      a.payment_deadline &&
+                      formatDeadline(a.payment_deadline) && (
+                        <p className="text-xs text-amber-600 font-semibold mt-1">
+                          {formatDeadline(a.payment_deadline)}
+                        </p>
+                      )}{" "}
                   </div>
                 </div>
 
@@ -480,35 +488,24 @@ export default function MyAppointments({ navigate }) {
                     ))}
                   {a.appointment_status === "confirmed" &&
                     a.payment_status !== "paid" && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {a.payment_deadline &&
-                          formatDeadline(a.payment_deadline) && (
-                            <span className="text-xs text-amber-600 font-semibold">
-                              {formatDeadline(a.payment_deadline)}
-                            </span>
-                          )}
-                        <button
-                          onClick={() =>
-                            initiatePayment(
-                              a.appointment_id,
-                              a.consultation_fee,
-                            )
-                          }
-                          disabled={payingNow === a.appointment_id}
-                          className="px-4 py-2 text-xs font-bold text-white bg-amber-500 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          {payingNow === a.appointment_id ? (
-                            <span className="material-symbols-outlined text-sm animate-spin">
-                              progress_activity
-                            </span>
-                          ) : (
-                            <span className="material-symbols-outlined text-sm">
-                              payments
-                            </span>
-                          )}
-                          Pay Now
-                        </button>
-                      </div>
+                      <button
+                        onClick={() =>
+                          initiatePayment(a.appointment_id, a.consultation_fee)
+                        }
+                        disabled={payingNow === a.appointment_id}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#0b9385] bg-[#0b9385]/10 border border-[#0b9385]/20 rounded-xl hover:bg-[#0b9385] hover:text-white transition-colors disabled:opacity-50"
+                      >
+                        {payingNow === a.appointment_id ? (
+                          <span className="material-symbols-outlined text-sm animate-spin">
+                            progress_activity
+                          </span>
+                        ) : (
+                          <span className="material-symbols-outlined text-sm">
+                            payments
+                          </span>
+                        )}
+                        Pay Now
+                      </button>
                     )}
                   {a.appointment_status === "confirmed" &&
                     a.payment_status === "paid" &&

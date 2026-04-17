@@ -659,9 +659,7 @@ export default function Telemedicine({ navigate }) {
                       {sessions.map((s) => {
                         const appt = appointmentCache[s.appointment_id];
                         const patientLabel = appt
-                          ? appt.patient_name ||
-                            appt.patient_email ||
-                            fmtShort(appt.patient_id)
+                          ? appt.patient_name || "Patient"
                           : "—";
 
                         const timeSlotLabel =

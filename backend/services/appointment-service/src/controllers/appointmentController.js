@@ -382,6 +382,27 @@ export const listByDoctor = async (req, res) => {
       req.db,
       req.params.doctorId,
     );
+
+    // Enrich any appointments that are missing patient_name by calling
+    // the patient-management-service. Collect unique patient_ids first
+    // to avoid redundant requests.
+    const missing = appointments.filter((a) => !a.patient_name && a.patient_id);
+    if (missing.length > 0) {
+      const uniqueIds = [...new Set(missing.map((a) => a.patient_id))];
+      const nameMap = {};
+      await Promise.all(
+        uniqueIds.map(async (userId) => {
+          const profile = await patientClient.getPatientByUserId(userId);
+          if (profile?.full_name) nameMap[userId] = profile.full_name;
+        }),
+      );
+      for (const appt of appointments) {
+        if (!appt.patient_name && nameMap[appt.patient_id]) {
+          appt.patient_name = nameMap[appt.patient_id];
+        }
+      }
+    }
+
     return res.json({ appointments });
   } catch (err) {
     return handleError(err, res, req, "listByDoctor");

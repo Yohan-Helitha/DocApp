@@ -183,7 +183,7 @@ export default function BrowseDoctors({ navigate }) {
                     </div>
                     <div className="min-w-0">
                       <h4 className="font-bold text-slate-900 truncate">
-                        {doc.full_name}
+                        Dr. {doc.full_name}
                       </h4>
                       <p className="text-xs text-primary font-semibold">
                         {doc.specialization}

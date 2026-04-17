@@ -583,7 +583,7 @@ export default function SuccessDoctor({ navigate }) {
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-                      Consult Fee ($)
+                      Consult Fee (LKR)
                     </label>
                     <input
                       type="number"
@@ -851,7 +851,7 @@ export default function SuccessDoctor({ navigate }) {
                     [
                       "Consult Fee",
                       doctor?.consultation_fee != null
-                        ? `$${doctor.consultation_fee}`
+                        ? `LKR ${Number(doctor.consultation_fee).toLocaleString()}`
                         : "—",
                     ],
                   ].map(([label, val]) => (
@@ -1087,7 +1087,7 @@ export default function SuccessDoctor({ navigate }) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-                    Consult Fee ($)
+                    Consult Fee (LKR)
                   </label>
                   <input
                     type="number"

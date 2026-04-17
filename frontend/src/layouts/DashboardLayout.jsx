@@ -1,6 +1,24 @@
 import React from "react";
 
 export default function DashboardLayout({ children, navigate, pageName }) {
+  // Map pageName → sidebar label for active highlighting
+  const PAGE_TO_NAV = {
+    Overview: "Overview",
+    Appointments: "Appointments",
+    "Search Doctors": "Search Doctors",
+    "Doctor Profile": "Search Doctors",
+    "Book Appointment": "Search Doctors",
+    "Medical Reports": "Medical Records",
+    "Medical History": "Medical History",
+    Prescriptions: "Prescriptions",
+    "Patient Profile": "Patient Profile",
+    Notifications: "Notifications",
+  };
+  const activeNav = PAGE_TO_NAV[pageName] || "";
+  const navCls = (label) =>
+    activeNav === label
+      ? "bg-[#0b9385]/10 text-[#0b9385] rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer"
+      : "text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer";
   const logout = async () => {
     const refreshToken = sessionStorage.getItem("refreshToken");
     if (refreshToken) {
@@ -48,7 +66,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
           </div>
           <nav className="flex-1 space-y-1">
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Overview")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/success/patient");
@@ -58,7 +76,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Overview</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Appointments")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/appointments");
@@ -68,7 +86,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Appointments</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Search Doctors")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/doctors");
@@ -78,7 +96,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Search Doctors</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Medical Records")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/patient/medical-reports");
@@ -88,7 +106,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Medical Records</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Medical History")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/patient/history");
@@ -98,7 +116,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Medical History</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Prescriptions")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/prescriptions");
@@ -108,7 +126,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Prescriptions</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Patient Profile")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/patient/profile");
@@ -118,7 +136,7 @@ export default function DashboardLayout({ children, navigate, pageName }) {
               <span className="font-semibold text-sm">Patient Profile</span>
             </a>
             <a
-              className="text-slate-500 px-4 py-3 flex items-center gap-3 hover:bg-slate-200/50 transition-all cursor-pointer"
+              className={navCls("Notifications")}
               onClick={(e) => {
                 e.preventDefault();
                 goTo("/notifications");

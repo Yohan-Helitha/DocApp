@@ -10,6 +10,7 @@ export default function PatientPrescriptions({ navigate }) {
   const [expanded, setExpanded] = useState({});
   const [accessDenied, setAccessDenied] = useState(false);
   const [filterAppointmentId, setFilterAppointmentId] = useState(null);
+  const [patientFullName, setPatientFullName] = useState("");
 
   const token = sessionStorage.getItem("accessToken");
   let userId = "";
@@ -51,6 +52,16 @@ export default function PatientPrescriptions({ navigate }) {
         } else {
           setError("Could not load prescriptions.");
         }
+        // Fetch patient profile for full name (used in PDF header)
+        const pRes = await Api.get(`/api/v1/patients/${patientId}`, token);
+        if (pRes.status === 200 && pRes.body) {
+          const p = pRes.body;
+          setPatientFullName(
+            [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+              p.full_name ||
+              "",
+          );
+        }
       } catch {
         setError("Network error. Please try again.");
       } finally {
@@ -81,8 +92,13 @@ export default function PatientPrescriptions({ navigate }) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.text("DocApp Medical System", margin, 21);
-      if (userEmail) {
-        doc.text("Patient: " + userEmail, pageW - margin, 13, { align: "right" });
+      if (patientFullName || userEmail) {
+        doc.text(
+          "Patient: " + (patientFullName || userEmail),
+          pageW - margin,
+          13,
+          { align: "right" },
+        );
       }
       doc.text(
         "Generated: " +
@@ -93,7 +109,7 @@ export default function PatientPrescriptions({ navigate }) {
           }),
         pageW - margin,
         21,
-        { align: "right" }
+        { align: "right" },
       );
       return 32;
     };
@@ -106,7 +122,7 @@ export default function PatientPrescriptions({ navigate }) {
       doc.text(
         "Computer-generated document from DocApp. Not a substitute for professional medical advice.",
         margin,
-        fy
+        fy,
       );
       doc.text("Page " + pageNum, pageW - margin, fy, { align: "right" });
     };
@@ -123,7 +139,7 @@ export default function PatientPrescriptions({ navigate }) {
     doc.text(
       list.length + " prescription" + (list.length !== 1 ? "s" : ""),
       margin,
-      y + 5
+      y + 5,
     );
     y += 13;
 
@@ -135,7 +151,8 @@ export default function PatientPrescriptions({ navigate }) {
 
     list.forEach((p) => {
       const instrLines = p.instructions
-        ? doc.splitTextToSize("Instructions: " + p.instructions, contentW).length
+        ? doc.splitTextToSize("Instructions: " + p.instructions, contentW)
+            .length
         : 0;
       const diagLines = p.diagnosis
         ? doc.splitTextToSize("Diagnosis: " + p.diagnosis, contentW).length
@@ -190,7 +207,7 @@ export default function PatientPrescriptions({ navigate }) {
             p.doctor_name +
             (p.doctor_specialization ? " - " + p.doctor_specialization : ""),
           margin,
-          y
+          y,
         );
         y += 5;
       }
@@ -214,7 +231,10 @@ export default function PatientPrescriptions({ navigate }) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        const wrapped = doc.splitTextToSize("Diagnosis: " + p.diagnosis, contentW);
+        const wrapped = doc.splitTextToSize(
+          "Diagnosis: " + p.diagnosis,
+          contentW,
+        );
         doc.text(wrapped, margin, y);
         y += wrapped.length * 4.5;
       }
@@ -225,7 +245,7 @@ export default function PatientPrescriptions({ navigate }) {
         doc.setTextColor(100, 116, 139);
         const wrapped = doc.splitTextToSize(
           "Instructions: " + p.instructions,
-          contentW
+          contentW,
         );
         doc.text(wrapped, margin, y);
         y += wrapped.length * 4.5;
@@ -246,23 +266,24 @@ export default function PatientPrescriptions({ navigate }) {
   const activeApptFilter = appointmentId || filterAppointmentId;
 
   const visiblePrescriptions = prescriptions.filter(
-    (p) => !filterAppointmentId || p.appointment_id === filterAppointmentId
+    (p) => !filterAppointmentId || p.appointment_id === filterAppointmentId,
   );
 
   const apptFilteredCount = activeApptFilter
     ? prescriptions.filter((p) => p.appointment_id === activeApptFilter).length
     : 0;
 
-  const handleDownloadAll = () => generatePDF(prescriptions, "My Prescriptions");
+  const handleDownloadAll = () =>
+    generatePDF(prescriptions, "My Prescriptions");
 
   const handleDownloadForAppointment = () => {
     const filtered = prescriptions.filter(
-      (p) => p.appointment_id === activeApptFilter
+      (p) => p.appointment_id === activeApptFilter,
     );
     generatePDF(
       filtered,
       "Prescriptions - Appointment #" +
-        activeApptFilter.slice(0, 8).toUpperCase()
+        activeApptFilter.slice(0, 8).toUpperCase(),
     );
   };
 
@@ -273,7 +294,9 @@ export default function PatientPrescriptions({ navigate }) {
           <span className="material-symbols-outlined text-5xl text-red-400 block">
             lock
           </span>
-          <h2 className="text-xl font-bold text-slate-800 mt-4">Access Denied</h2>
+          <h2 className="text-xl font-bold text-slate-800 mt-4">
+            Access Denied
+          </h2>
           <p className="text-slate-500 mt-2">This page is for patients only.</p>
           <button
             onClick={() => navigate("/")}
@@ -292,7 +315,9 @@ export default function PatientPrescriptions({ navigate }) {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
-              {appointmentId ? "Prescriptions for this Appointment" : "My Prescriptions"}
+              {appointmentId
+                ? "Prescriptions for this Appointment"
+                : "My Prescriptions"}
             </h1>
             <p className="text-slate-600">
               {appointmentId
@@ -320,13 +345,17 @@ export default function PatientPrescriptions({ navigate }) {
                 </label>
                 <select
                   value={filterAppointmentId || ""}
-                  onChange={(e) => setFilterAppointmentId(e.target.value || null)}
+                  onChange={(e) =>
+                    setFilterAppointmentId(e.target.value || null)
+                  }
                   className="text-sm border border-slate-200 rounded-xl px-3 py-2 text-slate-700 bg-white"
                 >
                   <option value="">All appointments</option>
                   {[
                     ...new Set(
-                      prescriptions.map((p) => p.appointment_id).filter(Boolean)
+                      prescriptions
+                        .map((p) => p.appointment_id)
+                        .filter(Boolean),
                     ),
                   ].map((apptId) => (
                     <option key={apptId} value={apptId}>
@@ -344,7 +373,9 @@ export default function PatientPrescriptions({ navigate }) {
                 onClick={handleDownloadAll}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-all active:scale-95 shadow-sm shadow-primary/20"
               >
-                <span className="material-symbols-outlined text-sm">download</span>
+                <span className="material-symbols-outlined text-sm">
+                  download
+                </span>
                 {"Download All (" + prescriptions.length + ")"}
               </button>
               {activeApptFilter && apptFilteredCount > 0 && (
@@ -352,7 +383,9 @@ export default function PatientPrescriptions({ navigate }) {
                   onClick={handleDownloadForAppointment}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all active:scale-95"
                 >
-                  <span className="material-symbols-outlined text-sm">filter_alt</span>
+                  <span className="material-symbols-outlined text-sm">
+                    filter_alt
+                  </span>
                   {"Download for this Appointment (" + apptFilteredCount + ")"}
                 </button>
               )}
@@ -407,7 +440,9 @@ export default function PatientPrescriptions({ navigate }) {
                     </p>
                   </div>
                   <span className="material-symbols-outlined text-slate-400 text-xl">
-                    {expanded[p.prescription_id] ? "expand_less" : "expand_more"}
+                    {expanded[p.prescription_id]
+                      ? "expand_less"
+                      : "expand_more"}
                   </span>
                 </button>
 
@@ -442,7 +477,9 @@ export default function PatientPrescriptions({ navigate }) {
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-0.5">
                           Doctor
                         </p>
-                        <p className="text-slate-700">{"Dr. " + p.doctor_name}</p>
+                        <p className="text-slate-700">
+                          {"Dr. " + p.doctor_name}
+                        </p>
                         {p.doctor_specialization && (
                           <p className="text-xs text-slate-400">
                             {p.doctor_specialization}

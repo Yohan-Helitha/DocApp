@@ -3,7 +3,7 @@
  *
  * Populates ALL tables needed to demonstrate every flow in SERVICE_DEMO_FLOWS.md:
  *   authdb:        users (5: admin, patient, 3 doctors), doctor_verification_requests, refresh_tokens
- *   doctorsdb:     doctors (1 profile), doctor_availability_slots (13 slots), prescriptions (1)
+ *   doctorsdb:     doctors (1 profile), doctor_availability_slots (13 slots), prescriptions (3)
  *   appointmentsdb: appointments (10, covering ALL 5 status states + dedicated slots per interactive flow)
  *
  * Accounts seeded:
@@ -989,34 +989,72 @@ const main = async () => {
   // ──────────────────────────────────────────────────────────────────────────
   console.log("\n─── Phase 9: Write prescription ──────────────────────\n");
 
-  const prescRes = await jsonFetch(
-    `/api/v1/doctors/${doctorId}/prescriptions`,
-    {
+  const createPresc = async (body, label) => {
+    const r = await jsonFetch(`/api/v1/doctors/${doctorId}/prescriptions`, {
       method: "POST",
       token: doctorToken,
-      body: {
-        patient_id: patientUserId,
-        appointment_id: appt1.appointment_id,
-        medication: "Amoxicillin 500mg",
-        dosage: "500mg",
-        frequency: "Twice daily (morning and evening)",
-        duration: "7 days",
-        diagnosis: "Upper respiratory tract infection",
-        instructions:
-          "Take with food. Complete the full course even if symptoms improve.",
-      },
+      body,
+    });
+    must(
+      r.status === 201 && r.body?.prescription?.prescription_id,
+      `create prescription (${label}) failed: HTTP ${r.status} — ${JSON.stringify(r.body)}`,
+    );
+    const id = r.body.prescription.prescription_id;
+    log(
+      "prescription",
+      `created prescription_id=${id} (${label}) for appointment_id=${appt1.appointment_id}`,
+    );
+    return id;
+  };
+
+  // Prescription 1 — primary medication
+  const prescId1 = await createPresc(
+    {
+      patient_id: patientUserId,
+      appointment_id: appt1.appointment_id,
+      medication: "Amoxicillin 500mg",
+      dosage: "500mg",
+      frequency: "Twice daily (morning and evening)",
+      duration: "7 days",
+      diagnosis: "Upper respiratory tract infection",
+      instructions:
+        "Take with food. Complete the full course even if symptoms improve.",
     },
+    "Amoxicillin",
   );
-  must(
-    prescRes.status === 201 && prescRes.body?.prescription?.prescription_id,
-    `create prescription failed: HTTP ${prescRes.status} — ${JSON.stringify(prescRes.body)}`,
+
+  // Prescription 2 — supportive medication (same appointment)
+  const prescId2 = await createPresc(
+    {
+      patient_id: patientUserId,
+      appointment_id: appt1.appointment_id,
+      medication: "Paracetamol 500mg",
+      dosage: "500mg",
+      frequency: "Every 6 hours as needed",
+      duration: "3 days",
+      diagnosis: "Fever and throat pain",
+      instructions: "Do not exceed 4 doses in 24 hours. Avoid alcohol.",
+    },
+    "Paracetamol",
   );
-  const prescId = prescRes.body.prescription.prescription_id;
-  log(
-    "prescription",
-    `created prescription_id=${prescId} for appointment_id=${appt1.appointment_id}`,
+
+  // Prescription 3 — additional (same appointment)
+  const prescId3 = await createPresc(
+    {
+      patient_id: patientUserId,
+      appointment_id: appt1.appointment_id,
+      medication: "Cetirizine 10mg",
+      dosage: "10mg",
+      frequency: "Once daily at bedtime",
+      duration: "5 days",
+      diagnosis: "Allergic rhinitis",
+      instructions:
+        "May cause drowsiness. Avoid driving or operating heavy machinery after taking.",
+    },
+    "Cetirizine",
   );
-  summary.prescriptionId = prescId;
+
+  summary.prescriptionIds = [prescId1, prescId2, prescId3];
 
   // ──────────────────────────────────────────────────────────────────────────
   // PHASE 10 — Doctor marks appt1 as completed (GAP-14 fixed: doctor can now do this;
@@ -1069,7 +1107,9 @@ const main = async () => {
   console.log("");
   console.log(`Doctor1 profile : doctor_id = ${summary.doctorId}`);
   console.log(`Patient user_id : ${summary.patientUserId}`);
-  console.log(`Prescription    : prescription_id = ${summary.prescriptionId}`);
+  console.log(
+    `Prescriptions   : ${summary.prescriptionIds.join(", ")}  (3 Rx written for appt1 — demo F-15 both download modes)`,
+  );
   console.log("");
   console.log("Availability Slots (13 total):");
   summary.slots.forEach((s, i) =>
@@ -1168,7 +1208,11 @@ const main = async () => {
     "  F-14  Write Prescription           — data: appt4 (CONFIRMED+PAID, dedicated) ✅; doctor clicks Write Prescription on that card",
   );
   console.log(
-    "  F-15  View Prescriptions           — data: 1 prescription in DB ✅; patient views via 'View Prescriptions' button on completed appt card → filtered view; or via sidebar Prescriptions link → full view with appointment filter",
+    "  F-15  View Prescriptions           — data: 3 prescriptions for appt1 in DB ✅;\n" +
+      "         • Path A: patient opens completed appt card → 'View Prescriptions' button → filtered view (appt1 only)\n" +
+      "           → 'Download for this Appointment (3)' button downloads those 3 Rx as PDF\n" +
+      "         • Path B: sidebar 'Prescriptions' link → full list (3 Rx) → use filter dropdown to pick appt1\n" +
+      "           → 'Download All (3)' downloads everything; 'Download for this Appointment (3)' downloads filtered set",
   );
   console.log(
     "  F-16  Set Doctor Verification Badge  — ✅ done automatically by seed script in Phase 5 — doctorsdb.doctors.verification_status set to 'approved'; enables patient visibility + slot creation + booking",

@@ -143,11 +143,7 @@ export default function DoctorPatientRecords({ navigate }) {
     for (const appt of appointments) {
       if (seen.has(appt.patient_id)) continue;
       seen.add(appt.patient_id);
-      const name = appt.patient_name
-        ? appt.patient_name
-        : appt.patient_email
-          ? appt.patient_email.split("@")[0]
-          : `Patient #${appt.patient_id.slice(0, 8).toUpperCase()}`;
+      const name = appt.patient_name || "Patient";
       list.push({ patient_id: appt.patient_id, display_name: name });
     }
     return list;

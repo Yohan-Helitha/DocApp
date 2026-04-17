@@ -54,11 +54,7 @@ export default function DoctorAppointments({ navigate }) {
   };
 
   const openPatientRecords = (appt) => {
-    const name = appt.patient_name
-      ? appt.patient_name
-      : appt.patient_email
-        ? appt.patient_email.split("@")[0]
-        : `Patient #${appt.patient_id.slice(0, 8).toUpperCase()}`;
+    const name = appt.patient_name || "Patient";
     goTo(
       `/doctor/patient-records?patientId=${encodeURIComponent(appt.patient_id)}&patientName=${encodeURIComponent(name)}`,
     );
@@ -528,11 +524,7 @@ export default function DoctorAppointments({ navigate }) {
                   <div className="flex items-center gap-3 flex-wrap mb-1">
                     {/* Bug 6 fix: show patient name instead of UUID */}
                     <span className="font-bold text-slate-900 text-sm">
-                      {appt.patient_name
-                        ? appt.patient_name
-                        : appt.patient_email
-                          ? appt.patient_email.split("@")[0]
-                          : `Patient #${appt.patient_id.slice(0, 8).toUpperCase()}`}
+                      {appt.patient_name || "Patient"}
                     </span>
                     <span
                       className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${STATUS_COLORS[appt.appointment_status] || "bg-slate-100 text-slate-500"}`}
@@ -585,7 +577,7 @@ export default function DoctorAppointments({ navigate }) {
                         onClick={() =>
                           handleDecision(appt.appointment_id, "accept")
                         }
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-600 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0b9385]/10 text-[#0b9385] border border-[#0b9385]/20 text-xs font-bold hover:bg-[#0b9385] hover:text-white transition-colors disabled:opacity-50"
                       >
                         {actionLoading[appt.appointment_id] === "accept" ? (
                           <span className="material-symbols-outlined animate-spin text-sm">
@@ -659,10 +651,10 @@ export default function DoctorAppointments({ navigate }) {
                         <button
                           onClick={() =>
                             goTo(
-                              `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}`,
+                              `/doctor/prescriptions/new?appointmentId=${appt.appointment_id}&patientId=${appt.patient_id}&patientName=${encodeURIComponent(appt.patient_name || "")}`,
                             )
                           }
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-500 hover:text-white transition-colors border border-amber-200"
                         >
                           <span className="material-symbols-outlined text-sm">
                             medication
@@ -671,7 +663,7 @@ export default function DoctorAppointments({ navigate }) {
                         </button>
                         <button
                           onClick={() => openPatientRecords(appt)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-50 text-teal-600 text-xs font-bold hover:bg-teal-500 hover:text-white transition-colors border border-teal-200"
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-500 hover:text-white transition-colors border border-indigo-200"
                         >
                           <span className="material-symbols-outlined text-sm">
                             folder_shared

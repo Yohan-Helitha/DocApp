@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemedicine-db-init
+data:
+  init.sql: |
+    -- Telemedicine DB initialization
+    CREATE TABLE IF NOT EXISTS telemedicine_sessions (
+      session_id uuid PRIMARY KEY,
+      appointment_id uuid,
+      provider text,
+      external_room_id text,
+      session_status text,
+      started_at timestamptz,
+      ended_at timestamptz,
+      created_at timestamptz DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS session_participants (
+      participant_id uuid PRIMARY KEY,
+      session_id uuid REFERENCES telemedicine_sessions(session_id),
+      user_id uuid,
+      participant_role text,
+      join_time timestamptz,
+      leave_time timestamptz
+    );
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemedicine-postgres
+  labels:
+    app: telemedicine-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemedicine-postgres
+  template:
+    metadata:
+      labels:
+        app: telemedicine-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-db-config
+                  key: PGUSER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-db-config
+                  key: PGDATABASE
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: telemedicine-db-secret
+                  key: PGPASSWORD
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: telemedicine-db-init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: telemedicine-postgres-pvc
+        - name: telemedicine-db-init
+          configMap:
+            name: telemedicine-db-init
+            items:
+              - key: init.sql
+                path: init.sql
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemedicine-postgres
+spec:
+  selector:
+    app: telemedicine-postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: telemedicine-postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

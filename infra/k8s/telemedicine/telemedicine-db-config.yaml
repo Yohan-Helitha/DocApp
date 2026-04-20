@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemedicine-db-config
+data:
+  PGUSER: "postgres"
+  PGDATABASE: "telemeddb"

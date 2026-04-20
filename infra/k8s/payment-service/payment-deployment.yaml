@@ -69,7 +69,10 @@ spec:
             - name: APPOINTMENT_SERVICE_URL
               value: "http://appointment-service:4003"
             - name: INTERNAL_SECRET
-              value: "change-me-internal"
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_SECRET
             - name: ADMIN_SERVICE_URL
               value: "http://admin-management-service:4008"
             - name: INTERNAL_API_KEY

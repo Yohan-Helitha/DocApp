@@ -36,6 +36,12 @@ yarn-error.log*
 infra/k8s/notification-service/notification-db-secret.yaml
 infra/k8s/*/notification-db-secret.yaml
 infra/k8s/*/*secret.yaml
+# Allow: public RSA key (safe to commit — not a private key)
+!infra/k8s/base/auth-public-key-secret.yaml
+# Allow: telemedicine DB secret has placeholder values only (same pattern as other committed service secrets)
+!infra/k8s/telemedicine/telemedicine-db-secret.yaml
+# Ignore: PayHere credentials (real merchant ID/secret)
+infra/k8s/payment-service/payhere-credentials.yaml
 
 # IDE
 .vscode/

@@ -51,8 +51,28 @@ spec:
                   key: JWT_SECRET
             - name: AUTH_PUBLIC_KEY_PATH
               value: "/keys/public.pem"
+            - name: INTERNAL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-secret
+                  key: INTERNAL_SECRET
             - name: NOTIFICATION_SERVICE_URL
               value: "http://notification-service:6000/api/v1/notifications"
+            - name: CLOUDINARY_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: patient-cloudinary-secret
+                  key: CLOUDINARY_NAME
+            - name: CLOUDINARY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: patient-cloudinary-secret
+                  key: CLOUDINARY_API_KEY
+            - name: CLOUDINARY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: patient-cloudinary-secret
+                  key: CLOUDINARY_API_SECRET
           volumeMounts:
             - name: auth-public-key
               mountPath: /keys

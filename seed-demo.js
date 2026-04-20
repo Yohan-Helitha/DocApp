@@ -166,19 +166,61 @@ const FAKE_PNG = Buffer.from(
 
 // ─── Phase 0: Database Cleanup ─────────────────────────────────────────────────
 
+// Maps legacy Docker Compose container names → K8s pod label selectors.
+// runSQL resolves the live pod name at call time so it works even after pod restarts.
+const DOCKER_TO_K8S = {
+  "docker-appointments-postgres-1": "app=appointments-postgres",
+  "docker-doctors-postgres-1": "app=doctors-postgres",
+  "docker-postgres-1": "app=auth-postgres",
+  "docker-patient-postgres-1": "app=patient-postgres",
+};
+
 /**
- * Run a SQL statement inside a running postgres container via docker exec.
- * Silently skips if docker/psql fails (e.g. container name differs).
+ * Run a SQL statement inside a running postgres pod/container.
+ * Auto-detects whether to use kubectl (K8s) or docker exec (Docker Compose):
+ *   - If the container name maps to a K8s label AND a live pod is found → kubectl exec
+ *   - Otherwise → docker exec (original Docker Compose behaviour)
+ * No env vars required; works transparently for both environments.
  */
 const runSQL = (container, db, sql) => {
   try {
-    execSync(`docker exec ${container} psql -U postgres -d ${db} -c "${sql}"`, {
-      stdio: "pipe",
-    });
+    const label = DOCKER_TO_K8S[container];
+    let podName = null;
+
+    if (label) {
+      // Try to resolve a live K8s pod — empty result means we're in Docker mode
+      try {
+        const out = execSync(
+          `kubectl get pods -l ${label} -o name --field-selector=status.phase=Running`,
+          {
+            stdio: "pipe",
+          },
+        )
+          .toString()
+          .trim();
+        const first = out.split(/\r?\n/)[0];
+        if (first) podName = first.replace(/^pod\//, "").trim();
+      } catch {
+        // kubectl not available or no cluster — fall through to docker exec
+      }
+    }
+
+    if (podName) {
+      // K8s mode
+      execSync(
+        `kubectl exec ${podName} -- psql -U postgres -d ${db} -c "${sql}"`,
+        { stdio: "pipe" },
+      );
+    } else {
+      // Docker Compose mode
+      execSync(
+        `docker exec ${container} psql -U postgres -d ${db} -c "${sql}"`,
+        { stdio: "pipe" },
+      );
+    }
   } catch (e) {
-    // Best-effort — if container name changed, we log a warning and continue
     console.warn(
-      `[cleanup] docker exec failed for ${container}: ${e.stderr?.toString().trim() || e.message}`,
+      `[cleanup] exec failed for ${container}: ${e.stderr?.toString().trim() || e.message}`,
     );
   }
 };

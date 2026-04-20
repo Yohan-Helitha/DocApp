@@ -42,12 +42,13 @@ spec:
             - name: SYMPTOM_CHECKER_SERVICE_URL
               value: "http://ai-symptom-checker-service:4009"
             # After PayHere returns to the public ngrok domain, bounce the browser back to
-            # your local "main" app. If your local app is actually on 8081, change these to
-            # http://localhost:8081/#/payments/return and http://localhost:8081/#/payments/cancel
+            # your local "main" app.
+            # K8s (LoadBalancer): frontend is on http://localhost:80
+            # Docker Compose:     frontend is on http://localhost:8081
             - name: PAYHERE_DEFAULT_RETURN_TO
-              value: "http://localhost:8081/#/payments/return"
+              value: "http://localhost:80/#/payments/return"
             - name: PAYHERE_DEFAULT_CANCEL_TO
-              value: "http://localhost:8081/#/payments/cancel"
+              value: "http://localhost:80/#/payments/cancel"
             # Safety: only allow redirecting to these hosts.
             - name: PAYHERE_RETURN_TO_ALLOWLIST
               value: "localhost,127.0.0.1"

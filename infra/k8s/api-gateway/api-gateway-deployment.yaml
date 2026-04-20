@@ -60,10 +60,11 @@ kind: Service
 metadata:
   name: api-gateway
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: api-gateway
   ports:
     - protocol: TCP
       port: 4000
       targetPort: 4000
+      nodePort: 30400

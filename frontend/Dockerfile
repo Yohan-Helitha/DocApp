@@ -1,5 +1,5 @@
 ## Simple multi-stage Dockerfile for frontend (Vite build -> nginx)
-FROM node:18-alpine AS builder
+FROM node:18 AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --silent

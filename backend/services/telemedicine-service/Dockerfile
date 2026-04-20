@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:18
 WORKDIR /app
 COPY package*.json ./
 # Install only production dependencies; skip dev tools like mocha/supertest

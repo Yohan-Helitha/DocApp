@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: ngrok
-          image: ngrok/ngrok:alpine
+          image: docapp/ngrok:local
           imagePullPolicy: IfNotPresent
           env:
             - name: NGROK_AUTHTOKEN

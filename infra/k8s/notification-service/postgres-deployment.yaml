@@ -93,7 +93,12 @@ spec:
   selector:
     app: notification-postgres
   ports:
-    - protocol: TCP
+    - name: internal
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+    - name: external
+      protocol: TCP
       port: 5436
       targetPort: 5432
 

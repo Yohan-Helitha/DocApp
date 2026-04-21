@@ -89,7 +89,12 @@ spec:
   selector:
     app: telemedicine-postgres
   ports:
-    - protocol: TCP
+    - name: internal
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+    - name: external
+      protocol: TCP
       port: 5439
       targetPort: 5432
 

@@ -129,7 +129,12 @@ spec:
   selector:
     app: patient-postgres
   ports:
-    - protocol: TCP
+    - name: internal
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+    - name: external
+      protocol: TCP
       port: 5435
       targetPort: 5432
 

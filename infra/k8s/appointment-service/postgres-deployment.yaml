@@ -53,7 +53,12 @@ spec:
   selector:
     app: appointments-postgres
   ports:
-    - protocol: TCP
+    - name: internal
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+    - name: external
+      protocol: TCP
       port: 5434
       targetPort: 5432
 

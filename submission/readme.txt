@@ -25,6 +25,12 @@ kubectl apply -f infra/k8s/appointment-service
 kubectl apply -f infra/k8s/payment-service
 kubectl apply -f infra/k8s/admin-management-service
 kubectl apply -f infra/k8s/telemedicine
+
+# IMPORTANT: deploy AI symptom checker (otherwise api-gateway routes can return 502)
+# Requires secrets (kept local / gitignored):
+# - infra/k8s/ai-symptom-checker-service/symptom-checker-db-secret.yaml (GEMINI_API_KEY, etc.)
+# - infra/k8s/ai-symptom-checker-service/auth-public-key-secret.yaml (JWT RS256 public key)
+kubectl apply -f infra/k8s/ai-symptom-checker-service
 kubectl apply -f infra/k8s/api-gateway
 kubectl apply -f infra/k8s/frontend
 

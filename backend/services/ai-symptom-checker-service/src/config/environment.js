@@ -18,6 +18,12 @@ export default {
 
   GEMINI_API_KEY: getEnv("GEMINI_API_KEY", ""),
   GEMINI_MODEL: getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+  // Comma-separated fallback models to try when the preferred model is overloaded or unavailable.
+  // Example: "gemini-2.5-flash-lite,gemini-2.5-pro"
+  GEMINI_FALLBACK_MODELS: getEnv(
+    "GEMINI_FALLBACK_MODELS",
+    "gemini-2.5-flash-lite,gemini-2.5-pro",
+  ),
 
   DOCTOR_SERVICE_URL: getEnv(
     "DOCTOR_SERVICE_URL",

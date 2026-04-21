@@ -1,6 +1,7 @@
 # Local secrets (do not commit)
 infra/k8s/ngrok/ngrok-authtoken.secret.yaml
 infra/k8s/ai-symptom-checker-service/symptom-checker-db-secret.yaml
+infra/k8s/payment-service/payhere-credentials-secret.yaml
 # Dependencies
 node_modules/
 .pnp

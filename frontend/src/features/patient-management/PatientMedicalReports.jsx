@@ -27,7 +27,6 @@ export default function PatientMedicalReports({ navigate }) {
     notes: "",
   });
 
-  const patientId = localStorage.getItem("patientId");
   const token = sessionStorage.getItem("accessToken");
 
   const decodeJwtPayload = (jwtToken) => {

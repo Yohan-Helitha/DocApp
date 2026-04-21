@@ -87,10 +87,14 @@ export async function analyzeSymptoms({
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
   const preferredModel = env.GEMINI_MODEL;
-  // Fallback models (avoid deprecated/removed 1.5.*).
-  // Keep this list minimal and modern; 2.0-flash is the closest fallback when 2.5-flash is unavailable.
-  const fallbackModels = ["gemini-2.0-flash", "gemini-2.0-flash-001"].filter(
-    (m) => m !== preferredModel,
+  const configuredFallbackModels = String(env.GEMINI_FALLBACK_MODELS || "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+
+  // Fallback models should be configurable so projects can adapt to provider changes.
+  const fallbackModels = Array.from(
+    new Set(configuredFallbackModels.filter((m) => m !== preferredModel)),
   );
 
   const history = [
@@ -128,7 +132,7 @@ export async function analyzeSymptoms({
     return out;
   };
 
-  const runWithRetry = async (modelName, { attempts = 2 } = {}) => {
+  const runWithRetry = async (modelName, { attempts = 3 } = {}) => {
     let lastErr;
     for (let i = 0; i < attempts; i++) {
       try {
@@ -140,8 +144,10 @@ export async function analyzeSymptoms({
         if (![500, 502, 503, 504].includes(status)) {
           throw e;
         }
-        // Small backoff to smooth over brief demand spikes.
-        await sleep(200);
+        // Exponential backoff to smooth over brief demand spikes.
+        // Keep it short to avoid making the API feel stuck.
+        const backoffMs = 200 * Math.pow(2, i);
+        await sleep(backoffMs);
       }
     }
     throw lastErr;
@@ -161,7 +167,7 @@ export async function analyzeSymptoms({
       });
     }
 
-    // If the preferred model is not accessible (or not found), retry with fallback.
+    // If the preferred model is not accessible/available, retry with fallback.
     if ((status === 403 || status === 404 || status === 503) && fallbackModels.length) {
       for (const m of fallbackModels) {
         try {

@@ -10,8 +10,8 @@
  *   admin@docapp.lk              — admin
  *   kavindi.silva@gmail.com       — patient (owns all seeded appointments)
  *   niroshan.perera@docapp.lk    — verified, has profile → use for all doctor flows
- *   aisha.fonseka@docapp.lk      — verified, NO profile in doctorsdb → log in to demo F-22 inline Create Profile
- *   chamara.bandara@docapp.lk    — registered, NOT verified → appears in admin pending list → demo PREREQ-4
+ *   aisha.fonseka@docapp.lk      — verified, NO profile in doctorsdb → log in to demo inline Create Profile
+ *   chamara.bandara@docapp.lk    — registered, NOT verified → appears in admin pending list → demo Admin Verify Doctor
  *
  * Requirements:
  *   - Node 18+ (uses native fetch + FormData)
@@ -69,8 +69,8 @@ const DEMO_DT = (() => {
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 const ADMIN_EMAIL = "admin@docapp.lk";
 const DOCTOR_EMAIL = "niroshan.perera@docapp.lk";
-const DOCTOR2_EMAIL = "aisha.fonseka@docapp.lk"; // verified, NO profile → demo F-22 inline Create Profile
-const DOCTOR3_EMAIL = "chamara.bandara@docapp.lk"; // NOT verified → shows in admin pending list → demo PREREQ-4
+const DOCTOR2_EMAIL = "aisha.fonseka@docapp.lk"; // verified, NO profile → demo inline Create Profile
+const DOCTOR3_EMAIL = "chamara.bandara@docapp.lk"; // NOT verified → shows in admin pending list → demo Admin Verify Doctor
 const PATIENT_EMAIL = "kavindi.silva@gmail.com";
 const PASSWORD = "Password123";
 
@@ -338,7 +338,7 @@ const main = async () => {
 
   // 1c. Doctor1 registration (requires multipart/form-data with license file)
   // full_name and specialization are stored in doctor_verification_requests.profile_data
-  // and surfaced by GET /api/v1/auth/me registrationData — used by SuccessDoctor.jsx pre-fill (F-22)
+  // and surfaced by GET /api/v1/auth/me registrationData — used by SuccessDoctor.jsx pre-fill
   await registerUser(
     "/api/v1/auth/register/doctor",
     {
@@ -356,7 +356,7 @@ const main = async () => {
   );
 
   // 1d. Doctor2 registration — will be verified but NOT given a profile in doctorsdb
-  //     full_name and specialization included so pre-fill demo (F-22) has real values to show
+  //     full_name and specialization included so pre-fill demo has real values to show
   await registerUser(
     "/api/v1/auth/register/doctor",
     {
@@ -374,7 +374,7 @@ const main = async () => {
   );
 
   // 1e. Doctor3 registration — intentionally NOT verified
-  //     Shows up in admin pending list to demo PREREQ-4 (Admin Verify Doctor flow)
+  //     Shows up in admin pending list to demo the Admin Verify Doctor flow
   await registerUser(
     "/api/v1/auth/register/doctor",
     {
@@ -448,17 +448,17 @@ const main = async () => {
     return true;
   };
 
-  // Approve doctor1 (full demo account) and doctor2 (no-profile F-22 demo)
+  // Approve doctor1 (full demo account) and doctor2 (no-profile inline Create Profile demo)
   summary.created.doctorVerified = await approveDoctor(DOCTOR_EMAIL);
   await approveDoctor(DOCTOR2_EMAIL);
   // doctor2 only gets Step 1 (login gate). No Step 2 badge (Phase 5) is needed for doctor2,
   // because doctor2 intentionally never gets a doctorsdb profile — the badge endpoint requires
   // a doctorId (doctorsdb UUID) which only exists after profile creation. doctor2 is used to
-  // demo F-22 (inline Create Profile form with pre-filled name + specialization).
-  // doctor3 is intentionally NOT approved — stays in pending list for PREREQ-4 demo
+  // demo inline Create Profile form with pre-filled name + specialization.
+  // doctor3 is intentionally NOT approved — stays in pending list for Admin Verify Doctor demo
   log(
     "verify-doctor",
-    `${DOCTOR3_EMAIL} intentionally left unverified — visible in admin pending list for PREREQ-4 demo`,
+    `${DOCTOR3_EMAIL} intentionally left unverified — visible in admin pending list for Admin Verify Doctor demo`,
   );
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -570,10 +570,9 @@ const main = async () => {
   //           This is separate from Phase 2 (login gate) and comes AFTER Phase 4 (profile creation).
   //           The doctorId used by this endpoint is the UUID in doctorsdb.doctors, which only
   //           exists after the doctor creates their profile in Phase 4. Without this step:
-  //             - Doctor is invisible to patients (F-01 / F-02)
-  //             - Patients cannot book the doctor (F-03)
-  //             - Doctor cannot add availability slots (F-08)
-  //           F-16 in FLOW_ORDER.md
+  //             - Doctor is invisible to patients
+  //             - Patients cannot book the doctor
+  //             - Doctor cannot add availability slots
   // ──────────────────────────────────────────────────────────────────────────
   console.log(
     "\n─── Phase 5: Step 2 of 2 — Admin approves doctor platform access ────\n",
@@ -620,7 +619,7 @@ const main = async () => {
     `  Ended slot : ${toSlotDate(endedStart)} ${toSlotTime(endedStart)} \u2013 ${toSlotTime(endedEnd)}  (Mark Complete from UI)`,
   );
   console.log(
-    `  Accept slot: ${acceptSlotDate} 14:00 \u2013 14:30  (F-12 accept + F-Pay — next day, always >2h ahead)\n`,
+    `  Accept slot: ${acceptSlotDate} 14:00 \u2013 14:30  (accept + payment — next day, always >2h ahead)\n`,
   );
 
   const slotsToCreate = [
@@ -638,7 +637,7 @@ const main = async () => {
       end_time: "10:30",
       label: "slot2 (appt2 — rejected)",
     },
-    // Slot 3 → appt3: pending, F-06 reschedule demo
+    // Slot 3 → appt3: pending, reschedule demo
     {
       slot_date: futureSlotDate(1),
       start_time: "11:00",
@@ -664,7 +663,7 @@ const main = async () => {
       end_time: "10:30",
       label: "slot6 (available)",
     },
-    // Slot 7 → appt4: confirmed+paid, F-14 Write Prescription demo
+    // Slot 7 → appt4: confirmed+paid, Write Prescription demo
     {
       slot_date: futureSlotDate(2),
       start_time: "10:00",
@@ -678,14 +677,14 @@ const main = async () => {
       end_time: "09:30",
       label: "slot8 (appt5 — cancelled)",
     },
-    // Slot 9 → appt6: pending, patient cancels in UI (F-05 demo)
+    // Slot 9 → appt6: pending, patient cancels in UI (live demo)
     {
       slot_date: futureSlotDate(3),
       start_time: "11:00",
       end_time: "11:30",
       label: "slot9 (appt6 — pending, cancel demo)",
     },
-    // Slot 10 → appt7: pending, doctor accepts in UI → patient pays (F-12 + F-Pay)
+    // Slot 10 → appt7: pending, doctor accepts in UI → patient pays
     // Always DEMO_DT+1 day at 14:00–14:30 so the doctor-accept guard (slot_start > now+2h)
     // is always satisfied regardless of viva time. Using futureSlotDate(1) (local-date
     // arithmetic) avoids timezone-rollback issues with addMinutes(DEMO_DT, 4*60).
@@ -695,7 +694,7 @@ const main = async () => {
       end_time: "14:30",
       label: "slot10 (appt7 — pending, accept+pay demo)",
     },
-    // Slot 11 → appt8: pending, doctor rejects in UI (F-13 demo)
+    // Slot 11 → appt8: pending, doctor rejects in UI (live demo)
     {
       slot_date: futureSlotDate(4),
       start_time: "09:00",
@@ -710,7 +709,7 @@ const main = async () => {
       start_time: toSlotTime(endedStart),
       end_time: toSlotTime(endedEnd),
       label:
-        "slot12 (appt9 — ENDED slot, confirmed+paid via SQL \u2192 F-17 Mark Complete from UI)",
+        "slot12 (appt9 — ENDED slot, confirmed+paid via SQL \u2192 Mark Complete from UI)",
     },
     // Slot 13 → appt10: LIVE slot — Join Session (patient) and Create Session (doctor) enabled right now.
     // NOTE: doctor-accept API blocks for past slots; appointment_status set via SQL in Phase 8b.
@@ -846,11 +845,11 @@ const main = async () => {
   );
   const appt3 = await bookAppointment(
     slot3,
-    "General consultation (stays pending — F-06 reschedule demo)",
+    "General consultation (stays pending — reschedule demo)",
   );
   const appt4 = await bookAppointment(
     slot7,
-    "Specialist consultation (confirmed+paid — F-14 Write Prescription demo)",
+    "Specialist consultation (confirmed+paid — Write Prescription demo)",
   );
   const appt5 = await bookAppointment(
     slot8,
@@ -859,20 +858,20 @@ const main = async () => {
   // These three stay PENDING after seed — used for live interactive demos
   const appt6 = await bookAppointment(
     slot9,
-    "Third opinion (pending — patient cancels this in UI = live F-05 demo)",
+    "Third opinion (pending — patient cancels this in UI = live demo)",
   );
   const appt7 = await bookAppointment(
     slot10,
-    "Emergency consultation (pending — doctor accepts in UI = F-12; patient pays = F-Pay demo)",
+    "Emergency consultation (pending — doctor accepts in UI; patient pays demo)",
   );
   const appt8 = await bookAppointment(
     slot11,
-    "Pre-op assessment (pending — doctor rejects this in UI = live F-13 demo)",
+    "Pre-op assessment (pending — doctor rejects this in UI = live demo)",
   );
   // This one gets accepted by seed and payment forced paid — stays confirmed+paid — doctor marks complete from UI
   const appt9 = await bookAppointment(
     slot12,
-    "Annual health check (confirmed+paid via SQL — slot ENDED → doctor marks complete in UI = live F-17 demo)",
+    "Annual health check (confirmed+paid via SQL — slot ENDED → doctor marks complete in UI = live demo)",
   );
   // confirmed+paid on the LIVE slot — Join Session (patient) and Create Session (doctor) enabled right now
   const appt10 = await bookAppointment(
@@ -959,22 +958,22 @@ const main = async () => {
   );
   log(
     "doctor-decision",
-    `rejected appointment_id=${appt2.appointment_id} — slot freed back to 'available' (GAP-12 fixed)`,
+    `rejected appointment_id=${appt2.appointment_id} — slot freed back to 'available'`,
   );
   summary.appointments[1].status =
     rejectRes.body?.appointment?.appointment_status ?? "rejected";
 
   // appt1 — appointment_status set to 'confirmed' + payment_status 'paid' via SQL in Phase 8b
   //          (avoids fragility of too_close_to_slot_time guard for near-future slots)
-  // appt3 stays pending — F-06 reschedule demo (reschedule to slot4/slot5/slot6 from UI)
-  // appt6 stays pending — patient cancels it from UI (live F-05 demo)
-  // appt7 stays pending — doctor accepts from UI (live F-12 demo)
-  // appt8 stays pending — doctor rejects from UI (live F-13 demo)
+  // appt3 stays pending — reschedule demo (reschedule to slot4/slot5/slot6 from UI)
+  // appt6 stays pending — patient cancels it from UI (live demo)
+  // appt7 stays pending — doctor accepts from UI (live demo)
+  // appt8 stays pending — doctor rejects from UI (live demo)
   // appt9, appt10 — appointment_status set to 'confirmed' + payment_status 'paid' via SQL in Phase 8b
   //                 (doctor-accept API blocks for past/near-present slots; SQL bypasses this)
 
   // Patient cancels appt5 — slot8 freed back to available (pre-seeded cancelled example)
-  // Demonstrates: F-04 cancelled tab, F-11 cancelled tab
+  // Demonstrates: cancelled tab
   const cancelRes5 = await jsonFetch(
     `/api/v1/appointments/${appt5.appointment_id}`,
     { method: "DELETE", token: patientToken },
@@ -990,7 +989,7 @@ const main = async () => {
   summary.appointments[4].status = "cancelled";
 
   // Accept appt9 — stays CONFIRMED; payment_status set to 'paid' via SQL in Phase 8b
-  // Dedicated for live F-17 (Mark as Complete) demo; keeps appt4 clean for live F-14 (Write Prescription) demo
+  // Dedicated for live Mark as Complete demo; keeps appt4 clean for live Write Prescription demo
   // NOTE: appt9 uses an ENDED slot (DEMO_DT-relative). The doctor-accept API blocks on
   //       too_close_to_slot_time when slot_start < now+2h. appointment_status is set via SQL below.
   //       (No API call here — see Phase 8b)
@@ -1000,8 +999,8 @@ const main = async () => {
   //            for appointments that bypass the doctor-accept API
   //
   //   appt1 — confirmed+paid → Phase 10 admin marks it completed (history demo)
-  //   appt4 — confirmed+paid → enables Write Prescription button (F-14)
-  //   appt9 — confirmed+paid → enables Mark as Complete button (F-17, slot ENDED)
+  //   appt4 — confirmed+paid → enables Write Prescription button
+  //   appt9 — confirmed+paid → enables Mark as Complete button (slot ENDED)
   //   appt10 — confirmed+paid → enables Join/Create Session (slot LIVE)
   //
   //   All four bypass the doctor-accept API because:
@@ -1032,7 +1031,7 @@ const main = async () => {
 
   // ──────────────────────────────────────────────────────────────────────────
   // PHASE 9 — Prescription (doctorsdb.prescriptions)
-  //           F-14: Doctor writes prescription for accepted/confirmed appointment
+  //           Doctor writes prescription for accepted/confirmed appointment
   // ──────────────────────────────────────────────────────────────────────────
   console.log("\n─── Phase 9: Write prescription ──────────────────────\n");
 
@@ -1104,9 +1103,8 @@ const main = async () => {
   summary.prescriptionIds = [prescId1, prescId2, prescId3];
 
   // ──────────────────────────────────────────────────────────────────────────
-  // PHASE 10 — Doctor marks appt1 as completed (GAP-14 fixed: doctor can now do this;
-  //            using adminToken here to also demonstrate the admin force-set path)
-  //            F-17: appointment lifecycle ends at 'completed'
+  // PHASE 10 — Doctor marks appt1 as completed (using adminToken to demonstrate the admin force-set path)
+  //            appointment lifecycle ends at 'completed'
   // ──────────────────────────────────────────────────────────────────────────
   console.log("\n─── Phase 10: Admin marks appointment completed ──────\n");
 
@@ -1136,26 +1134,24 @@ const main = async () => {
     `DEMO_DT: ${DEMO_DT.toLocaleString()}  (override: DEMO_DATETIME="2026-04-25T14:00:00" node seed-demo.js)`,
   );
   console.log("");
+  console.log(`  Admin   : ${ADMIN_EMAIL} / ${PASSWORD}  — admin flows`);
   console.log(
-    `  Admin   : ${ADMIN_EMAIL} / ${PASSWORD}  — admin flows, PREREQ-6`,
+    `  Patient : ${PATIENT_EMAIL} / ${PASSWORD}  (Kavindi Silva) — all patient flows`,
   );
   console.log(
-    `  Patient : ${PATIENT_EMAIL} / ${PASSWORD}  (Kavindi Silva) — all patient flows (F-01 to F-06)`,
+    `  Doctor1 : ${DOCTOR_EMAIL} / ${PASSWORD}  (Dr. Niroshan Perera) — all doctor flows`,
   );
   console.log(
-    `  Doctor1 : ${DOCTOR_EMAIL} / ${PASSWORD}  (Dr. Niroshan Perera) — all doctor flows (F-07 to F-17, F-23)`,
+    `  Doctor2 : ${DOCTOR2_EMAIL} / ${PASSWORD}  (Dr. Aisha Fonseka) — verified, NO profile → log in to demo inline Create Profile form`,
   );
   console.log(
-    `  Doctor2 : ${DOCTOR2_EMAIL} / ${PASSWORD}  (Dr. Aisha Fonseka) — verified, NO profile → log in to demo F-22 (inline Create Profile form)`,
-  );
-  console.log(
-    `  Doctor3 : ${DOCTOR3_EMAIL} / ${PASSWORD}  (Dr. Chamara Bandara) — NOT verified → visible in admin pending list → demo PREREQ-4 (Admin Verify Doctor)`,
+    `  Doctor3 : ${DOCTOR3_EMAIL} / ${PASSWORD}  (Dr. Chamara Bandara) — NOT verified → visible in admin pending list → demo Admin Verify Doctor`,
   );
   console.log("");
   console.log(`Doctor1 profile : doctor_id = ${summary.doctorId}`);
   console.log(`Patient user_id : ${summary.patientUserId}`);
   console.log(
-    `Prescriptions   : ${summary.prescriptionIds.join(", ")}  (3 Rx written for appt1 — demo F-15 both download modes)`,
+    `Prescriptions   : ${summary.prescriptionIds.join(", ")}  (3 Rx written for appt1 — demo both download modes)`,
   );
   console.log("");
   console.log("Availability Slots (13 total):");
@@ -1169,13 +1165,13 @@ const main = async () => {
   const apptLabels = [
     "COMPLETED  — accepted+paid+prescription written+admin completed (pre-seeded history)",
     "REJECTED   — slot freed back to available (pre-seeded history)",
-    "PENDING    — dedicated for LIVE F-06 RESCHEDULE demo (reschedule to slot4/5/6 from UI)",
-    "CONFIRMED+PAID — dedicated for LIVE F-14 WRITE PRESCRIPTION demo (button visible in UI)",
+    "PENDING    — dedicated for LIVE RESCHEDULE demo (reschedule to slot4/5/6 from UI)",
+    "CONFIRMED+PAID — dedicated for LIVE WRITE PRESCRIPTION demo (button visible in UI)",
     "CANCELLED  — patient-cancelled (pre-seeded; demonstrates cancelled tab)",
-    "PENDING    — dedicated for LIVE F-05 CANCEL demo (patient cancels from UI)",
-    "PENDING    — dedicated for LIVE F-12 ACCEPT + F-Pay PAYMENT demo (doctor accepts → patient pays)",
-    "PENDING    — dedicated for LIVE F-13 REJECT demo (doctor rejects from UI)",
-    "CONFIRMED+PAID — ENDED slot — dedicated for LIVE F-17 MARK AS COMPLETE demo (click from doctor UI NOW)",
+    "PENDING    — dedicated for LIVE CANCEL demo (patient cancels from UI)",
+    "PENDING    — dedicated for LIVE ACCEPT + PAYMENT demo (doctor accepts → patient pays)",
+    "PENDING    — dedicated for LIVE REJECT demo (doctor rejects from UI)",
+    "CONFIRMED+PAID — ENDED slot — dedicated for LIVE MARK AS COMPLETE demo (click from doctor UI NOW)",
     "CONFIRMED+PAID — LIVE slot  — Join Session (patient) + Create Session (doctor) clickable RIGHT NOW",
   ];
   summary.appointments.forEach((a, i) =>
@@ -1188,136 +1184,138 @@ const main = async () => {
     "─── Flow Coverage ─────────────────────────────────────────────────────────\n",
   );
   console.log(
-    "  PREREQ-1  Patient Registration     — no prior data needed; just register via UI with any email",
+    "  Patient Registration     — no prior data needed; just register via UI with any email",
   );
   console.log(
-    `  PREREQ-2  Patient Login             — data: patient account ✅; just log in as ${PATIENT_EMAIL}`,
+    `  Patient Login             — data: patient account ✅; just log in as ${PATIENT_EMAIL}`,
   );
   console.log(
-    "  PREREQ-3  Doctor Registration       — no prior data needed; register via UI with any email + license file",
+    "  Doctor Registration       — no prior data needed; register via UI with any email + license file",
   );
   console.log(
-    "  PREREQ-4  Admin Verify Doctor       — data: doctor3 seeded but NOT verified ✅; visible in admin pending list",
+    "  Admin Verify Doctor       — data: doctor3 seeded but NOT verified ✅; visible in admin pending list",
   );
   console.log(
-    `  PREREQ-5  Doctor Login              — data: doctor1 account active ✅; log in as ${DOCTOR_EMAIL}`,
+    `  Doctor Login              — data: doctor1 account active ✅; log in as ${DOCTOR_EMAIL}`,
   );
   console.log(
-    `  PREREQ-6  Admin Login               — data: admin account ✅; log in as ${ADMIN_EMAIL}`,
+    `  Admin Login               — data: admin account ✅; log in as ${ADMIN_EMAIL}`,
   );
   console.log("");
   console.log(
-    "  F-01  Browse Doctors               — data: doctor1 profile ✅; log in as patient → browse /doctors",
+    "  Browse Doctors               — data: doctor1 profile ✅; log in as patient → browse /doctors",
   );
   console.log(
-    "  F-02  View Doctor Profile + Slots  — data: profile + slots 4/5/6 available ✅; click a doctor card",
+    "  View Doctor Profile + Slots  — data: profile + slots 4/5/6 available ✅; click a doctor card",
   );
   console.log(
-    "  F-03  Book Appointment             — data: available slots (slot4/5/6/2/8) ✅; log in as patient → book",
+    "  Book Appointment             — data: available slots (slot4/5/6/2/8) ✅; log in as patient → book",
   );
   console.log(
-    "  F-04  View My Appointments         — data: all 5 status tabs populated ✅; patient views appt list",
+    "  View My Appointments         — data: all 5 status tabs populated ✅; patient views appt list",
   );
   console.log(
-    "  F-05  Cancel Appointment           — data: appt6 (PENDING, dedicated) ✅; patient cancels from appt list",
+    "  Cancel Appointment           — data: appt6 (PENDING, dedicated) ✅; patient cancels from appt list",
   );
   console.log(
-    "  F-06  Reschedule Appointment       — data: appt3 (PENDING, dedicated) + slots 4/5/6 available ✅; patient reschedules",
+    "  Reschedule Appointment       — data: appt3 (PENDING, dedicated) + slots 4/5/6 available ✅; patient reschedules",
   );
   console.log(
-    "  F-07  Doctor Dashboard             — data: 10 appts with stats ✅; log in as doctor1 → dashboard",
+    "  Doctor Dashboard             — data: 10 appts with stats ✅; log in as doctor1 → dashboard",
   );
   console.log(
-    "  F-08  Add Availability Slot        — data: doctor1 profile ✅; go to Availability → use Single Slot tab to add one slot, or use Bulk Generator tab (pick date + time window + slot duration → Generate Preview → Add All New Slots) to create multiple slots at once",
+    "  Add Availability Slot        — data: doctor1 profile ✅; go to Availability → use Single Slot tab to add one slot, or use Bulk Generator tab (pick date + time window + slot duration → Generate Preview → Add All New Slots) to create multiple slots at once",
   );
   console.log(
-    "  F-09  Delete Availability Slot     — data: slot4/5/6 available ✅ + booked slots for 409 demo; delete from Availability",
+    "  Delete Availability Slot     — data: slot4/5/6 available ✅ + booked slots for 409 demo; delete from Availability",
   );
   console.log(
-    "  F-10  Edit Availability Slot       — data: slot4/5/6 available ✅; click pencil icon on available slot",
+    "  Edit Availability Slot       — data: slot4/5/6 available ✅; click pencil icon on available slot",
   );
   console.log(
-    "  F-11  View Doctor Appointments     — data: all 5 status tabs populated ✅; doctor views appt list",
+    "  View Doctor Appointments     — data: all 5 status tabs populated ✅; doctor views appt list",
   );
   console.log(
-    "  F-12  Accept Appointment           — data: appt7 (PENDING, dedicated) ✅; doctor clicks Accept on that card",
+    "  Accept Appointment           — data: appt7 (PENDING, dedicated) ✅; doctor clicks Accept on that card",
   );
   console.log(
-    "  F-Pay Pay for Appointment          — data: appt7 (confirmed+unpaid, AFTER F-12 accept) ✅; patient clicks Pay Now → PayHere checkout → webhook sets paid",
+    "  Pay for Appointment          — data: appt7 (confirmed+unpaid, AFTER doctor accept) ✅; patient clicks Pay Now → PayHere checkout → webhook sets paid",
   );
   console.log(
-    "  F-PayReturn Payment Return Page    — data: automatic after PayHere redirect → polls appointment until payment_status=paid → shows confirmation",
+    "  Payment Return Page          — data: automatic after PayHere redirect → polls appointment until payment_status=paid → shows confirmation",
   );
   console.log(
-    "  F-13  Reject Appointment           — data: appt8 (PENDING, dedicated) ✅; doctor clicks Reject on that card",
+    "  Reject Appointment           — data: appt8 (PENDING, dedicated) ✅; doctor clicks Reject on that card",
   );
   console.log(
-    "  F-14  Write Prescription           — data: appt4 (CONFIRMED+PAID, dedicated) ✅; doctor clicks Write Prescription on that card",
+    "  Write Prescription           — data: appt4 (CONFIRMED+PAID, dedicated) ✅; doctor clicks Write Prescription on that card",
   );
   console.log(
-    "  F-15  View Prescriptions           — data: 3 prescriptions for appt1 in DB ✅;\n" +
+    "  View Prescriptions           — data: 3 prescriptions for appt1 in DB ✅;\n" +
       "         • Path A: patient opens completed appt card → 'View Prescriptions' button → filtered view (appt1 only)\n" +
       "           → 'Download for this Appointment (3)' button downloads those 3 Rx as PDF\n" +
       "         • Path B: sidebar 'Prescriptions' link → full list (3 Rx) → use filter dropdown to pick appt1\n" +
       "           → 'Download All (3)' downloads everything; 'Download for this Appointment (3)' downloads filtered set",
   );
   console.log(
-    "  F-16  Set Doctor Verification Badge  — ✅ done automatically by seed script in Phase 5 — doctorsdb.doctors.verification_status set to 'approved'; enables patient visibility + slot creation + booking",
+    "  Set Doctor Verification Badge  — ✅ done automatically by seed script in Phase 5 — doctorsdb.doctors.verification_status set to 'approved'; enables patient visibility + slot creation + booking",
   );
   console.log(
-    "  F-17  Mark as Complete             — data: appt9 (CONFIRMED+PAID, ENDED slot) ✅; doctor clicks Mark as Complete from UI — works immediately (slot has ended at DEMO_DT)",
+    "  Mark as Complete             — data: appt9 (CONFIRMED+PAID, ENDED slot) ✅; doctor clicks Mark as Complete from UI — works immediately (slot has ended at DEMO_DT)",
   );
   console.log(
-    "  F-Join Join/Create Session         — data: appt10 (CONFIRMED+PAID, LIVE slot) ✅; patient clicks Join Session; doctor clicks Create Session — both enabled during slot window",
+    "  Join/Create Session          — data: appt10 (CONFIRMED+PAID, LIVE slot) ✅; patient clicks Join Session; doctor clicks Create Session — both enabled during slot window",
   );
   console.log(
-    "  F-18  Admin Cancel (Postman)       — data: any pending/confirmed appt ✅; DELETE /api/v1/appointments/:id with admin JWT",
+    "  Admin Cancel (Postman)       — data: any pending/confirmed appt ✅; DELETE /api/v1/appointments/:id with admin JWT",
   );
   console.log(
-    "  F-19  Event History (Postman)      — data: events recorded for all 10 appts ✅; GET /api/v1/appointments/:id/events",
+    "  Event History (Postman)      — data: events recorded for all 10 appts ✅; GET /api/v1/appointments/:id/events",
   );
   console.log(
-    "  F-20  Doctor Doc Upload            ❌  GAP-5: no API routes; not demonstrable",
+    "  Doctor Doc Upload            ❌  no API routes; not demonstrable",
   );
   console.log(
-    "  F-21  Patient Reports Stub         ⚠️  GAP-6: stub returns []; pending patient-management-service integration",
+    "  Patient Reports Stub         ⚠️  stub returns []; pending patient-management-service integration",
   );
   console.log(
-    "  F-22  Create Doctor Profile        — data: doctor2 verified, NO doctorsdb profile ✅; log in as doctor2 → inline form shows with pre-filled name + specialization from registration",
+    "  Create Doctor Profile        — data: doctor2 verified, NO doctorsdb profile ✅; log in as doctor2 → inline form shows with pre-filled name + specialization from registration",
   );
   console.log(
-    "  F-23  Update Doctor Profile        — data: doctor1 profile ✅; My Profile → Edit button on dashboard",
+    "  Update Doctor Profile        — data: doctor1 profile ✅; My Profile → Edit button on dashboard",
   );
   console.log(
-    "  F-24  View Single Appt (Postman)   — data: any appointment ✅; GET /api/v1/appointments/:id",
+    "  View Single Appt (Postman)   — data: any appointment ✅; GET /api/v1/appointments/:id",
   );
   console.log("");
   console.log(
     "─── Minimum Login Required Per Flow ──────────────────────────────────────\n",
   );
-  console.log(`  Patient login  (${PATIENT_EMAIL}) : PREREQ-2, F-01 to F-06`);
   console.log(
-    `  Doctor1 login  (${DOCTOR_EMAIL})  : PREREQ-5, F-07 to F-15, F-17, F-23`,
+    `  Patient login  (${PATIENT_EMAIL}) : Login, Browse Doctors, Book, View/Cancel/Reschedule Appointments`,
   );
-  console.log(`  Doctor2 login  (${DOCTOR2_EMAIL})  : F-22`);
   console.log(
-    `  Admin login    (${ADMIN_EMAIL})   : PREREQ-4, PREREQ-6, F-16, F-17 (admin path), F-18`,
+    `  Doctor1 login  (${DOCTOR_EMAIL})  : Login, Dashboard, Slots, Accept/Reject, Write Prescription, Mark Complete, Update Profile`,
   );
-  console.log("  No login needed                       : PREREQ-1, PREREQ-3");
+  console.log(`  Doctor2 login  (${DOCTOR2_EMAIL})  : Create Doctor Profile`);
+  console.log(
+    `  Admin login    (${ADMIN_EMAIL})   : Verify Doctor, Admin Login, Set Verification Badge, Mark Complete (admin path), Admin Cancel`,
+  );
+  console.log(
+    "  No login needed                       : Patient Registration, Doctor Registration",
+  );
   console.log("");
   console.log(
     "─── Open Gaps ───────────────────────────────────────────────────────────\n",
   );
+  console.log("  Doctor Document Upload — no API routes; table orphaned.");
   console.log(
-    "  GAP-5:  F-20 Doctor Document Upload — no API routes; table orphaned.",
+    "  Patient Reports (doctor-side) — stub only; pending patient-management-service.",
   );
   console.log(
-    "  GAP-6:  F-21 Patient Reports (doctor-side) — stub only; pending patient-management-service.",
+    "  admin force-set — no admin-service frontend page; use Postman with admin JWT.",
   );
-  console.log(
-    "  GAP-7:  F-17 admin force-set — no admin-service frontend page; use Postman with admin JWT.",
-  );
-  console.log("  All other gaps (GAP-2,4,8,9,10,11,12,13,14,15) are FIXED.");
+  console.log("  All other gaps are fixed.");
   console.log("");
 };
 

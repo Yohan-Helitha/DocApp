@@ -453,14 +453,16 @@ export const setStatus = async (req, res) => {
         });
       }
 
-      // Time guard: cannot mark complete before the slot has ended
+      // Time guard: cannot mark complete before the slot has ended.
+      // Slot date/time are stored as IST (Asia/Colombo, UTC+5:30) wall-clock values.
+      // Appending +05:30 ensures JS parses them as IST regardless of the process TZ.
       if (appointment.slot_date && appointment.end_time) {
         const slotDateStr =
           typeof appointment.slot_date === "string"
             ? appointment.slot_date.slice(0, 10)
             : new Date(appointment.slot_date).toISOString().slice(0, 10);
         const slotEnd = new Date(
-          `${slotDateStr}T${String(appointment.end_time).slice(0, 8)}`,
+          `${slotDateStr}T${String(appointment.end_time).slice(0, 8)}+05:30`,
         );
         if (new Date() < slotEnd) {
           return res.status(400).json({
@@ -557,8 +559,10 @@ export const doctorDecision = async (req, res) => {
           typeof appointment.slot_date === "string"
             ? appointment.slot_date.slice(0, 10)
             : new Date(appointment.slot_date).toISOString().slice(0, 10);
+        // Slot times are stored as IST (Asia/Colombo, UTC+5:30) wall-clock values.
+        // Appending +05:30 ensures JS parses them as IST regardless of the process TZ.
         const slotStart = new Date(
-          `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}`,
+          `${slotDateStr}T${String(appointment.start_time).slice(0, 8)}+05:30`,
         );
         const twoHoursBefore = new Date(
           slotStart.getTime() - 2 * 60 * 60 * 1000,

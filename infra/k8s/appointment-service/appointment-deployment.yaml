@@ -62,6 +62,8 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            - name: TZ
+              value: "Asia/Colombo"
             - name: PORT
               value: "4003"
             - name: PGHOST

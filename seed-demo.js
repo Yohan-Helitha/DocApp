@@ -27,10 +27,12 @@
  *   DEMO_DATETIME="2026-04-25T14:00:00" node seed-demo.js      # target viva at 2 PM on April 25
  *   API_BASE=http://localhost:4000 node seed-demo.js
  *
- * DEMO_DATETIME controls three time-sensitive slots:
+ * DEMO_DATETIME controls two time-sensitive slots:
  *   slot13/appt10 (live)   : DEMO_DT-15min → DEMO_DT+45min   — Join/Create Session clickable NOW
  *   slot12/appt9  (ended)  : DEMO_DT-120min → DEMO_DT-60min  — Mark as Complete works from UI NOW
- *   slot10/appt7  (accept) : DEMO_DT+4h     → DEMO_DT+4h30m  — doctor can accept (>2h guard)
+ *
+ * The accept slot (slot10/appt7) is always DEMO_DT+1 day at 14:00–14:30, guaranteeing
+ * it is in the future regardless of the viva time (doctor-accept guard: slot_start > now+2h).
  *
  * Note: DEMO_DATETIME must be at least 2h after midnight local time (e.g. 09:00 is fine).
  */
@@ -50,7 +52,7 @@ const API_BASE = process.env.API_BASE || "http://localhost:4000";
 // Slots seeded relative to DEMO_DT:
 //   "live"   slot (slot13/appt10) : DEMO_DT-15min → DEMO_DT+45min   ← Join/Create Session enabled NOW
 //   "ended"  slot (slot12/appt9)  : DEMO_DT-120min → DEMO_DT-60min  ← Mark as Complete works from UI NOW
-//   "accept" slot (slot10/appt7)  : DEMO_DT+4h     → DEMO_DT+4h30min ← doctor can accept (>2h guard)
+//   "accept" slot (slot10/appt7)  : DEMO_DT+1 day at 14:00–14:30   ← doctor can accept any time during viva day (slot_start always >2h ahead)
 const DEMO_DATETIME_STR = process.env.DEMO_DATETIME;
 const DEMO_DT = (() => {
   if (!DEMO_DATETIME_STR || DEMO_DATETIME_STR === "now") return new Date();
@@ -604,10 +606,11 @@ const main = async () => {
   // "ended" slot : already ended at DEMO_DT → Mark as Complete works from doctor UI
   const endedStart = addMinutes(DEMO_DT, -120);
   const endedEnd = addMinutes(DEMO_DT, -60);
-  // "accept" slot: far enough ahead so doctor-accept guard passes (slot_start > now+2h)
-  //               payment_deadline after accept = MIN(now+24h, slot_start−2h) = DEMO_DT+2h (2h pay window)
-  const acceptStart = addMinutes(DEMO_DT, 4 * 60);
-  const acceptEnd = addMinutes(DEMO_DT, 4 * 60 + 30);
+  // "accept" slot: always the NEXT calendar day at 14:00–14:30 so the slot is
+  //   guaranteed to be in the future during the viva day, satisfying the >2h guard.
+  //   Using futureSlotDate(1) (local-date arithmetic) avoids the timezone pitfall of
+  //   addMinutes(DEMO_DT, 4*60) whose date can roll back depending on UTC offset.
+  const acceptSlotDate = futureSlotDate(1);
 
   console.log(`\n  DEMO_DT    : ${DEMO_DT.toLocaleString()}`);
   console.log(
@@ -617,7 +620,7 @@ const main = async () => {
     `  Ended slot : ${toSlotDate(endedStart)} ${toSlotTime(endedStart)} \u2013 ${toSlotTime(endedEnd)}  (Mark Complete from UI)`,
   );
   console.log(
-    `  Accept slot: ${toSlotDate(acceptStart)} ${toSlotTime(acceptStart)} \u2013 ${toSlotTime(acceptEnd)}  (F-12 accept + F-Pay)\n`,
+    `  Accept slot: ${acceptSlotDate} 14:00 \u2013 14:30  (F-12 accept + F-Pay — next day, always >2h ahead)\n`,
   );
 
   const slotsToCreate = [
@@ -683,11 +686,13 @@ const main = async () => {
       label: "slot9 (appt6 — pending, cancel demo)",
     },
     // Slot 10 → appt7: pending, doctor accepts in UI → patient pays (F-12 + F-Pay)
-    // DEMO_DT-relative: slot_start = DEMO_DT+4h → accept guard satisfied (>now+2h)
+    // Always DEMO_DT+1 day at 14:00–14:30 so the doctor-accept guard (slot_start > now+2h)
+    // is always satisfied regardless of viva time. Using futureSlotDate(1) (local-date
+    // arithmetic) avoids timezone-rollback issues with addMinutes(DEMO_DT, 4*60).
     {
-      slot_date: toSlotDate(acceptStart),
-      start_time: toSlotTime(acceptStart),
-      end_time: toSlotTime(acceptEnd),
+      slot_date: acceptSlotDate,
+      start_time: "14:00",
+      end_time: "14:30",
       label: "slot10 (appt7 — pending, accept+pay demo)",
     },
     // Slot 11 → appt8: pending, doctor rejects in UI (F-13 demo)
@@ -1000,8 +1005,8 @@ const main = async () => {
   //   appt10 — confirmed+paid → enables Join/Create Session (slot LIVE)
   //
   //   All four bypass the doctor-accept API because:
-  //     • appt1/appt4: fragility with too_close_to_slot_time guard for near-future slots
-  //     • appt9/appt10: slots are past/present — API blocks with too_close_to_slot_time
+  //     • appt1/appt4: slots are near-future; SQL bypass is simpler and avoids timing edge cases
+  //     • appt9/appt10: slots are past/present — too_close_to_slot_time guard blocks API accept
   //
   //   payment_status='paid' is set directly via SQL because the payment flow requires
   //   a live PayHere webhook callback (ngrok). SQL bypass is safe for demo/testing.

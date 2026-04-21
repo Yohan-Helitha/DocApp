@@ -106,7 +106,13 @@ export const listByDoctor = async (db, doctorId) => {
 };
 
 export const updateAppointment = async (db, appointmentId, updates) => {
-  const allowed = ["slot_id", "reason_for_visit"];
+  const allowed = [
+    "slot_id",
+    "slot_date",
+    "start_time",
+    "end_time",
+    "reason_for_visit",
+  ];
   const fields = Object.keys(updates).filter((k) => allowed.includes(k));
   if (fields.length === 0) {
     const e = new Error("no_valid_fields");

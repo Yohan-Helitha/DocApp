@@ -214,22 +214,33 @@ export const updateAppointment = async (req, res) => {
 
     const { slot_id, reason_for_visit } = req.body || {};
 
-    // If rescheduling to a different slot: release old, book new
+    // If rescheduling to a different slot: release old, book new, snapshot new date/times
+    const updates = {};
     if (slot_id && slot_id !== appointment.slot_id) {
       await doctorClient.updateSlotStatus(
         appointment.doctor_id,
         appointment.slot_id,
         "available",
       );
+
+      // Fetch new slot details to snapshot date/time (same pattern as createAppointment)
+      const newSlot = await doctorClient.getSlot(
+        req.headers.authorization,
+        appointment.doctor_id,
+        slot_id,
+      );
+
       await doctorClient.updateSlotStatus(
         appointment.doctor_id,
         slot_id,
         "booked",
       );
-    }
 
-    const updates = {};
-    if (slot_id) updates.slot_id = slot_id;
+      updates.slot_id = slot_id;
+      updates.slot_date = newSlot.slot_date;
+      updates.start_time = newSlot.start_time;
+      updates.end_time = newSlot.end_time;
+    }
     if (reason_for_visit) updates.reason_for_visit = reason_for_visit;
 
     const updated = await appointmentService.updateAppointment(
@@ -681,7 +692,9 @@ export const doctorDecision = async (req, res) => {
           recipient_email: appointment.patient_email,
           message: `Your appointment has been ${newStatus} by Dr. ${doctor.full_name}.`,
         })
-        .catch((err) => req.log.warn(err, "doctor decision notification failed"));
+        .catch((err) =>
+          req.log.warn(err, "doctor decision notification failed"),
+        );
     }
 
     return res.json({ appointment: updated });

@@ -14,6 +14,45 @@ spec:
       labels:
         app: patient-management-service
     spec:
+      initContainers:
+        - name: init-patient-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "patient-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: patient-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: patient-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: patient-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying patient schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Patient schema applied."
+          volumeMounts:
+            - name: patient-db-init
+              mountPath: /db-init
       containers:
         - name: patient-management-service
           image: docapp/patient-management-service:local
@@ -79,6 +118,12 @@ spec:
               readOnly: true
 
       volumes:
+        - name: patient-db-init
+          configMap:
+            name: patient-db-init
+            items:
+              - key: init.sql
+                path: init.sql
         - name: auth-public-key
           secret:
             secretName: auth-public-key

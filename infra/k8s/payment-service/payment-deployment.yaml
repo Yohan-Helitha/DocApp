@@ -14,6 +14,45 @@ spec:
       labels:
         app: payment-service
     spec:
+      initContainers:
+        - name: init-payment-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: "payment-postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-db-config
+                  key: PGDATABASE
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-db-config
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-db-secret
+                  key: PGPASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for Postgres at ${PGHOST}:${PGPORT}..."
+              until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
+                echo "Postgres not ready yet; retrying..."
+                sleep 2
+              done
+              echo "Applying payment schema..."
+              psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -f /db-init/init.sql
+              echo "Payment schema applied."
+          volumeMounts:
+            - name: payment-db-init
+              mountPath: /db-init
       containers:
         - name: payment-service
           image: docapp/payment-service:local
@@ -84,6 +123,14 @@ spec:
               value: "http://notification-service:6000"
             - name: CORS_ORIGIN
               value: "http://localhost:8081"
+
+      volumes:
+        - name: payment-db-init
+          configMap:
+            name: payment-db-init
+            items:
+              - key: init.sql
+                path: init.sql
 ---
 apiVersion: v1
 kind: Service

@@ -54,11 +54,12 @@ kind: Service
 metadata:
   name: payment-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: payment-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5437
       targetPort: 5432
 ---
 apiVersion: v1

@@ -57,11 +57,12 @@ kind: Service
 metadata:
   name: admin-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: admin-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5438
       targetPort: 5432
 ---
 apiVersion: v1

@@ -85,11 +85,12 @@ kind: Service
 metadata:
   name: telemedicine-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: telemedicine-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5439
       targetPort: 5432
 
 ---

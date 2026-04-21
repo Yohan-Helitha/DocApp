@@ -59,11 +59,12 @@ kind: Service
 metadata:
   name: symptom-checker-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: symptom-checker-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5440
       targetPort: 5432
 
 ---

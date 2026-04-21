@@ -49,11 +49,12 @@ kind: Service
 metadata:
   name: appointments-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: appointments-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5434
       targetPort: 5432
 
 ---

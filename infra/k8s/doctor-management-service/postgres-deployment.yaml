@@ -49,11 +49,12 @@ kind: Service
 metadata:
   name: doctors-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: doctors-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5433
       targetPort: 5432
 
 ---

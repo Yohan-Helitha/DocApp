@@ -89,11 +89,12 @@ kind: Service
 metadata:
   name: notification-postgres
 spec:
+  type: LoadBalancer
   selector:
     app: notification-postgres
   ports:
     - protocol: TCP
-      port: 5432
+      port: 5436
       targetPort: 5432
 
 ---

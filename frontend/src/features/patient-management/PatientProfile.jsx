@@ -7,6 +7,17 @@ const displayValue = (value) => {
   return value && value.toString().trim() !== '' ? value : '-';
 };
 
+const normalizeGender = (value) => {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  const lower = v.toLowerCase();
+  if (lower === 'male' || lower === 'm') return 'Male';
+  if (lower === 'female' || lower === 'f') return 'Female';
+  if (lower === 'other' || lower === 'o') return 'Other';
+  // If backend sends unexpected value, keep it empty so validation can catch it.
+  return '';
+};
+
 export default function PatientProfile({ navigate }) {
   console.log('PatientProfile VERSION: 2.0');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -165,7 +176,9 @@ export default function PatientProfile({ navigate }) {
           email: '',
           phone: '',
           dob: '',
-          gender: '',
+          // Default must match <select> option values, otherwise the UI can show
+          // a selection while React state remains ''.
+          gender: 'Male',
           bloodGroup: '',
           address: '',
           allergies: '',
@@ -180,7 +193,7 @@ export default function PatientProfile({ navigate }) {
           email: '',
           phone: '',
           dob: '',
-          gender: '',
+          gender: 'Male',
           bloodGroup: '',
           address: '',
           allergies: '',
@@ -214,7 +227,7 @@ export default function PatientProfile({ navigate }) {
         email: patient.email || '',
         phone: patient.phone || '',
         dob: patient.dob || '',
-        gender: patient.gender || '',
+        gender: normalizeGender(patient.gender) || 'Male',
         bloodGroup: patient.blood_group || '',
         address: patient.address || '',
         allergies: patient.allergies || '',
